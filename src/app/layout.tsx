@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PROTOTYPE_DESCRIPTION, PROTOTYPE_TITLE } from "@/lib/prototypeConfig";
 
 export const metadata: Metadata = {
-  title: "Databricks Designer Starter Kit",
-  description: "DuBois-themed shadcn/ui components for building Databricks UIs",
+  title: PROTOTYPE_TITLE,
+  description: PROTOTYPE_DESCRIPTION,
 };
 
 export default function RootLayout({
@@ -21,8 +22,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          enableSystem={false}
+          forcedTheme="dark"
           disableTransitionOnChange
         >
           <TooltipProvider>
