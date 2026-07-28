@@ -1,0 +1,11 @@
+{
+  "name": "figma-code-review",
+  "description": "Agent team to audit Figma <> Code Connect alignment for all DuBois components.",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "figma-match-code",
+      "path": "skills/figma-match-code/SKILL.md"
+    }
+  ]
+}

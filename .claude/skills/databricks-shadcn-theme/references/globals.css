@@ -1,0 +1,355 @@
+/**
+ * globals.css — DuBois → shadcn/ui theme (Tailwind v4)
+ *
+ * Drop this file into src/app/globals.css (Next.js App Router) to apply the
+ * Databricks DuBois design system on top of shadcn/ui's CSS variable system.
+ *
+ * This uses Tailwind v4 syntax (@import, @theme, @theme inline).
+ * For Tailwind v3 projects, see tailwind-extend.js instead.
+ *
+ * Usage:
+ *   1. Replace your project's src/app/globals.css with this file.
+ *   2. Extend with project-specific overrides below the DuBois block.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── DuBois Primitive Color Palette ────────────────────────────────────────
+ * Available as Tailwind utilities: bg-blue-600, text-grey-800, etc.
+ * Do NOT use these directly in components — use semantic CSS variables instead.
+ * ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* DuBois Blue */
+  --color-blue-400: #4ba3d6;
+  --color-blue-500: #2e86c1;
+  --color-blue-600: #2272b4;
+  --color-blue-700: #0e538b;
+  --color-blue-800: #04355d;
+
+  /* DuBois Grey (using "grey" not "gray" to avoid Tailwind conflict) */
+  --color-grey-050: #f6f7f9;
+  --color-grey-100: #e8ecf0;
+  --color-grey-200: #d1dce5;
+  --color-grey-300: #bdcdd9;
+  --color-grey-400: #8d9fad;
+  --color-grey-500: #5f7281;
+  --color-grey-600: #44535f;
+  --color-grey-700: #1f272d;
+  --color-grey-800: #11171c;
+
+  /* DuBois Red */
+  --color-red-400: #f06e87;
+  --color-red-500: #e83a5f;
+  --color-red-600: #c82d4c;
+  --color-red-700: #9e1d38;
+
+  /* DuBois Green */
+  --color-green-400: #59c47a;
+  --color-green-500: #3ca45e;
+  --color-green-600: #277c43;
+  --color-green-700: #1a5c30;
+
+  /* DuBois Yellow/Amber */
+  --color-yellow-500: #dc6222;
+  --color-yellow-600: #be501e;
+  --color-yellow-700: #8f3c14;
+
+  /* DuBois Secondary Palette (for tags/badges/categorical) */
+  --color-coral-100: #fdece9;
+  --color-coral-500: #e86247;
+  --color-coral-700: #c0411e;
+
+  --color-brown-100: #f3ece6;
+  --color-brown-500: #a0694a;
+  --color-brown-700: #7a4930;
+
+  --color-indigo-100: #ebf0fd;
+  --color-indigo-500: #5b7be8;
+  --color-indigo-700: #3557c7;
+
+  --color-lemon-100: #fdf9e6;
+  --color-lemon-500: #d4a800;
+  --color-lemon-700: #9c7c00;
+
+  --color-lime-100: #eef9e6;
+  --color-lime-500: #6cbf3c;
+  --color-lime-700: #4a8c22;
+
+  --color-pink-100: #fde8f8;
+  --color-pink-500: #d966c5;
+  --color-pink-700: #b03ea0;
+
+  --color-purple-100: #f0eafd;
+  --color-purple-500: #9b6ae8;
+  --color-purple-700: #7040c8;
+
+  --color-teal-100: #e5f7f5;
+  --color-teal-500: #2db0a0;
+  --color-teal-700: #1a8578;
+
+  --color-turquoise-100: #e5f8fb;
+  --color-turquoise-500: #22b8cf;
+  --color-turquoise-700: #138b9e;
+
+  /* DuBois Shadow Scale */
+  --shadow-db-xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.05);
+  --shadow-db-sm: 0px 2px 3px -1px rgba(0, 0, 0, 0.05),
+    0px 1px 0px 0px rgba(0, 0, 0, 0.02);
+  --shadow-db-md: 0px 3px 6px 0px rgba(0, 0, 0, 0.05);
+  --shadow-db-lg: 0px 2px 16px 0px rgba(0, 0, 0, 0.08);
+  --shadow-db-xl: 0px 8px 40px 0px rgba(0, 0, 0, 0.13);
+
+  /* DuBois Font Size Scale (rem ÷ 16px root, body is 13px) */
+  --text-hint: 0.75rem;               /* 12px — DuBois hint/helper text */
+  --text-hint--line-height: 1rem;     /* 16px */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.8125rem;   /* 13px — DuBois base */
+  --text-base: 0.8125rem; /* 13px — DuBois base */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.375rem;    /* 22px */
+  --text-2xl: 2rem;       /* 32px */
+}
+
+/* ─── Tailwind → CSS Variable Mappings ─────────────────────────────────────
+ * Maps semantic CSS variables to Tailwind color utilities.
+ * ─────────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* DuBois radius scale */
+  --radius-sm: calc(var(--radius) - 0px);   /* same as base = 4px */
+  --radius-md: calc(var(--radius) + 4px);   /* 8px for cards/modals */
+  --radius-lg: calc(var(--radius) + 8px);   /* 12px */
+  --radius-xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 16px);
+  --radius-full: 9999px;
+}
+
+/* ─── DuBois Semantic Token Values ──────────────────────────────────────────
+ * Light Mode
+ * ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Border radius — DuBois uses 4px base (tighter than shadcn's 10px default) */
+  --radius: 0.25rem; /* 4px = borderRadiusSm */
+
+  /* Core surfaces */
+  --background: #ffffff;       /* backgroundPrimary */
+  --foreground: #11171c;       /* grey800 — textPrimary */
+  --card: #ffffff;
+  --card-foreground: #11171c;
+  --popover: #ffffff;
+  --popover-foreground: #11171c;
+
+  /* Primary action — blue600 */
+  --primary: #2272b4;
+  --primary-foreground: #ffffff;
+
+  /* Secondary surface — grey050 */
+  --secondary: #f6f7f9;
+  --secondary-foreground: #11171c;
+
+  /* Muted */
+  --muted: #f6f7f9;
+  --muted-foreground: #5f7281; /* grey500 — textSecondary */
+
+  /* Accent */
+  --accent: #f6f7f9;
+  --accent-foreground: #11171c;
+
+  /* Destructive — red600 */
+  --destructive: #c82d4c;
+
+  /* Borders & inputs — grey100 */
+  --border: #e8ecf0;
+  --input: #e8ecf0;
+  --ring: #2272b4; /* blue600 focus ring */
+
+  /* Semantic additions */
+  --warning: #be501e;          /* yellow600 */
+  --success: #277c43;          /* green600 */
+
+  /* Alert / validation tinted borders and backgrounds */
+  --border-danger:  #fbd0d8;
+  --border-warning: #f8d4a5;
+  --border-success: #a3d9b6;
+  --background-danger:  #fff5f7;
+  --background-warning: #fff9eb;
+  --background-success: #f0faf4;
+
+  /* Chart colors */
+  --chart-1: #2272b4;
+  --chart-2: #277c43;
+  --chart-3: #be501e;
+  --chart-4: #c82d4c;
+  --chart-5: #9b6ae8;
+
+  /* Sidebar */
+  --sidebar: #f6f7f9;
+  --sidebar-foreground: #11171c;
+  --sidebar-primary: #2272b4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8ecf0;
+  --sidebar-accent-foreground: #11171c;
+  --sidebar-border: #e8ecf0;
+  --sidebar-ring: #2272b4;
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────────────────────── */
+.dark {
+  --background: #11171c;       /* grey800 */
+  --foreground: #e8ecf0;       /* grey100 */
+  --card: #1a2530;
+  --card-foreground: #e8ecf0;
+  --popover: #1a2530;
+  --popover-foreground: #e8ecf0;
+
+  /* Primary — blue500 (brighter for dark mode) */
+  --primary: #2e86c1;
+  --primary-foreground: #ffffff;
+
+  /* Secondary — grey700 */
+  --secondary: #1f272d;
+  --secondary-foreground: #e8ecf0;
+
+  --muted: #2a3a45;
+  --muted-foreground: #bdcdd9;  /* grey300 */
+
+  --accent: #2a3a45;
+  --accent-foreground: #e8ecf0;
+
+  /* Destructive — red500 (brighter for dark bg contrast) */
+  --destructive: #e83a5f;
+
+  --border: #2a3a45;            /* grey700 */
+  --input: #2a3a45;
+  --ring: #4ba3d6;              /* blue400 */
+
+  --warning: #dc6222;
+  --success: #3ca45e;
+
+  /* Alert / validation tinted borders and backgrounds */
+  --border-danger:  rgba(232, 58, 95, 0.3);
+  --border-warning: rgba(220, 98, 34, 0.3);
+  --border-success: rgba(60, 164, 94, 0.3);
+  --background-danger:  rgba(232, 58, 95, 0.08);
+  --background-warning: rgba(220, 98, 34, 0.08);
+  --background-success: rgba(60, 164, 94, 0.08);
+
+  --chart-1: #2e86c1;
+  --chart-2: #3ca45e;
+  --chart-3: #dc6222;
+  --chart-4: #e83a5f;
+  --chart-5: #9b6ae8;
+
+  --sidebar: #1a2530;
+  --sidebar-foreground: #e8ecf0;
+  --sidebar-primary: #2e86c1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a3a45;
+  --sidebar-accent-foreground: #e8ecf0;
+  --sidebar-border: #2a3a45;
+  --sidebar-ring: #4ba3d6;
+}
+
+/* ─── Base Styles ─────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* DuBois system font — resolves to SF Pro on macOS/iOS. In Figma: use "SF Pro", never Inter. */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+      'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+      'Noto Color Emoji';
+    /* DuBois base font size — set on body only so rem stays 16px for Tailwind sizing */
+    font-size: 13px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* DuBois typography scale */
+  h1 { font-size: 32px; line-height: 40px; font-weight: 600; }
+  h2 { font-size: 22px; line-height: 28px; font-weight: 600; }
+  h3 { font-size: 18px; line-height: 24px; font-weight: 600; }
+  h4 { font-size: 15px; line-height: 20px; font-weight: 600; }
+  h5 { font-size: 13px; line-height: 20px; font-weight: 600; }
+  h6 { font-size: 12px; line-height: 16px; font-weight: 600; }
+
+  /* DuBois bold weight = 600, never 700 */
+  b, strong { font-weight: 600; }
+}
+
+/* ─── DuBois Utility Classes ──────────────────────────────────────────────── */
+@layer utilities {
+  /* AI Gradient */
+  .bg-ai-gradient {
+    background: linear-gradient(135deg, #4299e0 20.5%, #ca42e0 46.91%, #ff5f46 79.5%);
+  }
+
+  .text-ai-gradient {
+    background: linear-gradient(135deg, #4299e0 20.5%, #ca42e0 46.91%, #ff5f46 79.5%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .border-ai {
+    border-image: linear-gradient(135deg, #4299e0 20.5%, #ca42e0 46.91%, #ff5f46 79.5%) 1;
+  }
+
+  /* DuBois table row states */
+  .row-hover:hover {
+    background-color: rgba(68, 83, 95, 0.04);
+  }
+
+  .dark .row-hover:hover {
+    background-color: rgba(189, 205, 219, 0.04);
+  }
+
+  .row-selected {
+    background-color: rgba(68, 83, 95, 0.08);
+  }
+
+  .dark .row-selected {
+    background-color: rgba(189, 205, 219, 0.08);
+  }
+}
