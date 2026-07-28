@@ -48,3 +48,4 @@ next-env.d.ts
 
 # local dev screenshots (not for repo)
 *.png
+!public/lakewatch/**/*.png
