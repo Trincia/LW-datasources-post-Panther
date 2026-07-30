@@ -2,10 +2,17 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Check, LoaderCircle, X } from "lucide-react"
+import { Check, Filter, LoaderCircle, MoreVertical, Search, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-import { SparkleIcon } from "@/components/icons"
+import {
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  SparkleIcon,
+  TableIcon,
+} from "@/components/icons"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -30,7 +37,7 @@ import {
 import { DbIcon } from "@/components/ui/db-icon"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -39,33 +46,31 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
-  "Basic info",
-  "Create IAM role",
-  "S3 prefix & schemas",
-  "Additional details",
+  "Source location",
+  "Schemas",
+  "Name, Alerts & Permissions",
 ] as const
 
-type BasicInfoField = "name" | "awsAccountId" | "bucketName" | "kmsKeyArn"
-
-const FIELD_EXAMPLES: Record<BasicInfoField, string> = {
-  name: "production-cloudtrail-s3",
-  awsAccountId: "123456789012",
-  bucketName: "acme-prod-cloudtrail-logs",
-  kmsKeyArn: "arn:aws:kms:us-west-2:123456789012:key/abcd1234-ef56-7890-ab12-cd34ef567890",
-}
-
-type BasicInfoValues = Record<BasicInfoField, string>
-
-const EMPTY_VALUES: BasicInfoValues = {
-  name: "",
-  awsAccountId: "",
-  bucketName: "",
-  kmsKeyArn: "",
-}
+type VerificationState = "idle" | "validating" | "verified"
 
 const SCHEMA_OPTIONS = [
   "AWS.ALB",
@@ -180,10 +185,175 @@ const SCHEMA_OPTIONS = [
 ] as const
 
 const DETECTED_SCHEMAS = [
-  "CarbonBlack.AlertV2",
-  "CarbonBlack.Audit",
-  "CarbonBlack.EndpointEvent",
-]
+  "AWS.VPCFlow",
+  "AWS.ALB",
+  "AWS.S3ServerAccess",
+  "AWS.CloudTrail",
+] as const
+
+type PreviewSchema = (typeof DETECTED_SCHEMAS)[number]
+
+type PreviewTableData = {
+  columns: readonly string[]
+  rows: readonly (readonly string[])[]
+}
+
+const AWS_REGIONS = [
+  { id: "us-east-1", label: "US East (N. Virginia)" },
+  { id: "us-east-2", label: "US East (Ohio)" },
+  { id: "us-west-1", label: "US West (N. California)" },
+  { id: "us-west-2", label: "US West (Oregon)" },
+  { id: "ca-central-1", label: "Canada (Central)" },
+  { id: "ca-west-1", label: "Canada West (Calgary)" },
+  { id: "mx-central-1", label: "Mexico (Central)" },
+  { id: "eu-central-1", label: "Europe (Frankfurt)" },
+  { id: "eu-central-2", label: "Europe (Zurich)" },
+  { id: "eu-west-1", label: "Europe (Ireland)" },
+  { id: "eu-west-2", label: "Europe (London)" },
+  { id: "eu-west-3", label: "Europe (Paris)" },
+  { id: "eu-north-1", label: "Europe (Stockholm)" },
+  { id: "eu-south-1", label: "Europe (Milan)" },
+  { id: "eu-south-2", label: "Europe (Spain)" },
+] as const
+
+const RAW_PREVIEW_ROWS = [
+  {
+    time: "2025-02-24T05:51:59.000Z",
+    eventId: "dce958ed-aead-4d36-be71-4cfdce6ab787e",
+    eventName: "DescribeInstanceStatus",
+  },
+  {
+    time: "2025-02-24T05:52:00.000Z",
+    eventId: "86774789-fa34-4c3f-a2d3-c76ac2dea86f",
+    eventName: "DescribeInstanceStatus",
+  },
+  {
+    time: "2025-02-24T05:51:59.000Z",
+    eventId: "f54af1b7-40f5-426a-955f-8619a14963f2",
+    eventName: "DescribeInstances",
+  },
+  {
+    time: "2025-02-24T05:51:59.000Z",
+    eventId: "f54af1b7-40f5-426a-955f-8619a14963f2",
+    eventName: "DescribeInstances",
+  },
+  {
+    time: "2025-02-24T05:52:00.000Z",
+    eventId: "86774789-fa34-4c3f-a2d3-c76ac2dea86f",
+    eventName: "DescribeInstanceStatus",
+  },
+] as const
+
+const INPUT_PREVIEW_DATA: PreviewTableData = {
+  columns: ["Time", "data"],
+  rows: [
+    ["2024-03-15T14:23:41Z", "AssumeRole sts.amazonaws.com IAMUser 203.0.113.42"],
+    ["2024-03-15T14:25:07Z", "GetObject s3.amazonaws.com AssumedRole 203.0.113.42"],
+    ["2024-03-15T14:31:19Z", "PutObject s3.amazonaws.com AssumedRole 198.51.100.17"],
+    ["2024-03-15T15:02:44Z", "CreateUser iam.amazonaws.com IAMUser 198.51.100.17"],
+    ["2024-03-15T16:18:55Z", "ListBuckets s3.amazonaws.com Root 192.0.2.88"],
+    ["2024-03-15T16:44:02Z", "DeleteObject s3.amazonaws.com AssumedRole 192.0.2.88"],
+  ],
+}
+
+const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
+  "AWS.VPCFlow": {
+    columns: [
+      "version",
+      "accountId",
+      "interfaceId",
+      "srcAddr",
+      "dstAddr",
+      "srcPort",
+      "dstPort",
+      "protocol",
+      "packets",
+      "bytes",
+      "action",
+    ],
+    rows: [
+      ["2", "123456789012", "eni-0a91f3c2", "10.0.1.24", "52.216.144.43", "49822", "443", "6", "14", "7840", "ACCEPT"],
+      ["2", "123456789012", "eni-0a91f3c2", "10.0.2.17", "10.0.1.24", "54321", "443", "6", "9", "4218", "ACCEPT"],
+      ["2", "123456789012", "eni-0c74b8e1", "198.51.100.17", "10.0.3.8", "60114", "22", "6", "3", "180", "REJECT"],
+      ["2", "123456789012", "eni-0c74b8e1", "10.0.3.8", "8.8.8.8", "39124", "53", "17", "2", "164", "ACCEPT"],
+      ["2", "123456789012", "eni-05d18a77", "10.0.4.31", "10.0.5.12", "44210", "3306", "6", "28", "16244", "ACCEPT"],
+      ["2", "123456789012", "eni-05d18a77", "203.0.113.42", "10.0.4.31", "51890", "443", "6", "18", "10392", "ACCEPT"],
+    ],
+  },
+  "AWS.ALB": {
+    columns: [
+      "time",
+      "clientIp",
+      "clientPort",
+      "targetIp",
+      "targetPort",
+      "requestMethod",
+      "requestUrl",
+      "statusCode",
+      "receivedBytes",
+      "sentBytes",
+      "userAgent",
+    ],
+    rows: [
+      ["2024-03-15T14:23:41Z", "203.0.113.42", "51820", "10.0.2.17", "8080", "GET", "/api/v1/health", "200", "0", "124", "ELB-HealthChecker/2.0"],
+      ["2024-03-15T14:25:07Z", "198.51.100.17", "60114", "10.0.2.19", "8080", "POST", "/api/v1/events", "202", "1842", "86", "aws-sdk-java/2.25"],
+      ["2024-03-15T14:31:19Z", "192.0.2.88", "44210", "10.0.3.8", "8080", "GET", "/login", "302", "0", "245", "Mozilla/5.0"],
+      ["2024-03-15T15:02:44Z", "203.0.113.81", "39124", "10.0.3.9", "8080", "GET", "/assets/app.js", "200", "0", "48392", "Mozilla/5.0"],
+      ["2024-03-15T16:18:55Z", "198.51.100.64", "54321", "10.0.2.17", "8080", "PUT", "/api/v1/users/42", "200", "712", "364", "curl/8.5.0"],
+      ["2024-03-15T16:44:02Z", "192.0.2.31", "49822", "10.0.2.19", "8080", "GET", "/api/v1/reports", "403", "0", "96", "python-requests/2.31"],
+    ],
+  },
+  "AWS.S3ServerAccess": {
+    columns: [
+      "bucketOwner",
+      "bucket",
+      "requestTime",
+      "remoteIp",
+      "requester",
+      "requestId",
+      "operation",
+      "key",
+      "httpStatus",
+      "bytesSent",
+      "userAgent",
+    ],
+    rows: [
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:23:41 +0000", "203.0.113.42", "arn:aws:iam::123456789012:role/Ingest", "3E57427F", "REST.GET.OBJECT", "cloudtrail/2024/03/15/part-001.json.gz", "200", "18422", "aws-sdk-java"],
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:25:07 +0000", "198.51.100.17", "arn:aws:iam::123456789012:role/Ingest", "8A19B40C", "REST.PUT.OBJECT", "vpcflow/2024/03/15/part-014.log.gz", "200", "0", "aws-cli/2.15"],
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:31:19 +0000", "192.0.2.88", "arn:aws:iam::123456789012:user/auditor", "12C94EF1", "REST.HEAD.OBJECT", "alb/2024/03/15/access-009.log.gz", "200", "0", "Boto3/1.34"],
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:15:02:44 +0000", "203.0.113.81", "-", "5D0FA821", "REST.GET.BUCKET", "-", "403", "243", "Mozilla/5.0"],
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:16:18:55 +0000", "198.51.100.64", "arn:aws:iam::123456789012:role/Lifecycle", "9BF2A476", "REST.DELETE.OBJECT", "tmp/export-428.csv", "204", "0", "S3Console/0.4"],
+      ["79a59df9", "security-logs-prod", "15/Mar/2024:16:44:02 +0000", "192.0.2.31", "arn:aws:iam::123456789012:role/Ingest", "F1439CD8", "REST.GET.OBJECT", "cloudtrail/2024/03/15/part-002.json.gz", "206", "8192", "aws-sdk-go-v2"],
+    ],
+  },
+  "AWS.CloudTrail": {
+    columns: [
+      "eventTime",
+      "eventName",
+      "eventSource",
+      "userIdentityType",
+      "awsRegion",
+      "sourceIPAddress",
+      "userAgent",
+      "requestID",
+      "eventID",
+      "eventType",
+      "readOnly",
+    ],
+    rows: [
+      ["2024-03-15T14:23:41Z", "AssumeRole", "sts.amazonaws.com", "IAMUser", "us-east-1", "203.0.113.42", "aws-cli/2.15", "aa21c4d8", "dce958ed", "AwsApiCall", "true"],
+      ["2024-03-15T14:25:07Z", "GetObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "203.0.113.42", "Boto3/1.34", "bb32d5e9", "86774789", "AwsApiCall", "true"],
+      ["2024-03-15T14:31:19Z", "PutObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "198.51.100.17", "aws-sdk-java/2.25", "cc43e6fa", "f54af1b7", "AwsApiCall", "false"],
+      ["2024-03-15T15:02:44Z", "CreateUser", "iam.amazonaws.com", "IAMUser", "us-east-1", "198.51.100.17", "console.amazonaws.com", "dd54f70b", "1b2d48e0", "AwsApiCall", "false"],
+      ["2024-03-15T16:18:55Z", "ListBuckets", "s3.amazonaws.com", "Root", "us-east-1", "192.0.2.88", "Mozilla/5.0", "ee65081c", "82ce5b19", "AwsApiCall", "true"],
+      ["2024-03-15T16:44:02Z", "DeleteObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "192.0.2.88", "aws-sdk-go-v2", "ff76192d", "93df6c2a", "AwsApiCall", "false"],
+    ],
+  },
+}
+
+function formatAwsRegion(region: (typeof AWS_REGIONS)[number]) {
+  return `${region.label} — ${region.id}`
+}
 
 function WizardStepper({ activeStep }: { activeStep: number }) {
   return (
@@ -230,40 +400,6 @@ function WizardStepper({ activeStep }: { activeStep: number }) {
   )
 }
 
-function WizardField({
-  id,
-  label,
-  required,
-  value,
-  onChange,
-  onSelectField,
-}: {
-  id: string
-  label: string
-  required?: boolean
-  value: string
-  onChange: (value: string) => void
-  onSelectField: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>
-        {label}
-        {required ? " *" : null}
-      </Label>
-      <Input
-        id={id}
-        name={id}
-        value={value}
-        required={required}
-        onChange={(event) => onChange(event.target.value)}
-        onFocus={onSelectField}
-        onClick={onSelectField}
-      />
-    </div>
-  )
-}
-
 function StepPanelHeader({
   step,
   title,
@@ -274,7 +410,7 @@ function StepPanelHeader({
   description: string
 }) {
   return (
-    <div className="flex min-h-24 flex-col justify-center gap-1 border-b border-border bg-muted px-6 py-4">
+    <div className="flex min-h-24 flex-col justify-center gap-1 border-b border-input bg-muted px-6 py-4">
       <p className="text-sm font-semibold text-foreground">STEP {step}</p>
       <h2 className="text-lg font-semibold leading-6 text-foreground">{title}</h2>
       <p className="text-sm text-muted-foreground">{description}</p>
@@ -282,31 +418,494 @@ function StepPanelHeader({
   )
 }
 
-function IamSetupOption({
-  id,
-  title,
-  description,
-  checked,
-  onCheckedChange,
+function VerificationIndicator({
+  state,
+  label,
 }: {
-  id: string
-  title: string
-  description: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
+  state: VerificationState
+  label: string
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(next) => onCheckedChange(next === true)}
-        className="mt-0.5"
-      />
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={id}>{title}</Label>
-        <p className="max-w-[460px] text-sm leading-5 text-foreground">{description}</p>
+    <span className="flex size-6 shrink-0 items-center justify-center" aria-live="polite">
+      {state === "validating" ? (
+        <LoaderCircle
+          className="h-4 w-4 animate-spin text-muted-foreground"
+          aria-label={`Verifying ${label}`}
+        />
+      ) : state === "verified" ? (
+        <CheckCircleIcon
+          className="h-4 w-4 text-[var(--success)]"
+          ariaLabel={`${label} verified`}
+        />
+      ) : null}
+    </span>
+  )
+}
+
+function RawDataPreview({ region }: { region: string }) {
+  return (
+    <div className="h-[235px] overflow-hidden">
+      <div className="flex h-6 items-center border-b border-input px-2">
+        <span className="text-sm font-semibold leading-5 text-foreground">data</span>
       </div>
+      <div className="overflow-hidden">
+        {RAW_PREVIEW_ROWS.map((row, index) => {
+          const rawData = JSON.stringify({
+            time: row.time,
+            data: {
+              awsRegion: region,
+              eventCategory: "Management",
+              eventID: row.eventId,
+              eventName: row.eventName,
+              eventSource: "ec2.amazonaws.com",
+            },
+          })
+
+          return (
+            <div
+              key={`${row.eventId}-${index}`}
+              className="flex h-10 min-w-0 items-center border-b border-input"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Expand preview row ${index + 1}`}
+                className="shrink-0"
+              >
+                <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
+              </Button>
+              <span className="min-w-0 flex-1 truncate pr-2 text-sm leading-5 text-foreground">
+                {rawData}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PreviewDataTable({
+  data,
+  className,
+  selectedRowIndex,
+  onRowSelect,
+}: {
+  data: PreviewTableData
+  className: string
+  selectedRowIndex?: number | null
+  onRowSelect?: (rowIndex: number) => void
+}) {
+  return (
+    <div className="h-[175px] overflow-hidden">
+      <Table className={cn("table-fixed", className)}>
+        <TableHeader>
+          <TableRow className="h-6 hover:bg-transparent">
+            <TableHead className="h-6 w-8 border-r border-input px-2 py-0 text-hint leading-4" />
+            {data.columns.map((column) => (
+              <TableHead
+                key={column}
+                className="h-6 min-w-[150px] border-r border-input px-2 py-0 text-hint leading-4"
+              >
+                {column}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.rows.map((row, rowIndex) => (
+            <TableRow
+              key={rowIndex}
+              data-state={selectedRowIndex === rowIndex ? "selected" : undefined}
+              aria-selected={selectedRowIndex === rowIndex}
+              tabIndex={onRowSelect ? 0 : undefined}
+              className={cn(
+                "h-6",
+                onRowSelect &&
+                  "cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none"
+              )}
+              onClick={onRowSelect ? () => onRowSelect(rowIndex) : undefined}
+              onKeyDown={
+                onRowSelect
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        onRowSelect(rowIndex)
+                      }
+                    }
+                  : undefined
+              }
+            >
+              <TableCell className="h-6 w-8 border-r border-input px-2 py-0 text-hint leading-4 text-muted-foreground">
+                {rowIndex + 1}
+              </TableCell>
+              {row.map((value, cellIndex) => (
+                <TableCell
+                  key={`${rowIndex}-${data.columns[cellIndex]}`}
+                  className="h-6 max-w-[220px] truncate border-r border-input px-2 py-0 text-hint leading-4"
+                  title={value}
+                >
+                  {value}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function PreviewPanelActions() {
+  return (
+    <div className="ml-auto flex shrink-0 items-center">
+      <Button variant="ghost" size="icon-xs" aria-label="Search preview">
+        <Search className="h-4 w-4 text-muted-foreground" />
+      </Button>
+      <Button variant="ghost" size="icon-xs" aria-label="Filter preview">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+      </Button>
+      <Button variant="ghost" size="icon-xs" aria-label="Preview options">
+        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+      </Button>
+    </div>
+  )
+}
+
+function SchemaRowDrawer({
+  schema,
+  data,
+  rowIndex,
+  onRowChange,
+  onClose,
+}: {
+  schema: PreviewSchema
+  data: PreviewTableData
+  rowIndex: number | null
+  onRowChange: (rowIndex: number) => void
+  onClose: () => void
+}) {
+  const [showSystemFields, setShowSystemFields] = React.useState(true)
+  const open = rowIndex !== null
+  const resolvedRowIndex = rowIndex ?? 0
+  const row = data.rows[resolvedRowIndex] ?? data.rows[0]
+  const schemaFields = data.columns.map((field, index) => ({
+    field,
+    value: row?.[index] ?? "—",
+  }))
+  const timeField = schemaFields.find(({ field }) =>
+    ["eventTime", "time", "requestTime", "start"].includes(field)
+  )
+  const systemFields = [
+    { field: "_event_time", value: timeField?.value ?? "2024-03-15T14:23:41Z" },
+    { field: "_log_type", value: schema },
+    { field: "_parse_time", value: "2024-03-15T14:23:42.184Z" },
+    { field: "_row_id", value: `lw_${schema.replaceAll(".", "_").toLowerCase()}_${resolvedRowIndex + 1}` },
+    { field: "_source_label", value: "lakewatch-account-us-east-1" },
+  ]
+  const visibleFields = showSystemFields ? [...systemFields, ...schemaFields] : schemaFields
+
+  const copyRowJson = () => {
+    const json = Object.fromEntries(visibleFields.map(({ field, value }) => [field, value]))
+    void navigator.clipboard.writeText(JSON.stringify(json, null, 2))
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose()
+      }}
+    >
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="w-[336px] gap-0 border-input p-0 sm:max-w-[336px]"
+      >
+        <SheetHeader className="flex h-12 shrink-0 flex-row items-center justify-end gap-1 border-b border-input px-3 py-2">
+          <SheetTitle className="mr-1 text-sm">
+            {resolvedRowIndex + 1} of {data.rows.length}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Field values for row {resolvedRowIndex + 1} of {schema}
+          </SheetDescription>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Show previous row"
+            disabled={resolvedRowIndex === 0}
+            onClick={() => onRowChange(resolvedRowIndex - 1)}
+          >
+            <ChevronLeftIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Show next row"
+            disabled={resolvedRowIndex === data.rows.length - 1}
+            onClick={() => onRowChange(resolvedRowIndex + 1)}
+          >
+            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Close row details" onClick={onClose}>
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </SheetHeader>
+
+        <div className="shrink-0 border-b border-input px-4 py-4">
+          <dl className="flex flex-col gap-3">
+            <div>
+              <dt className="text-hint font-semibold uppercase text-muted-foreground">Time</dt>
+              <dd className="text-sm text-foreground">
+                {timeField?.value ?? "2024-03-15T14:23:41Z"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-hint font-semibold uppercase text-muted-foreground">
+                Description
+              </dt>
+              <dd className="text-sm text-foreground">{schema} parsed event</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-input px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="show-system-fields" className="font-normal">
+              Show system fields
+            </Label>
+            <Switch
+              id="show-system-fields"
+              size="sm"
+              checked={showSystemFields}
+              onCheckedChange={setShowSystemFields}
+            />
+          </div>
+          <Button variant="default" size="xs" onClick={copyRowJson}>
+            Copy JSON
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <dl className="flex flex-col gap-2">
+            {visibleFields.map(({ field, value }) => (
+              <div key={field} className="grid grid-cols-[112px_minmax(0,1fr)] gap-2">
+                <dt className="truncate text-sm text-primary" title={field}>
+                  {field}
+                </dt>
+                <dd className="break-all text-sm text-foreground">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function SchemaSplitPreview() {
+  const [schemaIndex, setSchemaIndex] = React.useState(0)
+  const [selectedRowIndex, setSelectedRowIndex] = React.useState<number | null>(null)
+  const schema = DETECTED_SCHEMAS[schemaIndex]
+  const outputData = SCHEMA_PREVIEW_DATA[schema]
+
+  const showPreviousSchema = () => {
+    setSchemaIndex((current) => (current - 1 + DETECTED_SCHEMAS.length) % DETECTED_SCHEMAS.length)
+  }
+
+  const showNextSchema = () => {
+    setSchemaIndex((current) => (current + 1) % DETECTED_SCHEMAS.length)
+  }
+
+  return (
+    <>
+    <div className="grid h-[207px] grid-cols-[41%_59%] overflow-hidden border-y border-input">
+      <section aria-label="Input preview" className="min-w-0 border-r border-input">
+        <div className="flex h-8 min-w-0 items-center gap-1 px-2">
+          <span className="text-sm font-semibold text-foreground">Input</span>
+          <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          <TableIcon className="h-4 w-4 text-primary" />
+          <span className="text-sm text-foreground">Bronze</span>
+          <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+            10 records, 2 columns
+          </span>
+          <Button variant="default" size="xs" className="ml-2">
+            Side-by-side
+            <ChevronDownIcon className="h-4 w-4" />
+          </Button>
+          <PreviewPanelActions />
+        </div>
+        <PreviewDataTable data={INPUT_PREVIEW_DATA} className="min-w-[650px]" />
+      </section>
+
+      <section aria-label={`${schema} output preview`} className="min-w-0">
+        <div className="flex h-8 min-w-0 items-center gap-1 px-2">
+          <TableIcon className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold text-foreground">Output</span>
+          <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Show previous schema"
+            onClick={showPreviousSchema}
+          >
+            <ChevronLeftIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <span className="min-w-[118px] truncate text-sm text-primary">{schema}</span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Show next schema"
+            onClick={showNextSchema}
+          >
+            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+            10 records, {outputData.columns.length} columns
+          </span>
+          <PreviewPanelActions />
+        </div>
+        <PreviewDataTable
+          data={outputData}
+          className="min-w-[1120px]"
+          selectedRowIndex={selectedRowIndex}
+          onRowSelect={setSelectedRowIndex}
+        />
+      </section>
+    </div>
+      <SchemaRowDrawer
+        schema={schema}
+        data={outputData}
+        rowIndex={selectedRowIndex}
+        onRowChange={setSelectedRowIndex}
+        onClose={() => setSelectedRowIndex(null)}
+      />
+    </>
+  )
+}
+
+function AwsRegionTypeahead({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [menuWidth, setMenuWidth] = React.useState<number>()
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const selectedRegion = AWS_REGIONS.find((region) => region.id === value)
+  const displayValue = selectedRegion ? formatAwsRegion(selectedRegion) : value
+
+  const filteredRegions = AWS_REGIONS.filter((region) => {
+    if (!value.trim() || selectedRegion) return true
+    const haystack = formatAwsRegion(region).toLowerCase()
+    return haystack.includes(value.trim().toLowerCase())
+  })
+
+  const updateMenuWidth = () => {
+    setMenuWidth(containerRef.current?.offsetWidth)
+  }
+
+  React.useEffect(() => {
+    updateMenuWidth()
+    window.addEventListener("resize", updateMenuWidth)
+    return () => window.removeEventListener("resize", updateMenuWidth)
+  }, [])
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    return () => document.removeEventListener("mousedown", handlePointerDown)
+  }, [open])
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div className="relative w-full">
+            <Input
+              id="aws-region"
+              role="combobox"
+              aria-controls="aws-region-options"
+              aria-expanded={open}
+              aria-autocomplete="list"
+              value={displayValue}
+              placeholder="us-east-1"
+              autoComplete="off"
+              onChange={(event) => {
+                onValueChange(event.target.value)
+                setOpen(true)
+              }}
+              onFocus={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onClick={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setOpen(false)
+                }
+                if (event.key === "ArrowDown") {
+                  updateMenuWidth()
+                  setOpen(true)
+                }
+              }}
+              className="pr-9"
+            />
+            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="p-0"
+          style={menuWidth ? { width: menuWidth } : undefined}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            if (containerRef.current?.contains(event.target as Node)) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <Command shouldFilter={false}>
+            <CommandList id="aws-region-options" className="max-h-[264px]">
+              <CommandEmpty>No regions found</CommandEmpty>
+              <CommandGroup>
+                {filteredRegions.map((region) => (
+                  <CommandItem
+                    key={region.id}
+                    value={formatAwsRegion(region)}
+                    onSelect={() => {
+                      onValueChange(region.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        value === region.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span>{formatAwsRegion(region)}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
@@ -353,6 +952,7 @@ function SchemaMultiSelect({
         <div
           role="combobox"
           tabIndex={0}
+          aria-controls="schema-options"
           aria-expanded={open}
           aria-haspopup="listbox"
           className="flex h-auto min-h-8 w-full cursor-pointer items-center justify-start gap-1 rounded border border-input bg-transparent px-2 py-1 text-sm font-normal outline-none hover:border-primary hover:bg-[var(--action-default-bg-hover)] focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring"
@@ -403,7 +1003,7 @@ function SchemaMultiSelect({
               }
             }}
           />
-          <CommandList className="max-h-[264px]">
+          <CommandList id="schema-options" className="max-h-[264px]">
             <CommandEmpty>
               {query.trim() ? "Press Enter to add this schema" : "No schemas found"}
             </CommandEmpty>
@@ -433,9 +1033,17 @@ function SchemaMultiSelect({
 export function LakewatchAwsS3WizardView() {
   const router = useRouter()
   const [activeStep, setActiveStep] = React.useState(1)
-  const [values, setValues] = React.useState<BasicInfoValues>(EMPTY_VALUES)
-  const [useAwsConsole, setUseAwsConsole] = React.useState(false)
-  const [useTemplate, setUseTemplate] = React.useState(false)
+  const [sourceLocation, setSourceLocation] = React.useState("")
+  const [awsCredentials, setAwsCredentials] = React.useState("")
+  const [dataSampleLocation, setDataSampleLocation] = React.useState("")
+  const [sampleVerification, setSampleVerification] =
+    React.useState<VerificationState>("idle")
+  const [awsRegion, setAwsRegion] = React.useState("")
+  const [regionVerification, setRegionVerification] =
+    React.useState<VerificationState>("idle")
+  const [managedNotifications, setManagedNotifications] = React.useState(false)
+  const [previewExpanded, setPreviewExpanded] = React.useState(true)
+  const [previewVisible, setPreviewVisible] = React.useState(true)
   const [s3Prefix, setS3Prefix] = React.useState("")
   const [selectedSchemas, setSelectedSchemas] = React.useState<string[]>([])
   const [schemaQuery, setSchemaQuery] = React.useState("")
@@ -449,24 +1057,55 @@ export function LakewatchAwsS3WizardView() {
   const [datasourceName, setDatasourceName] = React.useState("lakewatch-account-us-west-2")
   const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
   const detectionTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sampleVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const canContinue = Object.values(values).every((value) => value.trim().length > 0)
-  const canContinueFromIam = useAwsConsole || useTemplate
   const detectSchemasDisabled =
     detectingSchemas || selectedSchemas.length > 0 || schemaQuery.trim().length > 0
+  const previewReady = sampleVerification === "verified"
+  const previewLoading = Boolean(dataSampleLocation.trim()) && !previewReady
+  const schemasReady = DETECTED_SCHEMAS.every((schema) => selectedSchemas.includes(schema))
+  const showSplitPreview = activeStep === 2 && schemasReady
 
   React.useEffect(
     () => () => {
       if (detectionTimer.current) clearTimeout(detectionTimer.current)
+      if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
+      if (regionVerificationTimer.current) clearTimeout(regionVerificationTimer.current)
     },
     []
   )
 
-  const fillExample = (field: BasicInfoField) => {
-    setValues((current) => {
-      if (current[field].trim().length > 0) return current
-      return { ...current, [field]: FIELD_EXAMPLES[field] }
-    })
+  const validateSampleLocation = (value: string) => {
+    setDataSampleLocation(value)
+    if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
+
+    if (!value.trim()) {
+      setSampleVerification("idle")
+      return
+    }
+
+    setSampleVerification("validating")
+    sampleVerificationTimer.current = setTimeout(() => {
+      setSampleVerification("verified")
+      sampleVerificationTimer.current = null
+    }, 1100)
+  }
+
+  const validateRegion = (value: string) => {
+    setAwsRegion(value)
+    if (regionVerificationTimer.current) clearTimeout(regionVerificationTimer.current)
+
+    if (!value.trim()) {
+      setRegionVerification("idle")
+      return
+    }
+
+    setRegionVerification("validating")
+    regionVerificationTimer.current = setTimeout(() => {
+      setRegionVerification("verified")
+      regionVerificationTimer.current = null
+    }, 1100)
   }
 
   const detectSchemas = () => {
@@ -474,7 +1113,7 @@ export function LakewatchAwsS3WizardView() {
     setSchemaOpen(false)
     setDetectingSchemas(true)
     detectionTimer.current = setTimeout(() => {
-      setSelectedSchemas(DETECTED_SCHEMAS)
+      setSelectedSchemas([...DETECTED_SCHEMAS])
       setSchemaQuery("")
       setDetectingSchemas(false)
       detectionTimer.current = null
@@ -482,7 +1121,7 @@ export function LakewatchAwsS3WizardView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 lg:overflow-hidden">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
@@ -503,67 +1142,136 @@ export function LakewatchAwsS3WizardView() {
         <LakewatchWarehouseSelector />
       </div>
 
-      <div className="mx-auto mt-6 grid w-full max-w-[1168px] grid-cols-1 items-start gap-8 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40">
+      <div className="mx-auto mt-6 grid w-full max-w-[1168px] grid-cols-1 items-start gap-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40">
         <WizardStepper activeStep={activeStep} />
 
         {activeStep === 1 ? (
           <form
-            className="w-full overflow-hidden rounded-md border border-border lg:mt-16"
+            className="flex w-full flex-col overflow-hidden rounded-md border border-input lg:h-full lg:min-h-0"
             onSubmit={(event) => {
               event.preventDefault()
-              if (canContinue) setActiveStep(2)
+              setActiveStep(2)
             }}
           >
             <StepPanelHeader
               step={1}
-              title="Configure your source"
-              description="We need to know where to get your logs from"
+              title="Source location"
+              description="Configure the S3 location and credentials Lakewatch should use to access your data"
             />
 
-            <div className="flex flex-col gap-4 px-8 py-6">
-              <WizardField
-                id="datasource-name"
-                label="Name"
-                required
-                value={values.name}
-                onChange={(name) => setValues((current) => ({ ...current, name }))}
-                onSelectField={() => fillExample("name")}
-              />
-              <WizardField
-                id="aws-account-id"
-                label="AWS account ID"
-                required
-                value={values.awsAccountId}
-                onChange={(awsAccountId) =>
-                  setValues((current) => ({ ...current, awsAccountId }))
-                }
-                onSelectField={() => fillExample("awsAccountId")}
-              />
-              <WizardField
-                id="bucket-name"
-                label="Bucket name"
-                required
-                value={values.bucketName}
-                onChange={(bucketName) =>
-                  setValues((current) => ({ ...current, bucketName }))
-                }
-                onSelectField={() => fillExample("bucketName")}
-              />
-              <WizardField
-                id="kms-key-arn"
-                label="KMS key ARN (optional)"
-                value={values.kmsKeyArn}
-                onChange={(kmsKeyArn) =>
-                  setValues((current) => ({ ...current, kmsKeyArn }))
-                }
-                onSelectField={() => fillExample("kmsKeyArn")}
-              />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+              <div className="flex flex-col gap-2">
+                <Label>S3 source location *</Label>
+                <p className="text-hint text-muted-foreground">
+                  The S3 path to ingest data from (e.g. s3://my-bucket/logs/).
+                </p>
+                <Select value={sourceLocation} onValueChange={setSourceLocation}>
+                  <SelectTrigger className="w-full" aria-label="S3 source location">
+                    <SelectValue placeholder="Select an S3 location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="s3://lakewatch-security-logs/">
+                      s3://lakewatch-security-logs/
+                    </SelectItem>
+                    <SelectItem value="s3://production-cloudtrail/AWSLogs/">
+                      s3://production-cloudtrail/AWSLogs/
+                    </SelectItem>
+                    <SelectItem value="s3://security-data/vpc-flow/">
+                      s3://security-data/vpc-flow/
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <div className="mt-4 flex items-center justify-between">
+              <div className="flex flex-col gap-2">
+                <Label>AWS credentials</Label>
+                <p className="text-hint text-muted-foreground">
+                  Optionally select an existing secret scope, or add new credentials, to access a
+                  location that requires AWS credentials.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Select value={awsCredentials} onValueChange={setAwsCredentials}>
+                    <SelectTrigger className="min-w-0 flex-1" aria-label="AWS credentials">
+                      <SelectValue placeholder="Select credentials" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lakewatch-production">
+                        lakewatch-production
+                      </SelectItem>
+                      <SelectItem value="security-ingestion">security-ingestion</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="default" size="sm">
+                    Add new
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="data-sample-location">Data sample location (optional)</Label>
+                <p className="text-hint text-muted-foreground">
+                  An optional S3 path to a smaller sample of the data used to generate the preview
+                  instead of the full source location.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="data-sample-location"
+                    value={dataSampleLocation}
+                    onChange={(event) => validateSampleLocation(event.target.value)}
+                    onFocus={() => {
+                      if (!dataSampleLocation) {
+                        validateSampleLocation("s3://production-cloudtrail/AWSLogs/sample/")
+                      }
+                    }}
+                    onClick={() => {
+                      if (!dataSampleLocation) {
+                        validateSampleLocation("s3://production-cloudtrail/AWSLogs/sample/")
+                      }
+                    }}
+                    placeholder="s3://my-bucket/sample/"
+                  />
+                  <VerificationIndicator state={sampleVerification} label="Data sample location" />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="aws-region">AWS region</Label>
+                <p className="text-hint text-muted-foreground">
+                  The AWS region of the S3 bucket (e.g. us-east-1).
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <AwsRegionTypeahead value={awsRegion} onValueChange={validateRegion} />
+                  </div>
+                  <VerificationIndicator state={regionVerification} label="AWS region" />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div>
+                  <Label htmlFor="managed-file-notifications">
+                    Use managed file notifications
+                  </Label>
+                  <p className="text-hint text-muted-foreground">
+                    When enabled, uses managed file events configured on the external location for
+                    file notification instead of directory listing.
+                  </p>
+                </div>
+                <Switch
+                  id="managed-file-notifications"
+                  size="sm"
+                  checked={managedNotifications}
+                  onCheckedChange={setManagedNotifications}
+                />
+              </div>
+              </div>
+
+              <div className="flex shrink-0 items-center justify-between px-8 py-6">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/lakewatch/datasources/new">Cancel</Link>
                 </Button>
-                <Button type="submit" variant="primary" size="sm" disabled={!canContinue}>
+                <Button type="submit" variant="primary" size="sm">
                   Continue
                 </Button>
               </div>
@@ -571,71 +1279,15 @@ export function LakewatchAwsS3WizardView() {
           </form>
         ) : activeStep === 2 ? (
           <form
-            className="w-full overflow-hidden rounded-md border border-border lg:mt-16"
+            className="w-full overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
-              if (canContinueFromIam) setActiveStep(3)
+              setActiveStep(3)
             }}
           >
             <StepPanelHeader
               step={2}
-              title="IAM role setup"
-              description="Select how you want to set up your IAM role and grant Lakewatch read access to your logs"
-            />
-
-            <div className="flex min-h-[348px] flex-col px-8 py-6">
-              <div className="flex flex-col gap-6">
-                <IamSetupOption
-                  id="use-aws-console"
-                  title="Using the AWS console UI"
-                  description="Launch a CloudFormation stack using the AWS console, reading the instructions from our docs"
-                  checked={useAwsConsole}
-                  onCheckedChange={setUseAwsConsole}
-                />
-                <IamSetupOption
-                  id="use-infrastructure-template"
-                  title="CloudFormation or Terraform file"
-                  description="Download an infrastructure-as-code template file to deploy in your environment"
-                  checked={useTemplate}
-                  onCheckedChange={setUseTemplate}
-                />
-              </div>
-
-              <Button variant="link" size="sm" className="mt-5 self-start px-0 font-normal">
-                I want to set up everything on my own
-              </Button>
-
-              <div className="mt-auto flex items-center justify-between pt-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveStep(1)}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={!canContinueFromIam}
-                >
-                  Continue
-                </Button>
-              </div>
-            </div>
-          </form>
-        ) : activeStep === 3 ? (
-          <form
-            className="w-full overflow-hidden rounded-md border border-border lg:mt-16"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setActiveStep(4)
-            }}
-          >
-            <StepPanelHeader
-              step={3}
-              title="S3 prefix & schemas"
+              title="Schemas"
               description="Specify the S3 prefix and schemas Lakewatch should use to classify your logs"
             />
 
@@ -669,12 +1321,13 @@ export function LakewatchAwsS3WizardView() {
                 />
               </div>
 
-              <div className="mt-4 flex items-end gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <Label>Schemas (optional)</Label>
-                  <p className="text-hint text-muted-foreground">
-                    Select schemas Lakewatch should use to parse S3 objects matching the S3 prefix.
-                  </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <Label>Schemas (optional)</Label>
+                <p className="text-hint text-muted-foreground">
+                  Select schemas Lakewatch should use to parse S3 objects matching the S3 prefix.
+                </p>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
                   {detectingSchemas ? (
                     <Skeleton className="h-8 w-full rounded" />
                   ) : (
@@ -687,21 +1340,22 @@ export function LakewatchAwsS3WizardView() {
                       onQueryChange={setSchemaQuery}
                     />
                   )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    disabled={detectSchemasDisabled}
+                    onClick={detectSchemas}
+                  >
+                    {detectingSchemas ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <DbIcon icon={SparkleIcon} color="ai" size={16} />
+                    )}
+                    Detect schemas
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  disabled={detectSchemasDisabled}
-                  onClick={detectSchemas}
-                >
-                  {detectingSchemas ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DbIcon icon={SparkleIcon} color="ai" size={16} />
-                  )}
-                  Detect schemas
-                </Button>
               </div>
 
               <div className="mt-auto flex items-center justify-between pt-6">
@@ -709,7 +1363,7 @@ export function LakewatchAwsS3WizardView() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setActiveStep(2)}
+                  onClick={() => setActiveStep(1)}
                 >
                   Back
                 </Button>
@@ -721,7 +1375,7 @@ export function LakewatchAwsS3WizardView() {
           </form>
         ) : (
           <form
-            className="w-full overflow-hidden rounded-md border border-border lg:mt-16"
+            className="w-full overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
               router.push(
@@ -732,8 +1386,8 @@ export function LakewatchAwsS3WizardView() {
             }}
           >
             <StepPanelHeader
-              step={4}
-              title="Everything looks good!"
+              step={3}
+              title="Name, Alerts & Permissions"
               description="Your configured stack was deployed successfully and Lakewatch now has permissions to pull data."
             />
 
@@ -850,7 +1504,7 @@ export function LakewatchAwsS3WizardView() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setActiveStep(3)}
+                  onClick={() => setActiveStep(2)}
                 >
                   Back
                 </Button>
@@ -862,6 +1516,67 @@ export function LakewatchAwsS3WizardView() {
           </form>
         )}
       </div>
+
+      {previewVisible && (activeStep === 1 || (activeStep === 2 && previewReady)) ? (
+        <section
+          aria-label="Data preview"
+          className="-mx-5 -mb-5 mt-4 shrink-0 bg-secondary"
+        >
+          {showSplitPreview ? (
+            <SchemaSplitPreview />
+          ) : (
+            <>
+          <div className="flex h-8 items-center justify-between border-y border-input px-2">
+            <h2 className="text-sm font-semibold leading-5 text-foreground">
+              {previewReady ? "aws_sec_lake_raw" : "Data preview"}
+            </h2>
+            <div className="flex items-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={previewExpanded ? "Collapse data preview" : "Expand data preview"}
+                onClick={() => setPreviewExpanded((current) => !current)}
+              >
+                <ChevronDownIcon
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    !previewExpanded && "-rotate-90"
+                  )}
+                />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Close data preview"
+                onClick={() => setPreviewVisible(false)}
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          </div>
+          {previewExpanded ? (
+            previewReady ? (
+              <RawDataPreview region={awsRegion || "ap-northeast-1"} />
+            ) : previewLoading ? (
+              <div className="flex h-[94px] flex-col items-center justify-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                <p className="text-sm leading-5 text-foreground">Loading data preview</p>
+              </div>
+            ) : (
+              <div className="flex h-[94px] flex-col items-center justify-center gap-1">
+                <TableIcon className="h-9 w-9 text-muted-foreground" />
+                <p className="text-sm leading-5 text-foreground">
+                  Configure a table to see a preview
+                </p>
+              </div>
+            )
+          ) : null}
+            </>
+          )}
+        </section>
+      ) : null}
     </div>
   )
 }

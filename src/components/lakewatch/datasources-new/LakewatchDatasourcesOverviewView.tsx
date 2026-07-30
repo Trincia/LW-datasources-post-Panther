@@ -5,10 +5,12 @@ import Link from "next/link"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  FileDocumentIcon,
+  CheckCircleIcon,
+  LoadingIcon,
   PlusIcon,
   SearchIcon,
-  TableIcon,
+  SunIcon,
+  XCircleIcon,
 } from "@/components/icons"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { Badge } from "@/components/ui/badge"
@@ -25,126 +27,92 @@ import {
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { cn } from "@/lib/utils"
 
-type DatasourceStatus = "Healthy" | "Unhealthy"
-
 type DatasourceLogo =
-  | "document"
-  | "aws"
-  | "table"
+  | "fluentbit"
   | "cloudtrail"
   | "slack"
   | "1password"
-  | "crowdstrike"
-  | "microsoft365"
+  | "okta"
 
 type DatasourceRow = {
   id: string
   name: string
-  status: DatasourceStatus
   logTypes: string[]
   created: string
   lastReceived: string
-  lastProcessed: string
-  lastIngested: string
   logo: DatasourceLogo
+  runHistory: Array<"success" | "failed" | "running">
+  events7d: string
+  events24h: string
+  dlq: string
 }
 
 const BRAND_LOGOS: Partial<Record<DatasourceLogo, string>> = {
   cloudtrail: "/lakewatch/ingest-v2-logos/cloudtrail.png",
   slack: "/lakewatch/ingest-v2-logos/slack.svg",
   "1password": "/lakewatch/ingest-v2-logos/1password.svg",
-  crowdstrike: "/lakewatch/ingest-v2-logos/crowdstrike.svg",
-  microsoft365: "/lakewatch/ingest-v2-logos/microsoft-365.svg",
 }
 
 const DATASOURCES: DatasourceRow[] = [
   {
     id: "fluentbit",
     name: "fluentbit webhook",
-    status: "Healthy",
     logTypes: ["Custom.Fluentbit.Test"],
     created: "2025-01-13 15:31 UTC",
     lastReceived: "2 years ago",
-    lastProcessed: "19 minutes ago",
-    lastIngested: "a few seconds ago",
-    logo: "document",
-  },
-  {
-    id: "cloudtrail-vpc",
-    name: "AWS CloudTrail VPC flow logs",
-    status: "Healthy",
-    logTypes: ["AWS.VPC.Flow"],
-    created: "2025-08-02 21:35 UTC",
-    lastReceived: "3 days ago",
-    lastProcessed: "7 hours ago",
-    lastIngested: "3 days ago",
-    logo: "cloudtrail",
-  },
-  {
-    id: "okta",
-    name: "okta",
-    status: "Healthy",
-    logTypes: ["Databricks.Okta.Raw"],
-    created: "2025-09-29 12:00 UTC",
-    lastReceived: "6 months ago",
-    lastProcessed: "5 months ago",
-    lastIngested: "2 months ago",
-    logo: "table",
-  },
-  {
-    id: "aws-service",
-    name: "AWS Service logs",
-    status: "Unhealthy",
-    logTypes: ["Custom.NetworkFirewall"],
-    created: "2025-12-08 10:29 UTC",
-    lastReceived: "2 months ago",
-    lastProcessed: "an hour ago",
-    lastIngested: "2 months ago",
-    logo: "aws",
+    logo: "fluentbit",
+    runHistory: ["success", "success", "success", "success", "running"],
+    events7d: "12.5K/7d",
+    events24h: "2K/24hr",
+    dlq: "3 events",
   },
   {
     id: "slack",
     name: "Slack",
-    status: "Healthy",
     logTypes: ["Slack.AuditLogs"],
-    created: "2026-01-14 09:12 UTC",
-    lastReceived: "12 minutes ago",
-    lastProcessed: "8 minutes ago",
-    lastIngested: "a few seconds ago",
+    created: "2025-08-02 21:35 UTC",
+    lastReceived: "19 minutes ago",
     logo: "slack",
+    runHistory: ["success", "success", "success", "success", "running"],
+    events7d: "12.5K/7d",
+    events24h: "2K/24hr",
+    dlq: "12 events",
+  },
+  {
+    id: "cloudtrail-vpc",
+    name: "AWS-Cloudtrail",
+    logTypes: ["AWS.VPC.Flow"],
+    created: "2025-12-08 10:29 UTC",
+    lastReceived: "A few seconds ago",
+    logo: "cloudtrail",
+    runHistory: ["success", "success", "success", "failed", "failed"],
+    events7d: "12.5K/7d",
+    events24h: "2K/24hr",
+    dlq: "121 events",
+  },
+  {
+    id: "okta",
+    name: "Okta",
+    logTypes: ["Databricks.Okta.Raw"],
+    created: "2025-12-08 10:29 UTC",
+    lastReceived: "2 minutes ago",
+    logo: "okta",
+    runHistory: ["success", "success", "success", "success", "running"],
+    events7d: "12.5K/7d",
+    events24h: "2K/24hr",
+    dlq: "9 events",
   },
   {
     id: "1password",
     name: "1Password",
-    status: "Healthy",
     logTypes: ["OnePassword.ItemUsage"],
-    created: "2026-02-03 16:44 UTC",
-    lastReceived: "1 hour ago",
-    lastProcessed: "45 minutes ago",
-    lastIngested: "20 minutes ago",
-    logo: "1password",
-  },
-  {
-    id: "crowdstrike",
-    name: "Crowdstrike Event streams",
-    status: "Healthy",
-    logTypes: ["Crowdstrike.DetectionSummary"],
-    created: "2026-03-11 11:05 UTC",
-    lastReceived: "4 minutes ago",
-    lastProcessed: "2 minutes ago",
-    lastIngested: "a few seconds ago",
-    logo: "crowdstrike",
-  },
-  {
-    id: "microsoft-365",
-    name: "Microsoft 365",
-    status: "Healthy",
-    logTypes: ["Microsoft365.Audit.Exchange"],
     created: "2026-04-22 18:30 UTC",
-    lastReceived: "25 minutes ago",
-    lastProcessed: "18 minutes ago",
-    lastIngested: "5 minutes ago",
-    logo: "microsoft365",
+    lastReceived: "2 hours ago",
+    logo: "1password",
+    runHistory: ["success", "success", "success", "success", "running"],
+    events7d: "12.5K/7d",
+    events24h: "2K/24hr",
+    dlq: "15 events",
   },
 ]
 
@@ -160,7 +128,7 @@ function MetricCard({
   trend?: "up" | "down"
 }) {
   return (
-    <div className="min-w-[200px] flex-1 rounded bg-muted-foreground/20 p-3.5">
+    <div className="min-w-0 rounded bg-muted-foreground/20 p-3">
       <p className="text-sm text-foreground">{label}</p>
       <div className="mt-1 flex items-center gap-1.5">
         <span className={cn("text-[22px] font-semibold leading-7", valueClassName)}>{value}</span>
@@ -199,41 +167,60 @@ function SourceLogo({ kind }: { kind: DatasourceLogo }) {
       <img
         src={brandSrc}
         alt=""
-        className="size-4 shrink-0 rounded object-contain"
+        className="size-8 shrink-0 rounded object-contain"
         aria-hidden
       />
     )
   }
-  if (kind === "aws") {
+  if (kind === "fluentbit") {
     return (
       <div
-        className="flex size-4 shrink-0 items-center justify-center rounded bg-[#232F3E] text-[8px] font-semibold text-[#FF9900]"
+        className="size-8 shrink-0 rounded bg-muted-foreground/20"
         aria-hidden
-      >
-        aws
-      </div>
+      />
     )
   }
-  if (kind === "table") {
-    return <TableIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
-  }
-  return <FileDocumentIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+  return <SunIcon size={32} className="shrink-0 text-foreground" aria-hidden />
 }
 
-function StatusText({ status }: { status: DatasourceStatus }) {
+function RunHistory({ history }: { history: DatasourceRow["runHistory"] }) {
   return (
-    <span
-      className={cn(
-        "text-sm",
-        status === "Healthy" ? "text-[var(--success)]" : "text-destructive"
-      )}
-    >
-      {status}
-    </span>
+    <div className="flex items-center gap-0.5" aria-label="Recent run history">
+      {history.map((status, index) => {
+        if (status === "failed") {
+          return (
+            <XCircleIcon
+              key={index}
+              size={16}
+              className="text-destructive"
+              ariaLabel="Failed run"
+            />
+          )
+        }
+        if (status === "running") {
+          return (
+            <LoadingIcon
+              key={index}
+              size={16}
+              className="animate-spin text-[var(--success)]"
+              ariaLabel="Running"
+            />
+          )
+        }
+        return (
+          <CheckCircleIcon
+            key={index}
+            size={16}
+            className="text-[var(--success)]"
+            ariaLabel="Successful run"
+          />
+        )
+      })}
+    </div>
   )
 }
 
-/** Figma 2496:115823 — Datasources list (dark) */
+/** Figma 2492:126283 — Datasources list. */
 export function LakewatchDatasourcesOverviewView() {
   const [filter, setFilter] = React.useState("")
 
@@ -246,21 +233,23 @@ export function LakewatchDatasourcesOverviewView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-start justify-between gap-4">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Datasources</h1>
-        <div className="flex shrink-0 items-center gap-2.5">
-          <div className="relative w-[216px]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Datasources</h1>
+          <div className="relative w-[240px]">
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter datasources"
-              className="pr-9"
+              className="pl-9"
               aria-label="Filter datasources"
             />
             <SearchIcon
               size={16}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
           </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2.5">
           <LakewatchWarehouseSelector />
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/datasources/new">
@@ -271,7 +260,7 @@ export function LakewatchDatasourcesOverviewView() {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-4">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-[160px_140px_198px_205px_minmax(280px,1fr)]">
         <MetricCard
           label="Total datasources"
           value={String(DATASOURCES.length)}
@@ -286,30 +275,32 @@ export function LakewatchDatasourcesOverviewView() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-md border border-border">
-        <Table>
+      <div className="mt-8 overflow-x-auto">
+        <Table className="min-w-[1180px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Source name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Log types</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last data received</TableHead>
-              <TableHead>Last data processed</TableHead>
-              <TableHead>Last data processed</TableHead>
+              <TableHead className="w-[22%]">Source name</TableHead>
+              <TableHead className="w-[16%]">Log types</TableHead>
+              <TableHead className="w-[14%]">Created</TableHead>
+              <TableHead className="w-[13%]">Last data received</TableHead>
+              <TableHead className="w-[13%]">Run history</TableHead>
+              <TableHead className="w-[14%]">Events</TableHead>
+              <TableHead className="w-[8%]">DLQ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.id} className="h-[60px]">
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <SourceLogo kind={row.logo} />
-                    <span className="text-sm text-foreground">{row.name}</span>
+                    <Link
+                      href={`/lakewatch/datasources/${encodeURIComponent(row.id)}`}
+                      className="truncate text-sm font-semibold text-foreground hover:text-primary"
+                    >
+                      {row.name}
+                    </Link>
                   </div>
-                </TableCell>
-                <TableCell>
-                  <StatusText status={row.status} />
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -322,8 +313,22 @@ export function LakewatchDatasourcesOverviewView() {
                 </TableCell>
                 <TableCell className="text-foreground">{row.created}</TableCell>
                 <TableCell className="text-foreground">{row.lastReceived}</TableCell>
-                <TableCell className="text-foreground">{row.lastProcessed}</TableCell>
-                <TableCell className="text-foreground">{row.lastIngested}</TableCell>
+                <TableCell>
+                  <RunHistory history={row.runHistory} />
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2 whitespace-nowrap text-hint">
+                    <span className="flex items-center gap-0.5 text-muted-foreground">
+                      {row.events7d}
+                      <ArrowUpIcon size={16} className="text-blue-400" aria-hidden />
+                    </span>
+                    <span className="flex items-center gap-0.5 text-muted-foreground">
+                      {row.events24h}
+                      <ArrowDownIcon size={16} className="text-blue-400" aria-hidden />
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-foreground">{row.dlq}</TableCell>
               </TableRow>
             ))}
           </TableBody>
