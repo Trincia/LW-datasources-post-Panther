@@ -621,6 +621,7 @@ function SchemaRowDrawer({
       <SheetContent
         side="right"
         showCloseButton={false}
+        overlayClassName="bg-transparent"
         className="w-[336px] gap-0 border-input p-0 sm:max-w-[336px]"
       >
         <SheetHeader className="flex h-12 shrink-0 flex-row items-center justify-end gap-1 border-b border-input px-3 py-2">

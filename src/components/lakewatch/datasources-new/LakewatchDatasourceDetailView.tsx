@@ -5,6 +5,10 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 
 import { CalendarRangeIcon, InfoSmallIcon } from "@/components/icons"
+import {
+  LakewatchDatasourceLogo,
+  type LakewatchDatasourceLogoKind,
+} from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -34,6 +38,14 @@ const SOURCE_STATUSES = [
   ["Last data received", "2026-07-28 04:25 UTC"],
   ["Last data ingested", "2026-07-28 04:24 UTC"],
 ] as const
+
+const DATASOURCE_LOGOS: Record<string, LakewatchDatasourceLogoKind> = {
+  fluentbit: "fluentbit",
+  slack: "slack",
+  "cloudtrail-vpc": "cloudtrail",
+  okta: "okta",
+  "1password": "1password",
+}
 
 const CHART_SERIES = [
   {
@@ -177,6 +189,7 @@ function DataProcessedChart() {
 export function LakewatchDatasourceDetailView() {
   const params = useParams<{ sourceId: string }>()
   const sourceName = decodeURIComponent(params.sourceId ?? "lakewatch-account-us-west-2")
+  const logoKind = DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
@@ -194,13 +207,7 @@ export function LakewatchDatasourceDetailView() {
           </Breadcrumb>
 
           <div className="flex min-w-0 items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/lakewatch/ingest-v2-logos/aws-s3.svg"
-              alt=""
-              className="size-10 shrink-0"
-              aria-hidden
-            />
+            <LakewatchDatasourceLogo kind={logoKind} size="detail" />
             <div className="min-w-0">
               <h1 className={`${PAGE_TITLE_SEMIBOLD} truncate`}>{sourceName}</h1>
               <p className="text-hint text-foreground">

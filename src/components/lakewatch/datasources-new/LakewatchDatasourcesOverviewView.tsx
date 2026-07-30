@@ -9,9 +9,12 @@ import {
   LoadingIcon,
   PlusIcon,
   SearchIcon,
-  SunIcon,
   XCircleIcon,
 } from "@/components/icons"
+import {
+  LakewatchDatasourceLogo,
+  type LakewatchDatasourceLogoKind,
+} from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,30 +30,17 @@ import {
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { cn } from "@/lib/utils"
 
-type DatasourceLogo =
-  | "fluentbit"
-  | "cloudtrail"
-  | "slack"
-  | "1password"
-  | "okta"
-
 type DatasourceRow = {
   id: string
   name: string
   logTypes: string[]
   created: string
   lastReceived: string
-  logo: DatasourceLogo
+  logo: LakewatchDatasourceLogoKind
   runHistory: Array<"success" | "failed" | "running">
   events7d: string
   events24h: string
   dlq: string
-}
-
-const BRAND_LOGOS: Partial<Record<DatasourceLogo, string>> = {
-  cloudtrail: "/lakewatch/ingest-v2-logos/cloudtrail.png",
-  slack: "/lakewatch/ingest-v2-logos/slack.svg",
-  "1password": "/lakewatch/ingest-v2-logos/1password.svg",
 }
 
 const DATASOURCES: DatasourceRow[] = [
@@ -158,29 +148,6 @@ function DataProcessedSparkline() {
       />
     </div>
   )
-}
-
-function SourceLogo({ kind }: { kind: DatasourceLogo }) {
-  const brandSrc = BRAND_LOGOS[kind]
-  if (brandSrc) {
-    return (
-      <img
-        src={brandSrc}
-        alt=""
-        className="size-8 shrink-0 rounded object-contain"
-        aria-hidden
-      />
-    )
-  }
-  if (kind === "fluentbit") {
-    return (
-      <div
-        className="size-8 shrink-0 rounded bg-muted-foreground/20"
-        aria-hidden
-      />
-    )
-  }
-  return <SunIcon size={32} className="shrink-0 text-foreground" aria-hidden />
 }
 
 function RunHistory({ history }: { history: DatasourceRow["runHistory"] }) {
@@ -293,7 +260,7 @@ export function LakewatchDatasourcesOverviewView() {
               <TableRow key={row.id} className="h-[60px]">
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <SourceLogo kind={row.logo} />
+                    <LakewatchDatasourceLogo kind={row.logo} />
                     <Link
                       href={`/lakewatch/datasources/${encodeURIComponent(row.id)}`}
                       className="truncate text-sm font-semibold text-foreground hover:text-primary"
