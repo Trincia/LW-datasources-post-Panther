@@ -276,6 +276,7 @@
   /* Overlay + skeleton */
   --overlay:  rgba(0, 0, 0, 0.2600);
   --skeleton: rgba(162, 162, 162, 0.1600);
+  --scrollbar-thumb: #525252;
 
   /* Tag/Badge background tokens — production exact RGBA (light mode) */
   --tag-bg-default:    rgba(22, 22, 22, 0.0500);
@@ -380,6 +381,7 @@
   /* Overlay + skeleton */
   --overlay:  rgba(0, 0, 0, 0.4500);
   --skeleton: rgba(144, 164, 181, 0.1600);
+  --scrollbar-thumb: #37444f;
 
   /* DuBois Shadow Scale — dark mode (stronger opacity) */
   --shadow-db-xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.45);
@@ -423,6 +425,34 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+  }
+
+  *:hover,
+  *:focus-within {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+  }
+
+  *:hover::-webkit-scrollbar-thumb,
+  *:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
   }
 
   body {
