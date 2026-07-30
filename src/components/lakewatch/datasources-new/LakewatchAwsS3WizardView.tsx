@@ -1268,7 +1268,7 @@ export function LakewatchAwsS3WizardView() {
               </div>
               </div>
 
-              <div className="flex shrink-0 items-center justify-between px-8 py-6">
+              <div className="flex shrink-0 items-center justify-between px-4 py-3">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/lakewatch/datasources/new">Cancel</Link>
                 </Button>
