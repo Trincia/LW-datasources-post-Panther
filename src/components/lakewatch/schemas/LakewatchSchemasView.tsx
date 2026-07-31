@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 
 import {
   ArrowsUpDownIcon,
@@ -20,14 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  readCustomSchemas,
+  type StoredSchemaRow,
+} from "@/components/lakewatch/schemas/schemaStorage"
 
-type SchemaRow = {
-  name: string
-  description: string
-  managedBy: "Databricks" | "User"
-  fieldDiscovery: "Enabled" | "Disabled"
-  datasourceCount: number
-}
+type SchemaRow = StoredSchemaRow
 
 const SCHEMAS: SchemaRow[] = [
   {
@@ -103,18 +102,30 @@ function SortableHeader({
 
 export function LakewatchSchemasView() {
   const [query, setQuery] = React.useState("")
+  const [customSchemas, setCustomSchemas] = React.useState<SchemaRow[]>([])
+
+  React.useEffect(() => {
+    setCustomSchemas(readCustomSchemas())
+
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("created")) {
+      toast.success("New schema successfully added")
+      url.searchParams.delete("created")
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+    }
+  }, [])
 
   const rows = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
-    return SCHEMAS.filter((schema) => {
+    return [...customSchemas, ...SCHEMAS].filter((schema) => {
       const matchesQuery =
         !normalizedQuery ||
         schema.name.toLowerCase().includes(normalizedQuery) ||
         schema.description.toLowerCase().includes(normalizedQuery)
       return matchesQuery
     })
-  }, [query])
+  }, [customSchemas, query])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">

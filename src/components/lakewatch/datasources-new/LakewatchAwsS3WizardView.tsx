@@ -16,12 +16,12 @@ import {
 } from "@/components/icons"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
+import { UnityCatalogExplorerModal } from "@/components/lakewatch/datasources-new/UnityCatalogExplorerModal"
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Badge } from "@/components/ui/badge"
@@ -71,18 +71,27 @@ const WIZARD_STEPS = [
   "Name, Alerts & Permissions",
 ] as const
 
-const SIMPLE_WIZARD_STEPS = [
-  "Configure source",
-  "S3 prefix & schemas",
-  "Additional details",
-] as const
-
 export type LakewatchDatasourceWizardKind =
   | "aws-s3"
   | "existing-table"
   | "google-cloud-storage"
   | "uc-volume"
   | "azure-blob-storage"
+
+function getPrefixProviderLabel(kind: LakewatchDatasourceWizardKind) {
+  if (kind === "google-cloud-storage") return "GCS"
+  if (kind === "azure-blob-storage") return "Azure"
+  return "S3"
+}
+
+function getSimpleWizardSteps(kind: LakewatchDatasourceWizardKind) {
+  const prefixLabel = getPrefixProviderLabel(kind)
+  return [
+    "Configure source",
+    `${prefixLabel} prefix & schemas`,
+    "Additional details",
+  ] as const
+}
 
 const SIMPLE_WIZARD_CONFIG: Record<
   Exclude<LakewatchDatasourceWizardKind, "aws-s3">,
@@ -102,6 +111,17 @@ const SIMPLE_WIZARD_CONFIG: Record<
   "azure-blob-storage": {
     title: "Configure Azure Blob Storage datasource",
   },
+}
+
+const GCS_SOURCE_LOCATION_SAMPLE =
+  "https://console.cloud.google.com/bigquery?p=YOUR_PROJECT_ID&d=YOUR_DATASET_ID&t=YOUR_TABLE_ID&page=table"
+
+const AZURE_SOURCE_LOCATION_SAMPLE =
+  "https://portal.azure.com/#blade/Microsoft_Azure_Storage/ContainerMenuBlade/overview/storageAccountId/%2Fsubscriptions%2F00000000-0000-0000-0000-000000000000%2FresourceGroups%2Flakewatch-rg%2Fproviders%2FMicrosoft.Storage%2FstorageAccounts%2Flakewatchlogs%2FblobServices%2Fdefault%2Fcontainers%2Fsecurity-logs"
+
+function getCloudSourceLocationSample(kind: LakewatchDatasourceWizardKind) {
+  if (kind === "azure-blob-storage") return AZURE_SOURCE_LOCATION_SAMPLE
+  return GCS_SOURCE_LOCATION_SAMPLE
 }
 
 type VerificationState = "idle" | "validating" | "verified"
@@ -1080,6 +1100,7 @@ export function LakewatchAwsS3WizardView({
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
   const [viewTableName, setViewTableName] = React.useState("")
+  const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
   const [awsCredentials, setAwsCredentials] = React.useState("")
   const [dataSampleLocation, setDataSampleLocation] = React.useState("")
   const [sampleVerification, setSampleVerification] =
@@ -1115,6 +1136,7 @@ export function LakewatchAwsS3WizardView({
   const isSimpleWizard = kind !== "aws-s3"
   const isExistingTable = kind === "existing-table"
   const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
+  const prefixProviderLabel = getPrefixProviderLabel(kind)
 
   React.useEffect(
     () => () => {
@@ -1182,7 +1204,9 @@ export function LakewatchAwsS3WizardView({
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>Add new datasource</BreadcrumbPage>
+                <BreadcrumbLink asChild>
+                  <Link href="/lakewatch/datasources/new">Add new datasource</Link>
+                </BreadcrumbLink>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -1196,7 +1220,7 @@ export function LakewatchAwsS3WizardView({
       <div className="mx-auto mt-6 grid w-full max-w-[1168px] grid-cols-1 items-start gap-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40">
         <WizardStepper
           activeStep={activeStep}
-          steps={isSimpleWizard ? SIMPLE_WIZARD_STEPS : WIZARD_STEPS}
+          steps={isSimpleWizard ? getSimpleWizardSteps(kind) : WIZARD_STEPS}
         />
 
         {activeStep === 1 ? (
@@ -1220,14 +1244,15 @@ export function LakewatchAwsS3WizardView({
                       value={sourceLocation}
                       onChange={(event) => setSourceLocation(event.target.value)}
                       placeholder="Enter a table or browse"
-                      className="rounded-r-none"
+                      className="rounded-r-none border-r-0"
                     />
                     <Button
                       type="button"
                       variant="default"
                       size="icon-sm"
-                      className="rounded-l-none border-l-0"
+                      className="rounded-l-none"
                       aria-label="Browse Unity Catalog tables"
+                      onClick={() => setCatalogPickerOpen(true)}
                     >
                       <FolderIcon className="h-4 w-4 text-muted-foreground" />
                     </Button>
@@ -1237,6 +1262,16 @@ export function LakewatchAwsS3WizardView({
                     id="simple-source-location"
                     value={sourceLocation}
                     onChange={(event) => setSourceLocation(event.target.value)}
+                    onFocus={() => {
+                      if (!sourceLocation) {
+                        setSourceLocation(getCloudSourceLocationSample(kind))
+                      }
+                    }}
+                    onClick={() => {
+                      if (!sourceLocation) {
+                        setSourceLocation(getCloudSourceLocationSample(kind))
+                      }
+                    }}
                   />
                 )}
               </div>
@@ -1410,18 +1445,18 @@ export function LakewatchAwsS3WizardView({
             <StepPanelHeader
               step={2}
               title="Schemas"
-              description="Specify the S3 prefix and schemas Lakewatch should use to classify your logs"
+              description={`Specify the ${prefixProviderLabel} prefix and schemas Lakewatch should use to classify your logs`}
             />
 
             <div className="flex min-h-[370px] flex-col px-8 py-6">
               <p className="mb-5 text-sm leading-5 text-foreground">
-                Enter the S3 prefix you would like Lakewatch to read data from followed by the
-                schemas that classify data as it comes into Lakewatch. You can also add exclusion
-                filters, which will exclude prefixes from being read.
+                Enter the {prefixProviderLabel} prefix you would like Lakewatch to read data from
+                followed by the schemas that classify data as it comes into Lakewatch. You can also
+                add exclusion filters, which will exclude prefixes from being read.
               </p>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="s3-prefix">S3 Prefix</Label>
+                <Label htmlFor="s3-prefix">{prefixProviderLabel} Prefix</Label>
                 <p className="text-hint text-muted-foreground">
                   Leave blank to create a wildcard (*) prefix and allow ingestion of all files in
                   the bucket.
@@ -1446,7 +1481,8 @@ export function LakewatchAwsS3WizardView({
               <div className="mt-4 flex flex-col gap-2">
                 <Label>Schemas (optional)</Label>
                 <p className="text-hint text-muted-foreground">
-                  Select schemas Lakewatch should use to parse S3 objects matching the S3 prefix.
+                  Select schemas Lakewatch should use to parse {prefixProviderLabel} objects
+                  matching the {prefixProviderLabel} prefix.
                 </p>
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
@@ -1698,6 +1734,17 @@ export function LakewatchAwsS3WizardView({
             </>
           )}
         </section>
+      ) : null}
+
+      {isExistingTable ? (
+        <UnityCatalogExplorerModal
+          open={catalogPickerOpen}
+          onOpenChange={setCatalogPickerOpen}
+          onSelect={(location) => {
+            setSourceLocation(location)
+            setViewTableName("bronze_crowdstrike_alerts_view")
+          }}
+        />
       ) : null}
     </div>
   )

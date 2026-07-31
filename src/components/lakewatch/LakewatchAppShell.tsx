@@ -5,6 +5,7 @@ import { LakewatchTopBar } from "./LakewatchTopBar"
 import { LakewatchSidebar } from "./LakewatchSidebar"
 import { GenieCodePanel } from "@/components/shell/GenieCodePanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 type LakewatchNavId = React.ComponentProps<typeof LakewatchSidebar>["activeItem"]
@@ -92,6 +93,7 @@ export function LakewatchAppShell({
           />
         ) : null}
       </div>
+      <Toaster position="top-right" />
     </div>
   )
 }

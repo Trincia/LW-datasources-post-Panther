@@ -1,19 +1,12 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { X } from "lucide-react"
 
-import {
-  CheckIcon,
-  ChevronRightIcon,
-  CodeIcon,
-  DangerSmallIcon,
-  InfoFillIcon,
-  LightningIcon,
-  XCircleIcon,
-} from "@/components/icons"
+import { InfoFillIcon } from "@/components/icons"
+import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Breadcrumb,
@@ -29,191 +22,199 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SegmentedControl, SegmentedItem } from "@/components/ui/segmented-control"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 
-type CreationMethod = "infer" | "scratch" | null
+type CreationMethod = "infer" | "scratch"
 type SampleInputMode = "upload" | "paste"
 
 const SAMPLE_LOGS = `{"timestamp":"2026-07-30T21:04:12Z","eventType":"login","actor":{"id":"usr_1042","email":"analyst@example.com"},"sourceIp":"198.51.100.24","outcome":"success"}
 {"timestamp":"2026-07-30T21:05:48Z","eventType":"api_request","actor":{"id":"svc_lakewatch"},"resource":"/v1/events","status":200,"durationMs":184}
 {"timestamp":"2026-07-30T21:07:03Z","eventType":"permission_change","actor":{"id":"usr_1042"},"target":{"id":"role_security_admin"},"action":"grant"}`
 
-function SchemaCreationOption({
-  title,
-  icon,
-  selected,
-  onSelect,
-}: {
-  title: string
-  icon: React.ReactNode
-  selected: boolean
-  onSelect: () => void
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-1 items-center gap-4 rounded-md border border-border bg-muted/60 p-4",
-        selected && "border-primary bg-primary/5",
-      )}
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-background text-primary">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-        {title}
-      </span>
-      <Button type="button" variant="default" size="xs" onClick={onSelect}>
-        Start
-      </Button>
-    </div>
-  )
-}
+const SCRATCH_SCHEMA = `fields:
+  - name: timestamp
+    type: timestamp
+    required: true
+  - name: eventType
+    type: string
+  - name: actor
+    type: object
+    fields:
+      - name: id
+        type: string
+      - name: email
+        type: string
+indicators:
+  - name: sourceIp
+    type: ip`
 
-function SampleLogsDrawer({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+const SCRATCH_SCHEMA_EMPTY_STATE = `# Write your fields in YAML here...
+# Example:
+fields:
+  - name: id
+    type: string
+    description: Unique identifier`
+
+function SampleEventsEditor() {
   const [mode, setMode] = React.useState<SampleInputMode>("upload")
   const [sampleLogs, setSampleLogs] = React.useState("")
   const [showAlert, setShowAlert] = React.useState(true)
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="w-[400px] gap-0 p-0 sm:max-w-[400px]"
+    <div className="flex flex-col gap-5">
+      {showAlert ? (
+        <Alert onDismiss={() => setShowAlert(false)}>
+          <InfoFillIcon size={16} />
+          <AlertTitle>Paste or upload real events</AlertTitle>
+          <AlertDescription>
+            We&apos;ll show which ones match and highlight fields that don&apos;t.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <SegmentedControl
+        value={mode}
+        onValueChange={(value) => setMode(value as SampleInputMode)}
       >
-        <SheetHeader className="flex h-16 shrink-0 flex-row items-center gap-2 px-6 py-4">
-          <SheetTitle className="min-w-0 flex-1 text-[22px] leading-7">
-            Test with sample logs
-          </SheetTitle>
-          <SheetDescription className="sr-only">
-            Paste or upload sample events to infer a schema.
-          </SheetDescription>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Close sample logs drawer"
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </SheetHeader>
+        <SegmentedItem value="upload">Upload sample file</SegmentedItem>
+        <SegmentedItem value="paste">Paste sample event(s)</SegmentedItem>
+      </SegmentedControl>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6">
-          {showAlert ? (
-            <Alert onDismiss={() => setShowAlert(false)}>
-              <InfoFillIcon size={16} />
-              <AlertTitle>Paste or upload real events</AlertTitle>
-              <AlertDescription>
-                We&apos;ll show which ones match and highlight fields that don&apos;t.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+      {mode === "upload" ? (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Upload events from a local file
+              </p>
+              <p className="text-hint text-muted-foreground">JSON or JSONL, up to 10 MB</p>
+            </div>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setSampleLogs(SAMPLE_LOGS)}
+            >
+              Select file
+            </Button>
+          </div>
 
-          <SegmentedControl
-            value={mode}
-            onValueChange={(value) => setMode(value as SampleInputMode)}
-          >
-            <SegmentedItem value="upload">Upload sample file</SegmentedItem>
-            <SegmentedItem value="paste">Paste sample event(s)</SegmentedItem>
-          </SegmentedControl>
-
-          {mode === "upload" ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    Upload events from a local file
-                  </p>
-                  <p className="text-hint text-muted-foreground">
-                    JSON or JSONL, up to 10 MB
-                  </p>
-                </div>
+          <div className="flex min-h-80 items-center justify-center overflow-auto bg-muted p-4">
+            {sampleLogs ? (
+              <pre className="self-start whitespace-pre-wrap break-all font-mono text-hint leading-5 text-foreground">
+                {sampleLogs}
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center text-center">
+                <span className="mb-3 flex size-10 items-center justify-center rounded-md border border-border bg-background">
+                  <Image
+                    src="/lakewatch/icons/file-plus.svg"
+                    alt=""
+                    width={32}
+                    height={32}
+                    aria-hidden
+                  />
+                </span>
+                <p className="text-hint text-foreground">
+                  Choose a file or drag &amp; drop it here
+                </p>
                 <Button
                   type="button"
-                  variant="default"
+                  variant="primary"
                   size="sm"
+                  className="mt-2"
                   onClick={() => setSampleLogs(SAMPLE_LOGS)}
                 >
                   Select file
                 </Button>
               </div>
-              {sampleLogs ? (
-                <p className="text-hint text-[var(--success)]">
-                  sample-security-events.jsonl loaded
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Paste one or more sample events
-              </p>
-              <p className="text-hint text-muted-foreground">
-                Add one JSON event per line.
-              </p>
-            </div>
-          )}
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Paste one or more sample events
+            </p>
+            <p className="text-hint text-muted-foreground">
+              Add one JSON event per line.
+            </p>
+          </div>
+          <Textarea
+            value={sampleLogs}
+            onChange={(event) => setSampleLogs(event.target.value)}
+            placeholder={'{"timestamp":"2026-07-30T21:04:12Z","eventType":"login"}'}
+            aria-label="Sample events"
+            spellCheck={false}
+            className="min-h-80 resize-none rounded-none border-0 bg-muted p-4 font-mono text-hint leading-5 shadow-none focus-visible:ring-0"
+          />
+        </>
+      )}
+    </div>
+  )
+}
 
-          {mode === "paste" ? (
-            <Textarea
-              value={sampleLogs}
-              onChange={(event) => setSampleLogs(event.target.value)}
-              placeholder={'{"timestamp":"2026-07-30T21:04:12Z","eventType":"login"}'}
-              aria-label="Sample events"
-              spellCheck={false}
-              className="min-h-[426px] resize-none rounded-none border-0 bg-muted p-4 font-mono text-hint leading-5 shadow-none focus-visible:ring-0 dark:bg-muted"
-            />
-          ) : (
-            <div className="min-h-[426px] overflow-auto bg-muted px-4 py-3">
-              {sampleLogs ? (
-                <pre className="whitespace-pre-wrap break-all font-mono text-hint leading-5 text-foreground">
-                  {sampleLogs}
-                </pre>
-              ) : (
-                <p className="text-hint text-muted-foreground">
-                  Select a file to preview sample events here.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+function ScratchSchemaEditor() {
+  const [parser, setParser] = React.useState("json")
+  const [schemaDefinition, setSchemaDefinition] = React.useState("")
 
-        <div className="mt-auto flex shrink-0 items-center justify-end gap-2 px-6 pb-6 pt-4">
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            disabled={!sampleLogs.trim()}
-            onClick={() => onOpenChange(false)}
-          >
-            Save
-          </Button>
+  const fillSchemaDefinition = () => {
+    setSchemaDefinition((current) => current || SCRATCH_SCHEMA)
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <Label>Parser</Label>
+        <Select value={parser} onValueChange={setParser}>
+          <SelectTrigger className="w-full" aria-label="Parser">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="json">Default (JSON/XML)</SelectItem>
+            <SelectItem value="csv">CSV</SelectItem>
+            <SelectItem value="regex">Regex</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="h-px bg-border" />
+
+      <div className="flex flex-col gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Fields &amp; Indicators</p>
+          <p className="text-hint text-muted-foreground">
+            Define and edit the fields and indicators of your Schema.
+          </p>
         </div>
-      </SheetContent>
-    </Sheet>
+        <div className="relative min-h-80">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 border-r border-grey-700 bg-grey-800 px-2 py-2 text-right font-mono text-hint text-grey-350"
+          >
+            1
+          </span>
+          <Textarea
+            value={schemaDefinition}
+            onChange={(event) => setSchemaDefinition(event.target.value)}
+            onFocus={fillSchemaDefinition}
+            onClick={fillSchemaDefinition}
+            placeholder={SCRATCH_SCHEMA_EMPTY_STATE}
+            aria-label="Schema fields and indicators"
+            spellCheck={false}
+            className="min-h-80 resize-none rounded border border-grey-700 bg-grey-800 py-2 pr-4 pl-12 font-mono text-hint leading-5 text-grey-050 shadow-none placeholder:text-grey-350 placeholder:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -223,41 +224,37 @@ export function LakewatchCreateSchemaView() {
   const [description, setDescription] = React.useState("")
   const [referenceUrl, setReferenceUrl] = React.useState("")
   const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
-  const [creationMethod, setCreationMethod] = React.useState<CreationMethod>(null)
-  const [sampleDrawerOpen, setSampleDrawerOpen] = React.useState(false)
-  const schemaIdMissing = schemaId.trim().length === 0
+  const [creationMethod, setCreationMethod] = React.useState<CreationMethod>("infer")
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (schemaIdMissing) return
+    if (!schemaId.trim()) return
     router.push(`/lakewatch/schemas/${encodeURIComponent(schemaId.trim())}`)
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-10 pb-10 pt-6"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-10 pt-6"
     >
-      <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="/lakewatch/schemas">Schemas</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>
-              <ChevronRightIcon size={12} />
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbPage className="font-semibold text-foreground">New</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/lakewatch/schemas">Schemas</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Add new schema</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Create New Schema</h1>
+        </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Button type="button" variant="default" size="sm">
-            Upload Sample Logs
-          </Button>
           <Button variant="default" size="sm" asChild>
             <Link href="/lakewatch/schemas">Cancel</Link>
           </Button>
@@ -267,127 +264,65 @@ export function LakewatchCreateSchemaView() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="schema-id">
-          Schema ID <span className="text-destructive">*</span>
-        </Label>
-        <div className="flex items-center gap-3">
+      <Card className="mx-auto mt-10 w-full max-w-2xl gap-6 p-6 shadow-none">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="schema-id">Schema ID</Label>
           <Input
             id="schema-id"
             value={schemaId}
             onChange={(event) => setSchemaId(event.target.value)}
-            placeholder="Schema ID"
-            aria-invalid={schemaIdMissing}
-            aria-describedby={schemaIdMissing ? "schema-id-error" : undefined}
-            className="flex-1"
           />
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="default"
-              size="icon-sm"
-              aria-label="Validate schema ID"
-            >
-              <CheckIcon size={16} />
-            </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="icon-sm"
-              aria-label="Clear schema ID"
-              onClick={() => setSchemaId("")}
-            >
-              <XCircleIcon size={16} />
-            </Button>
-          </div>
         </div>
-        {schemaIdMissing ? (
-          <p
-            id="schema-id-error"
-            className="flex items-center gap-1.5 text-hint text-destructive"
-          >
-            <DangerSmallIcon size={12} aria-hidden />
-            This field is required
-          </p>
-        ) : null}
-      </div>
 
-      <Card className="gap-5 shadow-none">
-        <h2 className="text-md font-semibold leading-5 text-foreground">Basic Info</h2>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="schema-description" className="text-hint text-muted-foreground">
-            Description
-          </Label>
-          <Textarea
-            id="schema-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Description"
-            className="min-h-20 resize-none"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="reference-url" className="text-hint text-muted-foreground">
-            Reference URL
-          </Label>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="reference-url">Reference URL</Label>
           <Input
             id="reference-url"
             type="url"
             value={referenceUrl}
             onChange={(event) => setReferenceUrl(event.target.value)}
-            placeholder="Reference URL"
           />
         </div>
-        <div className="border-t border-border pt-4">
-          <div className="flex items-center gap-3">
-            <Label htmlFor="field-discovery">Field Discovery</Label>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="schema-description">Description</Label>
+          <Textarea
+            id="schema-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            className="min-h-16 resize-none"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="field-discovery">Field discovery</Label>
             <Switch
               id="field-discovery"
               size="sm"
               checked={fieldDiscovery}
               onCheckedChange={setFieldDiscovery}
             />
+            <span className="text-sm text-foreground">Label</span>
           </div>
-          <p className="mt-2 text-hint leading-[18px] text-muted-foreground">
-            By enabling this feature, Panther will not drop any fields from an event that
+          <p className="text-hint leading-4 text-muted-foreground">
+            By enabling this feature, Databricks will not drop any fields from an event that
             aren&apos;t included in the schema. This allows you to query all the fields, and also
-            lets detections access them. To find out more about AFD you can{" "}
-            <Link href="#" className="text-primary underline">
-              read our documentation
-            </Link>
-            .
+            lets detections access them.
           </p>
         </div>
-      </Card>
 
-      <Card className="gap-5 shadow-none">
-        <h2 className="text-md font-semibold leading-5 text-foreground">Schema</h2>
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <SchemaCreationOption
-            title="Infer a schema from sample events"
-            icon={<LightningIcon size={18} />}
-            selected={creationMethod === "infer"}
-            onSelect={() => {
-              setCreationMethod("infer")
-              setSampleDrawerOpen(true)
-            }}
-          />
-          <SchemaCreationOption
-            title="Create your schema from scratch"
-            icon={<CodeIcon size={18} />}
-            selected={creationMethod === "scratch"}
-            onSelect={() => setCreationMethod("scratch")}
-          />
-        </div>
-      </Card>
+        <SegmentedControl
+          value={creationMethod}
+          onValueChange={(value) => setCreationMethod(value as CreationMethod)}
+          className="w-fit"
+        >
+          <SegmentedItem value="infer">Infer from sample events</SegmentedItem>
+          <SegmentedItem value="scratch">Create from scratch</SegmentedItem>
+        </SegmentedControl>
 
-      <p className="pt-2 text-hint text-muted-foreground">
-        Need to know more about how to write schemas?{" "}
-        <Link href="#" className="text-primary underline">
-          Read our documentation
-        </Link>
-      </p>
-      <SampleLogsDrawer open={sampleDrawerOpen} onOpenChange={setSampleDrawerOpen} />
+        {creationMethod === "infer" ? <SampleEventsEditor /> : <ScratchSchemaEditor />}
+      </Card>
     </form>
   )
 }
