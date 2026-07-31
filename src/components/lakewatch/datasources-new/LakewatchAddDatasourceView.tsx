@@ -36,6 +36,7 @@ type SourceCard = {
   description: string
   meta?: string
   href?: string
+  wide?: boolean
   icon: React.ReactNode
   categories: string[]
 }
@@ -55,6 +56,28 @@ function SupportedSourceIcon({
 }
 
 const CUSTOM_FORMATS: SourceCard[] = [
+  {
+    id: "existing-table",
+    title: "Existing table",
+    description: "An existing table in your workspace Unity Catalog",
+    href: "/lakewatch/datasources/new/existing-table",
+    wide: true,
+    categories: ["Existing table", "Data platform", "Custom datasources"],
+    icon: (
+      <div className="flex size-8 items-center justify-center rounded-md bg-[rgba(2,179,2,0.13)]">
+        <TableIcon size={16} className="text-[var(--success)]" />
+      </div>
+    ),
+  },
+  {
+    id: "uc-volume",
+    title: "UC Volume",
+    description: "Onboard UC Volume Storage as a datasource in Lakewatch.",
+    href: "/lakewatch/datasources/new/uc-volume",
+    wide: true,
+    categories: ["Cloud", "Custom datasources", "Data platform"],
+    icon: <div className="size-8 shrink-0 rounded bg-pink-100" aria-hidden />,
+  },
   {
     id: "s3",
     title: "AWS S3 Bucket",
@@ -76,9 +99,39 @@ const CUSTOM_FORMATS: SourceCard[] = [
     description: "Onboard AWS SQS Queue as a datasource in Lakewatch",
     categories: ["AWS", "Cloud", "Custom datasources"],
     icon: (
-      <div className="flex size-8 items-center justify-center rounded-md bg-[rgba(240,1,150,0.13)] text-[13px] font-semibold text-[#f00196]">
+      <div className="flex size-8 items-center justify-center rounded-md bg-pink-100 text-hint font-semibold text-pink-700">
         SQS
       </div>
+    ),
+  },
+  {
+    id: "google-cloud-storage",
+    title: "Google Cloud Storage",
+    description: "Onboard Google Cloud Storage as a datasource in Lakewatch.",
+    href: "/lakewatch/datasources/new/google-cloud-storage",
+    categories: ["Cloud", "Custom datasources"],
+    icon: (
+      <img
+        src="/lakewatch/ingest-v2-logos/google-cloud-storage.png"
+        alt=""
+        className="size-8 shrink-0 object-contain"
+        aria-hidden
+      />
+    ),
+  },
+  {
+    id: "azure-blob-storage",
+    title: "Azure Blob Storage",
+    description: "Onboard Azure Blob Storage as a datasource in Lakewatch.",
+    href: "/lakewatch/datasources/new/azure-blob-storage",
+    categories: ["Cloud", "Custom datasources"],
+    icon: (
+      <img
+        src="/lakewatch/ingest-v2-logos/azure-blob-storage.svg"
+        alt=""
+        className="h-8 w-9 shrink-0 object-contain"
+        aria-hidden
+      />
     ),
   },
 ]
@@ -139,18 +192,6 @@ const SUPPORTED_FORMATS: SourceCard[] = [
   },
 ]
 
-const EXISTING_TABLE: SourceCard = {
-  id: "existing-table",
-  title: "Existing table",
-  description: "An existing table in your workspace",
-  categories: ["Existing table", "Data platform"],
-  icon: (
-    <div className="flex size-8 items-center justify-center rounded-md bg-[rgba(2,179,2,0.13)]">
-      <TableIcon size={16} className="text-[var(--success)]" />
-    </div>
-  ),
-}
-
 function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-3 text-center">
@@ -185,7 +226,10 @@ function SourceCardTile({ card }: { card: SourceCard }) {
     return (
       <Link
         href={card.href}
-        className="flex flex-1 flex-col gap-3 rounded-md bg-muted-foreground/20 p-5 outline-none transition-colors hover:bg-muted-foreground/25 focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          "flex flex-1 flex-col gap-3 rounded-md bg-muted-foreground/20 p-5 outline-none transition-colors hover:bg-muted-foreground/25 focus-visible:ring-2 focus-visible:ring-ring",
+          card.wide && "lg:col-span-2",
+        )}
       >
         {content}
       </Link>
@@ -193,7 +237,12 @@ function SourceCardTile({ card }: { card: SourceCard }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3 rounded-md bg-muted-foreground/20 p-5">
+    <div
+      className={cn(
+        "flex flex-1 flex-col gap-3 rounded-md bg-muted-foreground/20 p-5",
+        card.wide && "lg:col-span-2",
+      )}
+    >
       {content}
     </div>
   )
@@ -218,7 +267,6 @@ export function LakewatchAddDatasourceView() {
 
   const customVisible = filterCards(CUSTOM_FORMATS, search, activeCategory)
   const supportedVisible = filterCards(SUPPORTED_FORMATS, search, activeCategory)
-  const existingVisible = filterCards([EXISTING_TABLE], search, activeCategory)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-10 pt-5">
@@ -296,7 +344,7 @@ export function LakewatchAddDatasourceView() {
               </>
             }
           />
-          <div className="flex flex-col gap-2.5 sm:flex-row">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {customVisible.map((card) => (
               <SourceCardTile key={card.id} card={card} />
             ))}
@@ -324,16 +372,6 @@ export function LakewatchAddDatasourceView() {
               </div>
             ) : null}
           </div>
-        </section>
-      ) : null}
-
-      {existingVisible.length > 0 ? (
-        <section className="mx-auto mt-10 flex w-full max-w-[1120px] flex-col gap-4">
-          <SectionHeader
-            title="Existing table"
-            description="Lakewatch supports log ingestion of an existing table in your workspace."
-          />
-          <SourceCardTile card={EXISTING_TABLE} />
         </section>
       ) : null}
     </div>

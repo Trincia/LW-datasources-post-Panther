@@ -7,6 +7,7 @@ import { DbIcon } from "@/components/ui/db-icon"
 import {
   GridIcon,
   DatasourceNavIcon,
+  SchemasNavIcon,
   DetectionNavIcon,
   GearIcon,
   FileDocumentIcon,
@@ -18,7 +19,7 @@ import {
   NotebookIcon,
   NewWindowIcon,
   StorefrontIcon,
-  SparkleIcon,
+  GenieCodeIcon,
 } from "@/components/icons"
 
 export type LakewatchNavId =
@@ -26,6 +27,7 @@ export type LakewatchNavId =
   | "genie"
   | "marketplace"
   | "datasources"
+  | "schemas"
   | "detection"
   | "settings"
   | "security-cases"
@@ -71,7 +73,7 @@ function NavRow({
       )}
     >
       {useAiIcon ? (
-        <DbIcon icon={SparkleIcon} color="ai" size={16} className="shrink-0" />
+        <DbIcon icon={GenieCodeIcon} color="ai" size={16} className="shrink-0" />
       ) : (
         <Icon size={16} className={cn("shrink-0 text-muted-foreground", active && "text-primary")} />
       )}
@@ -118,7 +120,7 @@ export function LakewatchSidebar({
         <NavRow href="/lakewatch" icon={GridIcon} active={activeItem === "overview"}>
           Overview
         </NavRow>
-        <NavRow href="/lakewatch" icon={SparkleIcon} useAiIcon active={activeItem === "genie"}>
+        <NavRow href="/lakewatch" icon={GenieCodeIcon} useAiIcon active={activeItem === "genie"}>
           Genie
         </NavRow>
         <NavRow
@@ -138,6 +140,13 @@ export function LakewatchSidebar({
           active={activeItem === "datasources"}
         >
           Datasources
+        </NavRow>
+        <NavRow
+          href="/lakewatch/schemas"
+          icon={SchemasNavIcon}
+          active={activeItem === "schemas"}
+        >
+          Schemas
         </NavRow>
         <NavRow
           href="/lakewatch/detection"

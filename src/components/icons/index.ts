@@ -337,6 +337,7 @@ export { RunningIcon } from "./RunningIcon";
 export { SaveClockIcon } from "./SaveClockIcon";
 export { SaveIcon } from "./SaveIcon";
 export { SchemaIcon } from "./SchemaIcon";
+export { SchemasNavIcon } from "./SchemasNavIcon";
 export { SchoolIcon } from "./SchoolIcon";
 export { SearchDataIcon } from "./SearchDataIcon";
 export { SearchIcon } from "./SearchIcon";

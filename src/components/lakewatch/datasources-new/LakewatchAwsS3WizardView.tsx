@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  FolderIcon,
   SparkleIcon,
   TableIcon,
 } from "@/components/icons"
@@ -69,6 +70,39 @@ const WIZARD_STEPS = [
   "Schemas",
   "Name, Alerts & Permissions",
 ] as const
+
+const SIMPLE_WIZARD_STEPS = [
+  "Configure source",
+  "S3 prefix & schemas",
+  "Additional details",
+] as const
+
+export type LakewatchDatasourceWizardKind =
+  | "aws-s3"
+  | "existing-table"
+  | "google-cloud-storage"
+  | "uc-volume"
+  | "azure-blob-storage"
+
+const SIMPLE_WIZARD_CONFIG: Record<
+  Exclude<LakewatchDatasourceWizardKind, "aws-s3">,
+  { title: string; sourceHint?: string }
+> = {
+  "existing-table": {
+    title: "Use an existing table",
+    sourceHint:
+      "A Unity Catalog table or view to expose through the Lakewatch bronze view. Enter a fully qualified name in the format catalog.schema.table.",
+  },
+  "google-cloud-storage": {
+    title: "Configure Google Cloud Storage datasource",
+  },
+  "uc-volume": {
+    title: "Configure UC Volume datasource",
+  },
+  "azure-blob-storage": {
+    title: "Configure Azure Blob Storage datasource",
+  },
+}
 
 type VerificationState = "idle" | "validating" | "verified"
 
@@ -355,10 +389,16 @@ function formatAwsRegion(region: (typeof AWS_REGIONS)[number]) {
   return `${region.label} — ${region.id}`
 }
 
-function WizardStepper({ activeStep }: { activeStep: number }) {
+function WizardStepper({
+  activeStep,
+  steps = WIZARD_STEPS,
+}: {
+  activeStep: number
+  steps?: readonly string[]
+}) {
   return (
     <ol aria-label="Datasource setup progress" className="flex flex-col">
-      {WIZARD_STEPS.map((label, index) => {
+      {steps.map((label, index) => {
         const step = index + 1
         const active = step === activeStep
         const complete = step < activeStep
@@ -390,7 +430,7 @@ function WizardStepper({ activeStep }: { activeStep: number }) {
                 {label}
               </span>
             </div>
-            {index < WIZARD_STEPS.length - 1 ? (
+            {index < steps.length - 1 ? (
               <span className="ml-[13px] h-9 w-px bg-muted-foreground/60" aria-hidden />
             ) : null}
           </li>
@@ -444,7 +484,7 @@ function VerificationIndicator({
 
 function RawDataPreview({ region }: { region: string }) {
   return (
-    <div className="h-[235px] overflow-hidden">
+    <div className="overflow-hidden">
       <div className="flex h-6 items-center border-b border-input px-2">
         <span className="text-sm font-semibold leading-5 text-foreground">data</span>
       </div>
@@ -464,18 +504,18 @@ function RawDataPreview({ region }: { region: string }) {
           return (
             <div
               key={`${row.eventId}-${index}`}
-              className="flex h-10 min-w-0 items-center border-b border-input"
+              className="flex h-6 min-w-0 items-center border-b border-input"
             >
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 aria-label={`Expand preview row ${index + 1}`}
                 className="shrink-0"
               >
                 <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
               </Button>
-              <span className="min-w-0 flex-1 truncate pr-2 text-sm leading-5 text-foreground">
+              <span className="min-w-0 flex-1 truncate pr-2 text-hint leading-4 text-foreground">
                 {rawData}
               </span>
             </div>
@@ -1031,10 +1071,15 @@ function SchemaMultiSelect({
 }
 
 /** Figma 2492:126609 form adapted to dark mode with stepper 2499:117853. */
-export function LakewatchAwsS3WizardView() {
+export function LakewatchAwsS3WizardView({
+  kind = "aws-s3",
+}: {
+  kind?: LakewatchDatasourceWizardKind
+}) {
   const router = useRouter()
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
+  const [viewTableName, setViewTableName] = React.useState("")
   const [awsCredentials, setAwsCredentials] = React.useState("")
   const [dataSampleLocation, setDataSampleLocation] = React.useState("")
   const [sampleVerification, setSampleVerification] =
@@ -1067,6 +1112,9 @@ export function LakewatchAwsS3WizardView() {
   const previewLoading = Boolean(dataSampleLocation.trim()) && !previewReady
   const schemasReady = DETECTED_SCHEMAS.every((schema) => selectedSchemas.includes(schema))
   const showSplitPreview = activeStep === 2 && schemasReady
+  const isSimpleWizard = kind !== "aws-s3"
+  const isExistingTable = kind === "existing-table"
+  const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
 
   React.useEffect(
     () => () => {
@@ -1138,15 +1186,87 @@ export function LakewatchAwsS3WizardView() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Create AWS S3 datasource</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>
+            {simpleConfig?.title ?? "Create AWS S3 datasource"}
+          </h1>
         </div>
         <LakewatchWarehouseSelector />
       </div>
 
       <div className="mx-auto mt-6 grid w-full max-w-[1168px] grid-cols-1 items-start gap-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40">
-        <WizardStepper activeStep={activeStep} />
+        <WizardStepper
+          activeStep={activeStep}
+          steps={isSimpleWizard ? SIMPLE_WIZARD_STEPS : WIZARD_STEPS}
+        />
 
         {activeStep === 1 ? (
+          isSimpleWizard ? (
+            <form
+              className="flex w-full flex-col gap-6 lg:pt-20"
+              onSubmit={(event) => {
+                event.preventDefault()
+                setActiveStep(2)
+              }}
+            >
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="simple-source-location">Source location *</Label>
+                <p className="text-hint text-muted-foreground">
+                  {simpleConfig?.sourceHint ?? "Hint text here"}
+                </p>
+                {isExistingTable ? (
+                  <div className="flex">
+                    <Input
+                      id="simple-source-location"
+                      value={sourceLocation}
+                      onChange={(event) => setSourceLocation(event.target.value)}
+                      placeholder="Enter a table or browse"
+                      className="rounded-r-none"
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="icon-sm"
+                      className="rounded-l-none border-l-0"
+                      aria-label="Browse Unity Catalog tables"
+                    >
+                      <FolderIcon className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    id="simple-source-location"
+                    value={sourceLocation}
+                    onChange={(event) => setSourceLocation(event.target.value)}
+                  />
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="simple-secondary-location">
+                  {isExistingTable ? "View table name" : "Preview location (optional)"}
+                </Label>
+                <p className="text-hint text-muted-foreground">Hint text here</p>
+                <Input
+                  id="simple-secondary-location"
+                  value={isExistingTable ? viewTableName : dataSampleLocation}
+                  onChange={(event) =>
+                    isExistingTable
+                      ? setViewTableName(event.target.value)
+                      : validateSampleLocation(event.target.value)
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/lakewatch/datasources/new">Cancel</Link>
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Continue
+                </Button>
+              </div>
+            </form>
+          ) : (
           <form
             className="flex w-full flex-col overflow-hidden rounded-md border border-input lg:h-full lg:min-h-0"
             onSubmit={(event) => {
@@ -1278,6 +1398,7 @@ export function LakewatchAwsS3WizardView() {
               </div>
             </div>
           </form>
+          )
         ) : activeStep === 2 ? (
           <form
             className="w-full overflow-hidden rounded-md border border-border"
