@@ -1893,7 +1893,8 @@ export function LakewatchAwsS3WizardView({
         )}
       </div>
 
-      {previewVisible && (activeStep === 1 || (activeStep === 2 && previewReady)) ? (
+      {previewVisible &&
+      (activeStep === 1 || (activeStep === 2 && (previewReady || schemasReady))) ? (
         <section
           aria-label="Data preview"
           className="-mx-5 -mb-5 mt-4 shrink-0 bg-secondary"
