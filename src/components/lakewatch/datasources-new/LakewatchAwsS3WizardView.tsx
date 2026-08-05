@@ -24,6 +24,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -55,6 +56,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -298,16 +300,27 @@ const RAW_PREVIEW_ROWS = [
   },
 ] as const
 
-const INPUT_PREVIEW_DATA: PreviewTableData = {
-  columns: ["Time", "data"],
-  rows: [
-    ["2024-03-15T14:23:41Z", "AssumeRole sts.amazonaws.com IAMUser 203.0.113.42"],
-    ["2024-03-15T14:25:07Z", "GetObject s3.amazonaws.com AssumedRole 203.0.113.42"],
-    ["2024-03-15T14:31:19Z", "PutObject s3.amazonaws.com AssumedRole 198.51.100.17"],
-    ["2024-03-15T15:02:44Z", "CreateUser iam.amazonaws.com IAMUser 198.51.100.17"],
-    ["2024-03-15T16:18:55Z", "ListBuckets s3.amazonaws.com Root 192.0.2.88"],
-    ["2024-03-15T16:44:02Z", "DeleteObject s3.amazonaws.com AssumedRole 192.0.2.88"],
-  ],
+function buildRawPreviewCell(
+  row: (typeof RAW_PREVIEW_ROWS)[number],
+  region: string
+) {
+  return JSON.stringify({
+    time: row.time,
+    data: {
+      awsRegion: region,
+      eventCategory: "Management",
+      eventID: row.eventId,
+      eventName: row.eventName,
+      eventSource: "ec2.amazonaws.com",
+    },
+  })
+}
+
+function getInputPreviewData(region: string): PreviewTableData {
+  return {
+    columns: ["data"],
+    rows: RAW_PREVIEW_ROWS.map((row) => [buildRawPreviewCell(row, region)]),
+  }
 }
 
 const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
@@ -509,38 +522,25 @@ function RawDataPreview({ region }: { region: string }) {
         <span className="text-sm font-semibold leading-5 text-foreground">data</span>
       </div>
       <div className="overflow-hidden">
-        {RAW_PREVIEW_ROWS.map((row, index) => {
-          const rawData = JSON.stringify({
-            time: row.time,
-            data: {
-              awsRegion: region,
-              eventCategory: "Management",
-              eventID: row.eventId,
-              eventName: row.eventName,
-              eventSource: "ec2.amazonaws.com",
-            },
-          })
-
-          return (
-            <div
-              key={`${row.eventId}-${index}`}
-              className="flex h-6 min-w-0 items-center border-b border-input"
+        {RAW_PREVIEW_ROWS.map((row, index) => (
+          <div
+            key={`${row.eventId}-${index}`}
+            className="flex h-6 min-w-0 items-center border-b border-input"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Expand preview row ${index + 1}`}
+              className="shrink-0"
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Expand preview row ${index + 1}`}
-                className="shrink-0"
-              >
-                <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
-              </Button>
-              <span className="min-w-0 flex-1 truncate pr-2 text-hint leading-4 text-foreground">
-                {rawData}
-              </span>
-            </div>
-          )
-        })}
+              <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
+            </Button>
+            <span className="min-w-0 flex-1 truncate pr-2 text-hint leading-4 text-foreground">
+              {buildRawPreviewCell(row, region)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -558,7 +558,7 @@ function PreviewDataTable({
   onRowSelect?: (rowIndex: number) => void
 }) {
   return (
-    <div className="h-[175px] overflow-hidden">
+    <div className="h-[144px] overflow-hidden">
       <Table className={cn("table-fixed", className)}>
         <TableHeader>
           <TableRow className="h-6 hover:bg-transparent">
@@ -765,11 +765,16 @@ function SchemaRowDrawer({
   )
 }
 
-function SchemaSplitPreview() {
+function SchemaSplitPreview({ region }: { region: string }) {
   const [schemaIndex, setSchemaIndex] = React.useState(0)
   const [selectedRowIndex, setSelectedRowIndex] = React.useState<number | null>(null)
   const schema = DETECTED_SCHEMAS[schemaIndex]
-  const outputData = SCHEMA_PREVIEW_DATA[schema]
+  const inputData = getInputPreviewData(region)
+  const schemaData = SCHEMA_PREVIEW_DATA[schema]
+  const outputData: PreviewTableData = {
+    columns: schemaData.columns,
+    rows: schemaData.rows.slice(0, inputData.rows.length),
+  }
 
   const showPreviousSchema = () => {
     setSchemaIndex((current) => (current - 1 + DETECTED_SCHEMAS.length) % DETECTED_SCHEMAS.length)
@@ -781,15 +786,15 @@ function SchemaSplitPreview() {
 
   return (
     <>
-    <div className="grid h-[207px] grid-cols-[41%_59%] overflow-hidden border-y border-input">
+    <div className="grid h-[176px] grid-cols-[41%_59%] overflow-hidden border-y border-input">
       <section aria-label="Input preview" className="min-w-0 border-r border-input">
         <div className="flex h-8 min-w-0 items-center gap-1 px-2">
           <span className="text-sm font-semibold text-foreground">Input</span>
           <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
           <TableIcon className="h-4 w-4 text-primary" />
-          <span className="text-sm text-foreground">Bronze</span>
+          <span className="text-sm text-foreground">Raw data</span>
           <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
-            10 records, 2 columns
+            {inputData.rows.length} records, 1 column
           </span>
           <Button variant="default" size="xs" className="ml-2">
             Side-by-side
@@ -797,7 +802,7 @@ function SchemaSplitPreview() {
           </Button>
           <PreviewPanelActions />
         </div>
-        <PreviewDataTable data={INPUT_PREVIEW_DATA} className="min-w-[650px]" />
+        <PreviewDataTable data={inputData} className="min-w-[650px]" />
       </section>
 
       <section aria-label={`${schema} output preview`} className="min-w-0">
@@ -974,6 +979,7 @@ function AwsRegionTypeahead({
 function SchemaMultiSelect({
   selected,
   onSelectedChange,
+  pending = [],
   open,
   onOpenChange,
   query,
@@ -981,6 +987,7 @@ function SchemaMultiSelect({
 }: {
   selected: string[]
   onSelectedChange: (schemas: string[]) => void
+  pending?: string[]
   open: boolean
   onOpenChange: (open: boolean) => void
   query: string
@@ -1028,7 +1035,7 @@ function SchemaMultiSelect({
             <span className="flex min-w-0 flex-wrap gap-1">
               {selected.map((schema) => (
                 <Badge key={schema} variant="default_tag" className="pr-0.5">
-                  {schema}
+                  {pending.includes(schema) ? `${schema} (pending)` : schema}
                   <Button
                     type="button"
                     variant="ghost"
@@ -1090,6 +1097,200 @@ function SchemaMultiSelect({
   )
 }
 
+function InferSchemaDrawer({
+  open,
+  onClose,
+  onInfer,
+}: {
+  open: boolean
+  onClose: () => void
+  onInfer: (schemaId: string) => void
+}) {
+  const [schemaId, setSchemaId] = React.useState("")
+  const [referenceUrl, setReferenceUrl] = React.useState("")
+  const [description, setDescription] = React.useState("")
+  const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
+  const [parser, setParser] = React.useState("regex")
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+
+    window.addEventListener("keydown", closeOnEscape)
+    return () => window.removeEventListener("keydown", closeOnEscape)
+  }, [onClose, open])
+
+  if (!open) return null
+
+  return (
+    <div className="absolute inset-x-0 bottom-0 top-24 z-40">
+      <div className="absolute inset-0 bg-foreground/10" aria-hidden />
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="infer-schema-title"
+        className="absolute inset-y-0 right-0 flex w-[480px] max-w-full flex-col border-l border-border bg-background shadow-[var(--shadow-db-xl)]"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onInfer(schemaId.trim() || "Custom.AcmeAuthService")
+        }}
+      >
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-6">
+          <h2
+            id="infer-schema-title"
+            className="min-w-0 text-lg font-semibold leading-6 text-foreground"
+          >
+            Infer new schema from source data
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0"
+            aria-label="Close infer schema drawer"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <div className="flex flex-col gap-[10px]">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="infer-schema-id">Schema ID</Label>
+              <p className="text-hint text-muted-foreground">
+                Unique ID for this schema. Use letters, numbers, hyphens, and underscores.
+              </p>
+              <Input
+                id="infer-schema-id"
+                value={schemaId}
+                onChange={(event) => setSchemaId(event.target.value)}
+                onFocus={() =>
+                  setSchemaId((current) => current || "Custom.AcmeAuthService")
+                }
+                onClick={() =>
+                  setSchemaId((current) => current || "Custom.AcmeAuthService")
+                }
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="infer-schema-reference">Reference URL</Label>
+              <p className="text-hint text-muted-foreground">
+                Optional link to docs, source system, or related ticket.
+              </p>
+              <Input
+                id="infer-schema-reference"
+                type="url"
+                value={referenceUrl}
+                onChange={(event) => setReferenceUrl(event.target.value)}
+                onFocus={() =>
+                  setReferenceUrl(
+                    (current) =>
+                      current ||
+                      "https://wiki.acmecorp.internal/engineering/docs/auth-service-log-spec"
+                  )
+                }
+                onClick={() =>
+                  setReferenceUrl(
+                    (current) =>
+                      current ||
+                      "https://wiki.acmecorp.internal/engineering/docs/auth-service-log-spec"
+                  )
+                }
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="infer-schema-description">Description</Label>
+              <p className="text-hint text-muted-foreground">
+                What events does this schema cover?
+              </p>
+              <Textarea
+                id="infer-schema-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                onFocus={() =>
+                  setDescription(
+                    (current) =>
+                      current ||
+                      "Parses authentication, token generation, and login audit events generated by the internal Acme IAM microservice. Inferred from structured JSON payload samples."
+                  )
+                }
+                onClick={() =>
+                  setDescription(
+                    (current) =>
+                      current ||
+                      "Parses authentication, token generation, and login audit events generated by the internal Acme IAM microservice. Inferred from structured JSON payload samples."
+                  )
+                }
+                className="min-h-[68px] resize-none"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div>
+                <Label htmlFor="infer-schema-field-discovery">Field discovery</Label>
+                <p className="text-hint text-muted-foreground">
+                  Keep fields that aren&apos;t in the schema so you can still query and detect
+                  on them.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="infer-schema-field-discovery"
+                  size="sm"
+                  checked={fieldDiscovery}
+                  onCheckedChange={setFieldDiscovery}
+                />
+                <span className="text-sm font-semibold text-foreground">
+                  {fieldDiscovery ? "On" : "Off"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="infer-schema-parser">Parser</Label>
+              <p className="text-hint text-muted-foreground">
+                Use a script to parse and map incoming event fields.
+              </p>
+              <Select value={parser} onValueChange={setParser}>
+                <SelectTrigger id="infer-schema-parser">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regex">Regex</SelectItem>
+                  <SelectItem value="json">JSON</SelectItem>
+                  <SelectItem value="grok">Grok</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <p className="text-sm leading-5 text-muted-foreground">
+              A new schema will be inferred from a sample of the new datasource. This
+              process may take several minutes and you can continue with the pending
+              schema and review results in the datasource when it is complete. You can
+              also add additional built-in schemas if you choose.
+            </p>
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-2">
+            <Button type="button" variant="default" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm">
+              Infer schema
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /** Figma 2492:126609 form adapted to dark mode with stepper 2499:117853. */
 export function LakewatchAwsS3WizardView({
   kind = "aws-s3",
@@ -1116,6 +1317,9 @@ export function LakewatchAwsS3WizardView({
   const [schemaQuery, setSchemaQuery] = React.useState("")
   const [schemaOpen, setSchemaOpen] = React.useState(false)
   const [detectingSchemas, setDetectingSchemas] = React.useState(false)
+  const [inferSchemaOpen, setInferSchemaOpen] = React.useState(false)
+  const [pendingSchemas, setPendingSchemas] = React.useState<string[]>([])
+  const [showInferNotification, setShowInferNotification] = React.useState(false)
   const [alarmEnabled, setAlarmEnabled] = React.useState(true)
   const [alarmNumber, setAlarmNumber] = React.useState("1")
   const [alarmPeriod, setAlarmPeriod] = React.useState("days")
@@ -1129,10 +1333,12 @@ export function LakewatchAwsS3WizardView({
 
   const detectSchemasDisabled =
     detectingSchemas || selectedSchemas.length > 0 || schemaQuery.trim().length > 0
-  const previewReady = sampleVerification === "verified"
+  const previewReady =
+    sampleVerification === "verified" && regionVerification === "verified"
   const previewLoading = Boolean(dataSampleLocation.trim()) && !previewReady
   const schemasReady = DETECTED_SCHEMAS.every((schema) => selectedSchemas.includes(schema))
   const showSplitPreview = activeStep === 2 && schemasReady
+  const previewRegion = awsRegion || "us-west-2"
   const isSimpleWizard = kind !== "aws-s3"
   const isExistingTable = kind === "existing-table"
   const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
@@ -1491,7 +1697,13 @@ export function LakewatchAwsS3WizardView({
                   ) : (
                     <SchemaMultiSelect
                       selected={selectedSchemas}
-                      onSelectedChange={setSelectedSchemas}
+                      onSelectedChange={(schemas) => {
+                        setSelectedSchemas(schemas)
+                        setPendingSchemas((current) =>
+                          current.filter((schema) => schemas.includes(schema))
+                        )
+                      }}
+                      pending={pendingSchemas}
                       open={schemaOpen}
                       onOpenChange={setSchemaOpen}
                       query={schemaQuery}
@@ -1513,6 +1725,27 @@ export function LakewatchAwsS3WizardView({
                     )}
                     Detect schemas
                   </Button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto self-start px-0 py-0 font-normal text-primary hover:bg-transparent hover:text-primary"
+                    onClick={() => setInferSchemaOpen(true)}
+                  >
+                    Infer new schema from source data
+                  </Button>
+                  {showInferNotification ? (
+                    <Alert onDismiss={() => setShowInferNotification(false)}>
+                      <LoaderCircle className="size-4 animate-spin text-primary" />
+                      <AlertDescription>
+                        A new schema is being inferred from this data. This may take several
+                        minutes. Continue creating this datasource and add more schemas if you
+                        choose.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </div>
               </div>
 
@@ -1681,7 +1914,7 @@ export function LakewatchAwsS3WizardView({
           className="-mx-5 -mb-5 mt-4 shrink-0 bg-secondary"
         >
           {showSplitPreview ? (
-            <SchemaSplitPreview />
+            <SchemaSplitPreview region={previewRegion} />
           ) : (
             <>
           <div className="flex h-8 items-center justify-between border-y border-input px-2">
@@ -1716,7 +1949,7 @@ export function LakewatchAwsS3WizardView({
           </div>
           {previewExpanded ? (
             previewReady ? (
-              <RawDataPreview region={awsRegion || "ap-northeast-1"} />
+              <RawDataPreview region={previewRegion} />
             ) : previewLoading ? (
               <div className="flex h-[94px] flex-col items-center justify-center gap-2">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -1746,6 +1979,21 @@ export function LakewatchAwsS3WizardView({
           }}
         />
       ) : null}
+
+      <InferSchemaDrawer
+        open={inferSchemaOpen}
+        onClose={() => setInferSchemaOpen(false)}
+        onInfer={(schemaId) => {
+          setSelectedSchemas((current) =>
+            current.includes(schemaId) ? current : [...current, schemaId]
+          )
+          setPendingSchemas((current) =>
+            current.includes(schemaId) ? current : [...current, schemaId]
+          )
+          setShowInferNotification(true)
+          setInferSchemaOpen(false)
+        }}
+      />
     </div>
   )
 }

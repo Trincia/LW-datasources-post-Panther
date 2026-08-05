@@ -1,0 +1,6 @@
+<svg preserveAspectRatio="none" width="840" height="180" viewBox="0 0 840 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Classified (green) — stays ~0.85–0.9, sharp drop to 0 near Jul 28 -->
+  <path d="M0 27 L60 24 L120 30 L180 22 L240 28 L300 20 L360 26 L420 18 L480 24 L540 16 L600 22 L660 20 L720 28 L760 36 L790 90 L815 155 L840 180" stroke="#277C43" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Unclassified (red) — near zero -->
+  <path d="M0 178 L840 178" stroke="#C82D4C" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>
