@@ -610,9 +610,11 @@ function NormalizationSourceNode({ sourceName }: { sourceName: string }) {
 
 function SchematizedNode({
   name,
+  sourceName,
   top,
 }: {
   name: (typeof NORMALIZATION_SCHEMAS)[number]
+  sourceName: string
   top: number
 }) {
   return (
@@ -633,8 +635,12 @@ function SchematizedNode({
         <PreviewAvailable />
       </div>
       <div className="mt-auto flex items-center justify-between px-4 py-2">
-        <Button variant="default" size="xs">
-          View &amp; edit
+        <Button variant="default" size="xs" asChild>
+          <Link
+            href={`/lakewatch/datasources/${encodeURIComponent(sourceName)}/normalizations/${encodeURIComponent(name)}`}
+          >
+            View &amp; edit
+          </Link>
         </Button>
         <Switch defaultChecked aria-label={`${name} enabled`} size="sm" />
       </div>
@@ -701,7 +707,12 @@ function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
         ))}
 
         {NORMALIZATION_SCHEMAS.map((name, index) => (
-          <SchematizedNode key={name} name={name} top={[42, 220, 393][index]} />
+          <SchematizedNode
+            key={name}
+            name={name}
+            sourceName={sourceName}
+            top={[42, 220, 393][index]}
+          />
         ))}
 
         {[

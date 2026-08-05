@@ -73,7 +73,7 @@ export function LakewatchTopBar({
         <span className="hidden h-4 w-px shrink-0 bg-border md:block" aria-hidden />
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-normal leading-4 text-foreground/80">Lakewatch</span>
-          <span className="inline-flex h-5 items-center rounded bg-purple-900/40 px-1 text-sm leading-5 text-[var(--tag-text-purple)]">
+          <span className="inline-flex h-5 items-center rounded bg-blue-700/60 px-1 text-sm leading-5 text-blue-100">
             Beta
           </span>
         </div>
