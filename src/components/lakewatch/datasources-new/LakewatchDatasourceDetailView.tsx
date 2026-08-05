@@ -3,14 +3,17 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { MoreHorizontal } from "lucide-react"
+import { Loader2, MoreHorizontal } from "lucide-react"
 
 import {
   CalendarRangeIcon,
   CatalogIcon,
+  ForkIcon,
   InfoSmallIcon,
+  NotebookIcon,
   SearchIcon,
   TableIcon,
+  UploadIcon,
 } from "@/components/icons"
 import {
   LakewatchDatasourceLogo,
@@ -25,7 +28,16 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Empty } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import {
@@ -567,7 +579,7 @@ function PreviewAvailable() {
 
 function NormalizationSourceNode({ sourceName }: { sourceName: string }) {
   return (
-    <div className="absolute left-[29px] top-[43px] flex h-[225px] w-[396px] flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[var(--shadow-db-xs)]">
+    <div className="absolute left-0 top-[1px] flex h-[225px] w-[280px] flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[var(--shadow-db-xs)]">
       <div className="flex items-center gap-2 px-4 py-2">
         <TableIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
         <span className="flex-1 text-sm font-semibold leading-5">Raw</span>
@@ -584,11 +596,9 @@ function NormalizationSourceNode({ sourceName }: { sourceName: string }) {
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">
           {sourceName}-Raw
         </span>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/lakewatch/normalization-source.png"
-          alt="S3 Bucket"
-          className="size-6 shrink-0 rounded object-cover"
+        <LakewatchDatasourceLogo
+          kind={DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"}
+          size="node"
         />
       </div>
       <div className="mx-4 h-px bg-border" />
@@ -619,7 +629,7 @@ function SchematizedNode({
 }) {
   return (
     <div
-      className="absolute left-[521px] flex h-[155px] w-[353px] flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[var(--shadow-db-xs)]"
+      className="absolute left-[360px] flex h-[155px] w-[280px] flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[var(--shadow-db-xs)]"
       style={{ top }}
     >
       <div className="flex items-center px-4 py-2">
@@ -648,30 +658,266 @@ function SchematizedNode({
   )
 }
 
-function AddNormalizationButton({ top }: { top: number }) {
+function NormalizedNode({
+  name,
+  source,
+  top,
+}: {
+  name: string
+  source: string
+  top: number
+}) {
   return (
-    <Button
-      variant="default"
-      size="sm"
-      className="absolute left-[897px] gap-1 font-normal"
+    <div
+      className="absolute left-[720px] flex h-[155px] w-[280px] flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[var(--shadow-db-xs)]"
       style={{ top }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/lakewatch/normalization-plus.svg"
-        alt=""
-        className="size-4 shrink-0 dark:brightness-150"
-        aria-hidden
+      <div className="flex items-center px-4 py-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-5">
+          {name}
+        </span>
+      </div>
+      <div className="mx-4 h-px bg-border" />
+      <p className="truncate px-4 pt-2 text-hint leading-4 text-muted-foreground">
+        Source schematized table: <span className="text-foreground">{source}</span>
+      </p>
+      <div className="px-4 py-2">
+        <PreviewAvailable />
+      </div>
+      <div className="mt-auto flex items-center justify-between px-4 py-2">
+        <Button variant="default" size="xs">
+          View &amp; edit
+        </Button>
+        <Switch defaultChecked aria-label={`${name} enabled`} size="sm" />
+      </div>
+    </div>
+  )
+}
+
+const NORMALIZATION_PRESETS = [
+  {
+    id: "preset",
+    icon: ForkIcon,
+    title: "Normalize from preset",
+    description:
+      "Apply a pre-built schema transform to automatically create gold and silver tables.",
+  },
+  {
+    id: "ai",
+    icon: NotebookIcon,
+    title: "Build a custom preset with AI",
+    description: "An advanced option using a notebook to build a preset with Genie.",
+  },
+  {
+    id: "yaml",
+    icon: UploadIcon,
+    title: "Upload custom YAML",
+    description: "Build silver and gold transforms manually using your own YAML file.",
+  },
+] as const
+
+type PresetRow = {
+  name: string
+  logo?: string
+  logoKind?: LakewatchDatasourceLogoKind
+  recommended?: boolean
+}
+
+const SOURCE_TYPE_PRESETS: PresetRow[] = [
+  { name: "AWS CloudTrail Authentication", logo: "/lakewatch/preset-logos/cloudtrail.png" },
+  { name: "Amazon CloudTrail IAM", logo: "/lakewatch/preset-logos/cloudtrail.png" },
+  { name: "Amazon Lambda Functions", logo: "/lakewatch/preset-logos/lambda.png" },
+  { name: "AWS Route 53", logo: "/lakewatch/preset-logos/route53.png" },
+  { name: "AWS S3 Buckets", logo: "/lakewatch/preset-logos/s3.svg" },
+  { name: "Amazon Security Hub", logo: "/lakewatch/preset-logos/security-hub.png" },
+  { name: "AWS VPC", logo: "/lakewatch/preset-logos/vpc.png" },
+  { name: "AWS WAF", logo: "/lakewatch/preset-logos/waf.png" },
+]
+
+const RECOMMENDED_PRESET: Record<LakewatchDatasourceLogoKind, PresetRow> = {
+  cloudtrail: {
+    name: "AWS CloudTrail Authentication",
+    logo: "/lakewatch/preset-logos/cloudtrail.png",
+  },
+  slack: { name: "Slack Audit Logs", logoKind: "slack" },
+  "1password": { name: "1Password Item Usage", logoKind: "1password" },
+  okta: { name: "Okta System Log", logoKind: "okta" },
+  fluentbit: { name: "Fluent Bit Events", logoKind: "fluentbit" },
+}
+
+function PresetLogo({ preset }: { preset: PresetRow }) {
+  return (
+    <span className="flex h-[42px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+      {preset.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preset.logo} alt="" className="size-full object-cover" />
+      ) : preset.logoKind ? (
+        <LakewatchDatasourceLogo kind={preset.logoKind} size="list" />
+      ) : null}
+    </span>
+  )
+}
+
+function PresetSelectionModal({
+  open,
+  onOpenChange,
+  onApply,
+  sourceName,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onApply: () => void
+  sourceName: string
+}) {
+  const [query, setQuery] = React.useState("")
+  const [loadingPreset, setLoadingPreset] = React.useState<string | null>(null)
+
+  const handleSelect = (name: string) => {
+    if (loadingPreset) return
+    setLoadingPreset(name)
+    window.setTimeout(() => {
+      setLoadingPreset(null)
+      setQuery("")
+      onApply()
+      onOpenChange(false)
+    }, 2000)
+  }
+
+  const logoKind = DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"
+  const recommended: PresetRow = { ...RECOMMENDED_PRESET[logoKind], recommended: true }
+  const presets: PresetRow[] = [
+    recommended,
+    ...SOURCE_TYPE_PRESETS.filter((preset) => preset.name !== recommended.name),
+  ]
+
+  const filtered = presets.filter((preset) =>
+    preset.name.toLowerCase().includes(query.trim().toLowerCase()),
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="gap-1.5">
+          <DialogTitle className="text-2xl font-semibold">
+            Auto-normalizing your datasource
+          </DialogTitle>
+          <p className="text-lg font-semibold leading-7 text-foreground">
+            Source type detection
+          </p>
+          <DialogDescription>
+            Confirm the datasource type by selecting from the list below.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="gap-4">
+          <div className="relative">
+            <SearchIcon
+              size={16}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search datasource presets..."
+              aria-label="Search datasource presets"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex max-h-[360px] flex-col gap-1.5 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-hint text-muted-foreground">
+                No datasource presets match &ldquo;{query}&rdquo;.
+              </p>
+            ) : (
+              filtered.map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => handleSelect(preset.name)}
+                  disabled={loadingPreset !== null}
+                  className="flex items-center gap-2 rounded-md border border-border p-2 text-left transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-60"
+                >
+                  <PresetLogo preset={preset} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {preset.name}
+                  </span>
+                  {loadingPreset === preset.name ? (
+                    <Loader2
+                      className="size-4 shrink-0 animate-spin text-muted-foreground"
+                      aria-label="Applying preset"
+                    />
+                  ) : preset.recommended ? (
+                    <Badge variant="purple" className="shrink-0">
+                      Recommended
+                    </Badge>
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AddNormalizationCard({
+  sourceName,
+  onApply,
+}: {
+  sourceName: string
+  onApply: () => void
+}) {
+  const [presetModalOpen, setPresetModalOpen] = React.useState(false)
+
+  return (
+    <div className="absolute left-[720px] top-[109px] flex w-[360px] flex-col gap-2 rounded-md border border-border bg-card p-6 text-card-foreground shadow-[var(--shadow-db-xs)]">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xl font-semibold leading-7 text-foreground">
+          Normalize your datasource
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Choose how you want to normalize your datasource.
+        </p>
+      </div>
+      <div className="mt-1 flex flex-col gap-2">
+        {NORMALIZATION_PRESETS.map(({ id, icon: Icon, title, description }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={id === "preset" ? () => setPresetModalOpen(true) : undefined}
+            className="flex items-center gap-4 rounded-md border border-border py-2 pr-2 pl-4 text-left transition-colors hover:bg-muted"
+          >
+            <Icon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-sm font-semibold text-foreground">{title}</span>
+              <span className="text-hint leading-4 text-muted-foreground">{description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <PresetSelectionModal
+        open={presetModalOpen}
+        onOpenChange={setPresetModalOpen}
+        onApply={onApply}
+        sourceName={sourceName}
       />
-      Normalization
-    </Button>
+    </div>
   )
 }
 
 function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
+  const [normalized, setNormalized] = React.useState(false)
+
   return (
     <div className="relative min-h-[695px] overflow-x-auto overflow-y-hidden rounded-b-md rounded-t border border-border bg-background">
-      <div className="relative h-[695px] min-w-[1360px] overflow-hidden">
+      <div
+        className={cn(
+          "relative h-[695px] overflow-hidden",
+          normalized ? "min-w-[1000px]" : "min-w-[1360px]",
+        )}
+      >
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <div className="absolute inset-0 bg-background" />
           <div
@@ -680,58 +926,108 @@ function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
           />
         </div>
 
-        <NormalizationSourceNode sourceName={sourceName} />
+        <div
+          className={cn(
+            "absolute left-1/2 top-1/2 h-[506px] -translate-x-1/2 -translate-y-1/2",
+            normalized ? "w-[1000px]" : "w-[1080px]",
+          )}
+        >
+          <NormalizationSourceNode sourceName={sourceName} />
 
-        {[
-          {
-            src: "/lakewatch/normalization-edge-top.svg",
-            className: "left-[425px] top-[120px] h-9 w-24 -scale-y-100",
-          },
-          {
-            src: "/lakewatch/normalization-edge-middle.svg",
-            className: "left-[425px] top-[155px] h-36 w-24",
-          },
-          {
-            src: "/lakewatch/normalization-edge-bottom.svg",
-            className: "left-[425px] top-[155px] h-[317px] w-24",
-          },
-        ].map((edge) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={edge.src}
-            src={edge.src}
-            alt=""
-            className={`pointer-events-none absolute ${edge.className}`}
-            aria-hidden
-          />
-        ))}
+          {[
+            {
+              src: "/lakewatch/normalization-edge-top.svg",
+              className: "left-[280px] top-[78px] h-9 w-[80px] -scale-y-100",
+            },
+            {
+              src: "/lakewatch/normalization-edge-middle.svg",
+              className: "left-[280px] top-[113px] h-36 w-[80px]",
+            },
+            {
+              src: "/lakewatch/normalization-edge-bottom.svg",
+              className: "left-[280px] top-[113px] h-[317px] w-[80px]",
+            },
+          ].map((edge) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={edge.src}
+              src={edge.src}
+              alt=""
+              className={`pointer-events-none absolute ${edge.className}`}
+              aria-hidden
+            />
+          ))}
 
-        {NORMALIZATION_SCHEMAS.map((name, index) => (
-          <SchematizedNode
-            key={name}
-            name={name}
-            sourceName={sourceName}
-            top={[42, 220, 393][index]}
-          />
-        ))}
+          {NORMALIZATION_SCHEMAS.map((name, index) => (
+            <SchematizedNode
+              key={name}
+              name={name}
+              sourceName={sourceName}
+              top={[0, 178, 351][index]}
+            />
+          ))}
 
-        {[
-          { left: 421, top: 151 },
-          { left: 517, top: 116 },
-          { left: 517, top: 294 },
-          { left: 517, top: 467 },
-        ].map((point) => (
-          <span
-            key={`${point.left}-${point.top}`}
-            className="pointer-events-none absolute size-2 rounded-full border border-grey-600 bg-background"
-            style={{ left: point.left, top: point.top }}
-            aria-hidden
-          />
-        ))}
+          {[
+            { left: 276, top: 109 },
+            { left: 356, top: 74 },
+            { left: 356, top: 252 },
+            { left: 356, top: 425 },
+          ].map((point) => (
+            <span
+              key={`${point.left}-${point.top}`}
+              className="pointer-events-none absolute size-2 rounded-full border border-grey-600 bg-background"
+              style={{ left: point.left, top: point.top }}
+              aria-hidden
+            />
+          ))}
 
-        <AddNormalizationButton top={104} />
-        <AddNormalizationButton top={293} />
-        <AddNormalizationButton top={464} />
+          {normalized ? (
+            <>
+              {[
+                { top: 77, from: 636, to: 716 },
+                { top: 255, from: 636, to: 716 },
+                { top: 428, from: 636, to: 716 },
+              ].map((line) => (
+                <span
+                  key={line.top}
+                  className="pointer-events-none absolute h-px bg-[#445461]"
+                  style={{ left: line.from, top: line.top, width: line.to - line.from }}
+                  aria-hidden
+                />
+              ))}
+
+              {[
+                { left: 636, top: 74 },
+                { left: 636, top: 252 },
+                { left: 636, top: 425 },
+                { left: 716, top: 74 },
+                { left: 716, top: 252 },
+                { left: 716, top: 425 },
+              ].map((point) => (
+                <span
+                  key={`${point.left}-${point.top}`}
+                  className="pointer-events-none absolute size-2 rounded-full border border-grey-600 bg-background"
+                  style={{ left: point.left, top: point.top }}
+                  aria-hidden
+                />
+              ))}
+
+              {NORMALIZATION_SCHEMAS.map((name, index) => (
+                <NormalizedNode
+                  key={name}
+                  name={name.replace("Schematized", "OCSF")}
+                  source={name}
+                  top={[0, 178, 351][index]}
+                />
+              ))}
+            </>
+          ) : (
+            <AddNormalizationCard
+              sourceName={sourceName}
+              onApply={() => setNormalized(true)}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

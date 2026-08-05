@@ -19,7 +19,7 @@ export function LakewatchDatasourceLogo({
   size = "list",
 }: {
   kind: LakewatchDatasourceLogoKind
-  size?: "list" | "detail"
+  size?: "node" | "list" | "detail"
 }) {
   const brandSrc = BRAND_LOGOS[kind]
 
@@ -27,7 +27,7 @@ export function LakewatchDatasourceLogo({
     <span
       className={cn(
         "block shrink-0 overflow-hidden rounded",
-        size === "detail" ? "size-10" : "size-8",
+        size === "detail" ? "size-10" : size === "node" ? "size-6" : "size-8",
       )}
       aria-hidden
     >
