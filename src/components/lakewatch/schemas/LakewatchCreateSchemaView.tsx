@@ -445,7 +445,7 @@ export function LakewatchCreateSchemaView() {
       onSubmit={handleSubmit}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-10 pt-6"
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="sticky top-0 z-10 -mx-10 -mt-6 flex items-start justify-between gap-4 bg-background px-10 pt-6 pb-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
             <BreadcrumbList>
