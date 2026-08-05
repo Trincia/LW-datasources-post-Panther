@@ -1110,7 +1110,6 @@ function InferSchemaDrawer({
   const [referenceUrl, setReferenceUrl] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
-  const [parser, setParser] = React.useState("regex")
 
   React.useEffect(() => {
     if (!open) return
@@ -1250,23 +1249,6 @@ function InferSchemaDrawer({
                   {fieldDiscovery ? "On" : "Off"}
                 </span>
               </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="infer-schema-parser">Parser</Label>
-              <p className="text-hint text-muted-foreground">
-                Use a script to parse and map incoming event fields.
-              </p>
-              <Select value={parser} onValueChange={setParser}>
-                <SelectTrigger id="infer-schema-parser">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regex">Regex</SelectItem>
-                  <SelectItem value="json">JSON</SelectItem>
-                  <SelectItem value="grok">Grok</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <p className="text-sm leading-5 text-muted-foreground">
@@ -1769,10 +1751,13 @@ export function LakewatchAwsS3WizardView({
             className="w-full overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
+              const name =
+                datasourceName.trim() || "lakewatch-account-us-west-2"
+              const inferredParam = pendingSchemas.length
+                ? `?inferred=${pendingSchemas.map(encodeURIComponent).join(",")}`
+                : ""
               router.push(
-                `/lakewatch/datasources/${encodeURIComponent(
-                  datasourceName.trim() || "lakewatch-account-us-west-2"
-                )}`
+                `/lakewatch/datasources/${encodeURIComponent(name)}${inferredParam}`
               )
             }}
           >

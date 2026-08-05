@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { Loader2, MoreHorizontal } from "lucide-react"
 
 import {
@@ -525,6 +525,12 @@ function DatasourceHealthTab() {
 }
 
 function DatasourceSchemasTab() {
+  const searchParams = useSearchParams()
+  const inferredParam = searchParams.get("inferred")
+  const pendingSchemas = inferredParam
+    ? inferredParam.split(",").map((value) => value.trim()).filter(Boolean)
+    : []
+
   return (
     <section>
       <h2 className="text-lg font-semibold leading-6 text-foreground">Schemas</h2>
@@ -537,6 +543,20 @@ function DatasourceSchemasTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {pendingSchemas.map((schema) => (
+            <TableRow key={schema}>
+              <TableCell className="text-muted-foreground">
+                Inferring header label from sample data…
+              </TableCell>
+              <TableCell className="text-foreground">{schema}</TableCell>
+              <TableCell className="text-right">
+                <Badge variant="secondary" className="gap-1">
+                  <Loader2 className="size-3 animate-spin" aria-hidden />
+                  Pending
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
           {DATASOURCE_SCHEMAS.map((row) => (
             <TableRow key={row.schema}>
               <TableCell className="text-foreground">{row.path}</TableCell>
