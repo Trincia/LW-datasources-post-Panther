@@ -79,7 +79,7 @@ import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
   "Source location",
-  "Schemas",
+  "Ingestion templates",
   "Name, Alerts & Permissions",
 ] as const
 
@@ -100,7 +100,7 @@ function getSimpleWizardSteps(kind: LakewatchDatasourceWizardKind) {
   const prefixLabel = getPrefixProviderLabel(kind)
   return [
     "Configure source",
-    `${prefixLabel} prefix & integration schemas`,
+    `${prefixLabel} prefix & ingestion templates`,
     "Additional details",
   ] as const
 }
@@ -1663,14 +1663,14 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Integration schemas"
-              description={`Specify the ${prefixProviderLabel} prefix and integration schemas Lakewatch should use to classify your logs`}
+              title="Ingestion templates"
+              description={`Specify the ${prefixProviderLabel} prefix and ingestion templates Lakewatch should use to classify your logs`}
             />
 
             <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
               <p className="mb-5 text-sm leading-5 text-foreground">
                 Enter the {prefixProviderLabel} prefix you would like Lakewatch to read data from
-                followed by the integration schemas that classify data as it comes into Lakewatch.
+                followed by the ingestion templates that classify data as it comes into Lakewatch.
                 You can also add exclusion filters, which will exclude prefixes from being read.
               </p>
 

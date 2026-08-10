@@ -577,7 +577,7 @@ function CloneTemplatePanel({
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-input px-6 py-5">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-foreground">
-            Clone integration template
+            Clone ingestion template
           </h2>
           <p className="text-hint text-muted-foreground">
             Create a new custom template based on this template. The original remains unchanged.
@@ -915,7 +915,7 @@ function TemplateSearchDropdown({
       <div className="max-h-[320px] overflow-y-auto py-1">
         {groupNames.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No integration templates found
+            No ingestion templates found
           </p>
         ) : (
           groupNames.map((groupName) => {
@@ -1164,15 +1164,15 @@ export function IntegrationTemplatesField({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <Label>Integration templates (optional)</Label>
+        <Label>Ingestion templates (optional)</Label>
         <p className="text-hint text-muted-foreground">
-          Select built-in or custom templates to structure and validate incoming event data.
+          Select built-in or custom ingestion templates to structure and validate incoming event data.
         </p>
       </div>
 
       <div ref={containerRef} className="relative flex flex-col gap-1">
         <Label htmlFor="template-search" className="font-semibold">
-          Search integration templates
+          Search ingestion templates
         </Label>
         <div className="relative">
           <Search
@@ -1206,10 +1206,10 @@ export function IntegrationTemplatesField({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
-              Selected integration templates
+              Selected ingestion templates
             </p>
             <span className="text-hint text-muted-foreground">
-              {selectedTemplates.length} templates active
+              {selectedTemplates.length} ingestion templates active
             </span>
           </div>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -1230,10 +1230,10 @@ export function IntegrationTemplatesField({
       ) : (
         <div className="flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-muted/40 px-6 py-10 text-center">
           <p className="text-sm font-semibold text-foreground">
-            No integration templates selected yet
+            No ingestion templates selected yet
           </p>
           <p className="text-hint text-muted-foreground">
-            Use the search above to browse built-in and custom integration templates.
+            Use the search above to browse built-in and custom ingestion templates.
           </p>
         </div>
       )}
