@@ -3,7 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import { SearchIcon, TableIcon } from "@/components/icons"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Breadcrumb,
@@ -15,20 +14,6 @@ import {
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { cn } from "@/lib/utils"
-
-const CATEGORIES = [
-  "AWS",
-  "Application",
-  "Cloud",
-  "Custom datasources",
-  "Data platform",
-  "Endpoint",
-  "Existing table",
-  "Network",
-  "SaaS",
-  "Security",
-  "Vulnerability assessment",
-] as const
 
 type SourceCard = {
   id: string
@@ -55,7 +40,7 @@ function SupportedSourceIcon({
   )
 }
 
-const CUSTOM_FORMATS: SourceCard[] = [
+const DATABRICKS_FORMATS: SourceCard[] = [
   {
     id: "existing-table",
     title: "Existing table",
@@ -78,6 +63,9 @@ const CUSTOM_FORMATS: SourceCard[] = [
     categories: ["Cloud", "Custom datasources", "Data platform"],
     icon: <div className="size-8 shrink-0 rounded bg-pink-100" aria-hidden />,
   },
+]
+
+const CUSTOM_FORMATS: SourceCard[] = [
   {
     id: "s3",
     title: "AWS S3 Bucket",
@@ -141,7 +129,7 @@ const SUPPORTED_FORMATS: SourceCard[] = [
     id: "slack",
     title: "Slack",
     description: "Monitor your team’s communication platform",
-    meta: "Native puller | 22 detections | 3 log types",
+    href: "/lakewatch/datasources/new/connect/slack",
     categories: ["SaaS", "Application"],
     icon: (
       <SupportedSourceIcon
@@ -155,7 +143,7 @@ const SUPPORTED_FORMATS: SourceCard[] = [
     title: "1Password",
     description:
       "Gain visibility into abnormal user activity in your organization’s 1Password account.",
-    meta: "Native puller | 3 detections | 3 log types",
+    href: "/lakewatch/datasources/new/connect/1password",
     categories: ["SaaS", "Security"],
     icon: (
       <SupportedSourceIcon
@@ -168,7 +156,7 @@ const SUPPORTED_FORMATS: SourceCard[] = [
     id: "m365",
     title: "Microsoft 365",
     description: "Monitor your team’s activity in Microsoft 365",
-    meta: "Native puller | 4 detections | 5 log types",
+    href: "/lakewatch/datasources/new/connect/m365",
     categories: ["SaaS", "Application"],
     icon: (
       <SupportedSourceIcon
@@ -181,7 +169,7 @@ const SUPPORTED_FORMATS: SourceCard[] = [
     id: "crowdstrike",
     title: "CrowdStrike Event Streams",
     description: "Monitor available detection, event, incident and audit data from CrowdStrike",
-    meta: "Native puller | 15 detections | 1 log type",
+    href: "/lakewatch/datasources/new/connect/crowdstrike",
     categories: ["Security", "Endpoint"],
     icon: (
       <SupportedSourceIcon
@@ -190,6 +178,316 @@ const SUPPORTED_FORMATS: SourceCard[] = [
       />
     ),
   },
+]
+
+const MONO_COLORS = [
+  "bg-coral-100 text-coral-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-lemon-100 text-lemon-700",
+  "bg-lime-100 text-lime-700",
+  "bg-pink-100 text-pink-700",
+  "bg-purple-100 text-purple-700",
+  "bg-turquoise-100 text-turquoise-700",
+  "bg-brown-100 text-brown-700",
+]
+
+function MonogramIcon({ label, colorClass }: { label: string; colorClass: string }) {
+  const initials = label
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+  return (
+    <div
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-md text-hint font-semibold",
+        colorClass
+      )}
+      aria-hidden
+    >
+      {initials}
+    </div>
+  )
+}
+
+const BRAND_DOMAINS: Record<string, string> = {
+  appomni: "appomni.com",
+  auth0: "auth0.com",
+  bedrock: "aws.amazon.com",
+  "carbon-black-audit": "carbonblack.com",
+  "carbon-black-streaming": "carbonblack.com",
+  envoy: "envoyproxy.io",
+  "iru-kandji": "kandji.io",
+  island: "island.io",
+  "defender-xdr": "microsoft.com",
+  notion: "notion.so",
+  okta: "okta.com",
+  "palo-alto-ngfw": "paloaltonetworks.com",
+  proofpoint: "proofpoint.com",
+  "push-security": "pushsecurity.com",
+  "sublime-security": "sublime.security",
+  "tenable-vm": "tenable.com",
+  "windows-event-logs": "microsoft.com",
+  "google-workspace": "google.com",
+  heroku: "heroku.com",
+  duo: "duo.com",
+  socradar: "socradar.io",
+  "aws-vpc": "aws.amazon.com",
+  "hex-webhook": "hex.tech",
+  "wiz-webhook": "wiz.io",
+  "aws-cloudfront": "aws.amazon.com",
+  "aws-cloudtrail": "aws.amazon.com",
+  "amazon-security-lake": "aws.amazon.com",
+  "aws-guardduty": "aws.amazon.com",
+  "aws-security-hub": "aws.amazon.com",
+  "zscaler-zia": "zscaler.com",
+  "zscaler-zpa": "zscaler.com",
+}
+
+function BrandIcon({
+  domain,
+  label,
+  colorClass,
+}: {
+  domain?: string
+  label: string
+  colorClass: string
+}) {
+  const [failed, setFailed] = React.useState(false)
+
+  if (!domain || failed) {
+    return <MonogramIcon label={label} colorClass={colorClass} />
+  }
+
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white">
+      <img
+        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+        alt=""
+        aria-hidden
+        className="size-5 object-contain"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  )
+}
+
+const EXTRA_SUPPORTED_FORMATS: Omit<SourceCard, "icon" | "href">[] = [
+  {
+    id: "appomni",
+    title: "AppOmni",
+    description:
+      "With AppOmni data ingested by Panther, your Security Operations teams can provide detections across all your SaaS platforms.",
+    categories: ["SaaS", "Security"],
+  },
+  {
+    id: "auditd",
+    title: "Auditd",
+    description: "Monitor system-level activities in your Linux environment.",
+    categories: ["Endpoint"],
+  },
+  {
+    id: "auth0",
+    title: "Auth0",
+    description: "Inspect your Auth0 event logs to detect suspicious activity.",
+    categories: ["Identity", "SaaS"],
+  },
+  {
+    id: "bedrock",
+    title: "Bedrock Model Invocation",
+    description: "Monitor and correlate suspicious Bedrock Model Invocations",
+    categories: ["AWS", "AI"],
+  },
+  {
+    id: "carbon-black-audit",
+    title: "Carbon Black Audit Logs",
+    description: "Inspect Carbon Black audit logs for suspicious activity.",
+    categories: ["Endpoint", "Security"],
+  },
+  {
+    id: "carbon-black-streaming",
+    title: "Carbon Black Data Streaming",
+    description: "Analyze Carbon Black data for threat detection.",
+    categories: ["Endpoint", "Security"],
+  },
+  {
+    id: "envoy",
+    title: "Envoy",
+    description: "L7 proxy and communication bus for large modern service oriented architectures.",
+    categories: ["Network"],
+  },
+  {
+    id: "iru-kandji",
+    title: "Iru (Kandji)",
+    description: "Monitor your team’s Iru logs",
+    categories: ["Endpoint"],
+  },
+  {
+    id: "island",
+    title: "Island",
+    description: "Monitor Island browser security and endpoint activity events",
+    categories: ["Endpoint", "Security"],
+  },
+  {
+    id: "defender-xdr",
+    title: "Microsoft Defender XDR",
+    description: "Unified threat detection and response across your Microsoft environment",
+    categories: ["Microsoft", "Security"],
+  },
+  {
+    id: "notion",
+    title: "Notion",
+    description: "Monitor your team’s Notion workspaces",
+    categories: ["SaaS", "Application"],
+  },
+  {
+    id: "okta",
+    title: "Okta",
+    description: "Inspect your Okta audit logs to detect suspicious activity.",
+    categories: ["Identity", "SaaS"],
+  },
+  {
+    id: "palo-alto-ngfw",
+    title: "Palo Alto Next-Generation Firewall",
+    description:
+      "Ingest Palo Alto Firewall logs into Panther for network security monitoring and threat detection.",
+    categories: ["Network", "Security"],
+  },
+  {
+    id: "proofpoint",
+    title: "Proofpoint",
+    description: "Inspect Proofpoint logs to detect suspicious activity.",
+    categories: ["Email", "Security"],
+  },
+  {
+    id: "push-security",
+    title: "Push Security",
+    description:
+      "Detect and stop identity attacks with Panther’s integration with Push Security. Use Push’s browser telemetry to monitor your identity attack surface in real-time.",
+    categories: ["Identity", "Security"],
+  },
+  {
+    id: "sublime-security",
+    title: "Sublime Security",
+    description: "Monitor and correlate suspicious email behavior, and Sublime audit logs",
+    categories: ["Email", "Security"],
+  },
+  {
+    id: "tenable-vm",
+    title: "Tenable Vulnerability Management",
+    description: "Dive deep into vulnerability data with Tenable Vulnerability Scanning.",
+    categories: ["Security"],
+  },
+  {
+    id: "windows-event-logs",
+    title: "Windows Event Logs",
+    description: "Monitor Windows application, system, and security notifications.",
+    categories: ["Endpoint", "Microsoft"],
+  },
+  {
+    id: "google-workspace",
+    title: "Google Workspace",
+    description: "Monitor activity across Google Workspace.",
+    categories: ["SaaS", "Application"],
+  },
+  {
+    id: "heroku",
+    title: "Heroku",
+    description: "Monitor your team’s Heroku applications",
+    categories: ["Cloud", "Application"],
+  },
+  {
+    id: "duo",
+    title: "Duo",
+    description: "Monitor your IdP for suspicious activity",
+    categories: ["Identity"],
+  },
+  {
+    id: "socradar",
+    title: "SOCRadar",
+    description: "Monitor SOCRadar threat intelligence alerts and dark web findings",
+    categories: ["Security", "Threat Intel"],
+  },
+  {
+    id: "aws-vpc",
+    title: "AWS VPC",
+    description:
+      "Capture information about the IP traffic going to and from network interfaces in your VPC",
+    categories: ["AWS", "Network"],
+  },
+  {
+    id: "hex-webhook",
+    title: "Hex Webhook",
+    description: "Stream your Hex analytics platform audit events to Panther",
+    categories: ["SaaS"],
+  },
+  {
+    id: "wiz-webhook",
+    title: "Wiz Webhook",
+    description: "Monitor your Wiz security findings via webhook notifications",
+    categories: ["Cloud", "Security"],
+  },
+  {
+    id: "aws-cloudfront",
+    title: "AWS CloudFront",
+    description: "Inspect the access logs that CloudFront generates",
+    categories: ["AWS"],
+  },
+  {
+    id: "aws-cloudtrail",
+    title: "AWS CloudTrail",
+    description: "Inspect the logs that CloudTrail generates",
+    categories: ["AWS"],
+  },
+  {
+    id: "amazon-security-lake",
+    title: "Amazon Security Lake",
+    description: "Inspect the logs that Amazon Security Lake generates",
+    categories: ["AWS", "Security"],
+  },
+  {
+    id: "aws-guardduty",
+    title: "AWS GuardDuty",
+    description: "Detect unauthorized and unexpected activity in your AWS environment",
+    categories: ["AWS", "Security"],
+  },
+  {
+    id: "aws-security-hub",
+    title: "AWS Security Hub",
+    description: "Automate AWS security checks and centralize security alerts",
+    categories: ["AWS", "Security"],
+  },
+  {
+    id: "zscaler-zia",
+    title: "Zscaler ZIA",
+    description: "Monitor your Zscaler ZIA logs for suspicious activity",
+    categories: ["Network", "Security"],
+  },
+  {
+    id: "zscaler-zpa",
+    title: "Zscaler ZPA",
+    description: "Monitor your Zscaler ZPA logs for suspicious activity",
+    categories: ["Network", "Security"],
+  },
+]
+
+const ALL_SUPPORTED_FORMATS: SourceCard[] = [
+  ...SUPPORTED_FORMATS,
+  ...EXTRA_SUPPORTED_FORMATS.map((card, index) => ({
+    ...card,
+    href: `/lakewatch/datasources/new/connect/${card.id}`,
+    icon: (
+      <BrandIcon
+        domain={BRAND_DOMAINS[card.id]}
+        label={card.title}
+        colorClass={MONO_COLORS[index % MONO_COLORS.length]}
+      />
+    ),
+  })),
 ]
 
 function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
@@ -263,10 +561,11 @@ function filterCards(cards: SourceCard[], query: string, category: string | null
 /** Figma 2499:116825 — Add new datasource (dark) */
 export function LakewatchAddDatasourceView() {
   const [search, setSearch] = React.useState("")
-  const [activeCategory, setActiveCategory] = React.useState<string | null>(null)
+  const [activeCategory] = React.useState<string | null>(null)
 
   const customVisible = filterCards(CUSTOM_FORMATS, search, activeCategory)
-  const supportedVisible = filterCards(SUPPORTED_FORMATS, search, activeCategory)
+  const databricksVisible = filterCards(DATABRICKS_FORMATS, search, activeCategory)
+  const supportedVisible = filterCards(ALL_SUPPORTED_FORMATS, search, activeCategory)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-10 pt-5">
@@ -309,27 +608,6 @@ export function LakewatchAddDatasourceView() {
         </div>
       </div>
 
-      <div className="mx-auto mt-6 flex w-full max-w-[1120px] flex-wrap items-center gap-2">
-        <span className="text-sm text-foreground">Filter by category</span>
-        {CATEGORIES.map((category) => (
-          <Button
-            key={category}
-            type="button"
-            variant="default"
-            size="sm"
-            className={cn(
-              "font-normal",
-              activeCategory === category && "border-primary bg-primary/5 text-primary"
-            )}
-            onClick={() =>
-              setActiveCategory((current) => (current === category ? null : category))
-            }
-          >
-            {category}
-          </Button>
-        ))}
-      </div>
-
       {customVisible.length > 0 ? (
         <section className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col gap-4">
           <SectionHeader
@@ -352,25 +630,30 @@ export function LakewatchAddDatasourceView() {
         </section>
       ) : null}
 
+      {databricksVisible.length > 0 ? (
+        <section className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col gap-4">
+          <SectionHeader
+            title="Databricks formats"
+            description="Onboard data that already lives in your Databricks workspace, such as Unity Catalog tables and volumes."
+          />
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            {databricksVisible.map((card) => (
+              <SourceCardTile key={card.id} card={card} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {supportedVisible.length > 0 ? (
         <section className="mx-auto mt-10 flex w-full max-w-[1120px] flex-col gap-4">
           <SectionHeader
-            title="Supported formats"
+            title="Lakeflow Connect supported formats"
             description="Lakewatch supports log ingestion either through native puller integrations or via custom integrations built with one of the supported Data Transports."
           />
-          <div className="flex flex-col gap-2.5">
-            <div className="flex flex-col gap-2.5 sm:flex-row">
-              {supportedVisible.slice(0, 2).map((card) => (
-                <SourceCardTile key={card.id} card={card} />
-              ))}
-            </div>
-            {supportedVisible.length > 2 ? (
-              <div className="flex flex-col gap-2.5 sm:flex-row">
-                {supportedVisible.slice(2).map((card) => (
-                  <SourceCardTile key={card.id} card={card} />
-                ))}
-              </div>
-            ) : null}
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {supportedVisible.map((card) => (
+              <SourceCardTile key={card.id} card={card} />
+            ))}
           </div>
         </section>
       ) : null}

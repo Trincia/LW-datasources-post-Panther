@@ -1111,7 +1111,6 @@ export function LakewatchDatasourceDetailView() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="schemas">Schemas</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
-          <TabsTrigger value="normalizations">Normalization</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -1185,9 +1184,6 @@ export function LakewatchDatasourceDetailView() {
         </TabsContent>
         <TabsContent value="health" className="pt-4">
           <DatasourceHealthTab />
-        </TabsContent>
-        <TabsContent value="normalizations" className="pt-4">
-          <DatasourceNormalizationsTab sourceName={sourceName} />
         </TabsContent>
       </Tabs>
     </div>

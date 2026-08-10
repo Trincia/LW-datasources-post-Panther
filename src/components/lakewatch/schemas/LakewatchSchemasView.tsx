@@ -109,7 +109,7 @@ export function LakewatchSchemasView() {
 
     const url = new URL(window.location.href)
     if (url.searchParams.get("created")) {
-      toast.success("New schema successfully added")
+      toast.success("New ingestion template successfully added")
       url.searchParams.delete("created")
       window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
     }
@@ -130,13 +130,13 @@ export function LakewatchSchemasView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-center justify-between gap-4">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Schemas</h1>
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Ingestion templates</h1>
         <div className="flex shrink-0 items-center gap-3">
           <LakewatchWarehouseSelector />
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/schemas/new">
               <PlusIcon size={16} />
-              Add Schema
+              Add Ingestion template
             </Link>
           </Button>
         </div>
@@ -152,8 +152,8 @@ export function LakewatchSchemasView() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter datasources"
-            aria-label="Filter schemas"
+            placeholder="Filter ingestion templates"
+            aria-label="Filter ingestion templates"
             className="pl-9"
           />
         </div>
@@ -163,7 +163,7 @@ export function LakewatchSchemasView() {
         <Table className="min-w-[980px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortableHeader className="w-[20%]">Schema Name</SortableHeader>
+              <SortableHeader className="w-[20%]">Ingestion template Name</SortableHeader>
               <SortableHeader className="w-[34%]">Description</SortableHeader>
               <TableHead className="h-10 w-[12%] bg-muted/70 font-normal text-muted-foreground">
                 Managed by

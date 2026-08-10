@@ -146,7 +146,7 @@ export function LakewatchSidebar({
           icon={SchemasNavIcon}
           active={activeItem === "schemas"}
         >
-          Schemas
+          Ingestion templates
         </NavRow>
         <NavRow
           href="/lakewatch/detection"

@@ -5,10 +5,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Plus, X } from "lucide-react"
 
-import { InfoFillIcon } from "@/components/icons"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { saveCustomSchema } from "@/components/lakewatch/schemas/schemaStorage"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,7 +19,6 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SegmentedControl, SegmentedItem } from "@/components/ui/segmented-control"
 import {
   Select,
   SelectContent,
@@ -33,30 +30,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 
 type ParserType = "json" | "script" | "regex"
-type CreationMethod = "infer" | "scratch"
-type SampleInputMode = "upload" | "paste"
 type RegexPair = { first: string; second: string }
-
-const SAMPLE_LOGS = `{"timestamp":"2026-07-30T21:04:12Z","eventType":"login","actor":{"id":"usr_1042","email":"analyst@example.com"},"sourceIp":"198.51.100.24","outcome":"success"}
-{"timestamp":"2026-07-30T21:05:48Z","eventType":"api_request","actor":{"id":"svc_lakewatch"},"resource":"/v1/events","status":200,"durationMs":184}
-{"timestamp":"2026-07-30T21:07:03Z","eventType":"permission_change","actor":{"id":"usr_1042"},"target":{"id":"role_security_admin"},"action":"grant"}`
-
-const INFERRED_SCHEMA = `fields:
-  - name: timestamp
-    type: timestamp
-    required: true
-  - name: eventType
-    type: string
-  - name: actor
-    type: object
-    fields:
-      - name: id
-        type: string
-      - name: email
-        type: string
-indicators:
-  - name: sourceIp
-    type: ip`
 
 const SCHEMA_EMPTY_STATE = `# Write your fields in YAML here...
 # Example:
@@ -69,6 +43,51 @@ const STARLARK_DEFAULT = `def parse(log):
   # Implement logic
   return {}`
 
+const SAMPLE_SCHEMA_ID = "Custom.AcmeAuthService"
+
+const SAMPLE_REFERENCE_URL =
+  "https://wiki.acmecorp.internal/engineering/docs/auth-service-log-spec"
+
+const SAMPLE_DESCRIPTION =
+  "Parses authentication, token generation, and login audit events emitted by the internal Acme IAM microservice. Inferred from structured JSON payload samples."
+
+const SAMPLE_SCHEMA_DEFINITION = `schema: Custom.AcmeAuthService
+description: Authentication and login audit events from the Acme IAM service.
+fields:
+  - name: timestamp
+    type: timestamp
+    required: true
+    isEventTime: true
+    timeFormats:
+      - rfc3339
+  - name: event_type
+    type: string
+    required: true
+    description: One of login, logout, token_issued, mfa_challenge.
+  - name: outcome
+    type: string
+    description: success or failure.
+  - name: actor
+    type: object
+    fields:
+      - name: user_id
+        type: string
+      - name: email
+        type: string
+  - name: source_ip
+    type: string
+  - name: user_agent
+    type: string
+  - name: session_id
+    type: string
+indicators:
+  - name: source_ip
+    type: ip
+  - name: actor.email
+    type: email
+  - name: actor.user_id
+    type: username`
+
 function CodeEditor({
   label,
   description,
@@ -76,6 +95,7 @@ function CodeEditor({
   onChange,
   placeholder,
   minHeight = "min-h-80",
+  onActivate,
 }: {
   label: string
   description: string
@@ -83,6 +103,7 @@ function CodeEditor({
   onChange: (value: string) => void
   placeholder: string
   minHeight?: string
+  onActivate?: () => void
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -100,85 +121,13 @@ function CodeEditor({
         <Textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onFocus={onActivate}
+          onClick={onActivate}
           placeholder={placeholder}
           spellCheck={false}
           className={`${minHeight} resize-none rounded border border-grey-700 bg-grey-800 py-2 pr-4 pl-12 font-mono text-hint leading-5 text-grey-050 shadow-none placeholder:text-blue-400 placeholder:opacity-100 focus-visible:ring-2 focus-visible:ring-ring`}
         />
       </div>
-    </div>
-  )
-}
-
-function SampleEventsEditor({ onInfer }: { onInfer: () => void }) {
-  const [mode, setMode] = React.useState<SampleInputMode>("upload")
-  const [sampleLogs, setSampleLogs] = React.useState("")
-  const [showAlert, setShowAlert] = React.useState(true)
-
-  return (
-    <div className="flex flex-col gap-5">
-      {showAlert ? (
-        <Alert onDismiss={() => setShowAlert(false)}>
-          <InfoFillIcon size={16} />
-          <AlertTitle>Paste or upload real events</AlertTitle>
-          <AlertDescription>
-            We&apos;ll infer a draft schema from the event structure.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <SegmentedControl
-        value={mode}
-        onValueChange={(value) => setMode(value as SampleInputMode)}
-      >
-        <SegmentedItem value="upload">Upload sample file</SegmentedItem>
-        <SegmentedItem value="paste">Paste sample event(s)</SegmentedItem>
-      </SegmentedControl>
-
-      {mode === "upload" ? (
-        <div className="flex min-h-64 flex-col items-center justify-center rounded border border-dashed border-border bg-muted p-6 text-center">
-          {sampleLogs ? (
-            <pre className="max-h-64 w-full overflow-auto whitespace-pre-wrap break-all text-left font-mono text-hint leading-5 text-foreground">
-              {sampleLogs}
-            </pre>
-          ) : (
-            <>
-              <p className="text-sm font-semibold text-foreground">
-                Upload events from a local file
-              </p>
-              <p className="text-hint text-muted-foreground">JSON or JSONL, up to 10 MB</p>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="mt-3"
-                onClick={() => setSampleLogs(SAMPLE_LOGS)}
-              >
-                Select file
-              </Button>
-            </>
-          )}
-        </div>
-      ) : (
-        <Textarea
-          value={sampleLogs}
-          onChange={(event) => setSampleLogs(event.target.value)}
-          placeholder={'{"timestamp":"2026-07-30T21:04:12Z","eventType":"login"}'}
-          aria-label="Sample events"
-          spellCheck={false}
-          className="min-h-64 resize-none bg-muted p-4 font-mono text-hint leading-5"
-        />
-      )}
-
-      <Button
-        type="button"
-        variant="primary"
-        size="sm"
-        className="self-start"
-        disabled={!sampleLogs.trim()}
-        onClick={onInfer}
-      >
-        Infer schema
-      </Button>
     </div>
   )
 }
@@ -418,8 +367,6 @@ export function LakewatchCreateSchemaView() {
   const [description, setDescription] = React.useState("")
   const [referenceUrl, setReferenceUrl] = React.useState("")
   const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
-  const [creationMethod, setCreationMethod] =
-    React.useState<CreationMethod>("scratch")
   const [parser, setParser] = React.useState<ParserType>("json")
   const [schemaDefinition, setSchemaDefinition] = React.useState("")
   const [starlarkConfiguration, setStarlarkConfiguration] =
@@ -443,24 +390,24 @@ export function LakewatchCreateSchemaView() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-10 pt-6"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-10 pt-0"
     >
-      <div className="sticky top-0 z-10 -mx-10 -mt-6 flex items-start justify-between gap-4 bg-background px-10 pt-6 pb-4">
+      <div className="sticky top-0 z-10 -mx-10 flex items-start justify-between gap-4 bg-background px-10 pt-6 pb-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link href="/lakewatch/schemas">Schemas</Link>
+                  <Link href="/lakewatch/schemas">Ingestion template</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>Add new schema</BreadcrumbPage>
+                <BreadcrumbPage>Create new ingestion template</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Create New Schema</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Create new ingestion schema</h1>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="default" size="sm" asChild>
@@ -482,6 +429,9 @@ export function LakewatchCreateSchemaView() {
               id="schema-id"
               value={schemaId}
               onChange={(event) => setSchemaId(event.target.value)}
+              onFocus={() => {
+                if (!schemaId) setSchemaId(SAMPLE_SCHEMA_ID)
+              }}
             />
           </div>
 
@@ -492,6 +442,9 @@ export function LakewatchCreateSchemaView() {
               type="url"
               value={referenceUrl}
               onChange={(event) => setReferenceUrl(event.target.value)}
+              onFocus={() => {
+                if (!referenceUrl) setReferenceUrl(SAMPLE_REFERENCE_URL)
+              }}
             />
           </div>
 
@@ -501,6 +454,9 @@ export function LakewatchCreateSchemaView() {
               id="schema-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
+              onFocus={() => {
+                if (!description) setDescription(SAMPLE_DESCRIPTION)
+              }}
               className="min-h-16 resize-none"
             />
           </div>
@@ -520,49 +476,31 @@ export function LakewatchCreateSchemaView() {
             </div>
             <p className="text-hint leading-4 text-muted-foreground">
               By enabling this feature, Databricks will not drop any fields from an event that
-              aren&apos;t included in the schema. This allows you to query all the fields, and also
-              lets detections access them.
+              aren&apos;t included in the ingestion template. This allows you to query all the
+              fields, and also lets detections access them.
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>Schema definition</Label>
-            <SegmentedControl
-              value={creationMethod}
-              onValueChange={(value) =>
-                setCreationMethod(value as CreationMethod)
-              }
-            >
-              <SegmentedItem value="infer">Infer from sample event</SegmentedItem>
-              <SegmentedItem value="scratch">Create from scratch</SegmentedItem>
-            </SegmentedControl>
-          </div>
         </section>
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold leading-6 text-foreground">Schema</h2>
+          <h2 className="text-lg font-semibold leading-6 text-foreground">Ingestion template</h2>
 
-          {creationMethod === "infer" ? (
-            <SampleEventsEditor
-              onInfer={() => setSchemaDefinition(INFERRED_SCHEMA)}
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="schema-parser">Parser</Label>
-              <Select value={parser} onValueChange={(value) => setParser(value as ParserType)}>
-                <SelectTrigger id="schema-parser" aria-label="Parser">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="json">JSON/XML</SelectItem>
-                  <SelectItem value="script">Script</SelectItem>
-                  <SelectItem value="regex">Regex</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="schema-parser">Parser</Label>
+            <Select value={parser} onValueChange={(value) => setParser(value as ParserType)}>
+              <SelectTrigger id="schema-parser" aria-label="Parser">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="json">JSON/XML</SelectItem>
+                <SelectItem value="script">Script</SelectItem>
+                <SelectItem value="regex">Regex</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          {creationMethod === "scratch" && parser === "script" ? (
+          {parser === "script" ? (
             <CodeEditor
               label="Starlark configuration"
               description="Write your script in Starlark configuration language."
@@ -573,7 +511,7 @@ export function LakewatchCreateSchemaView() {
             />
           ) : null}
 
-          {creationMethod === "scratch" && parser === "regex" ? (
+          {parser === "regex" ? (
             <RegexConfiguration />
           ) : null}
 
@@ -581,10 +519,13 @@ export function LakewatchCreateSchemaView() {
 
           <CodeEditor
             label="Fields & Indicators"
-            description="Define and edit the fields and indicators of your Schema."
+            description="Define and edit the fields and indicators of your ingestion template."
             value={schemaDefinition}
             onChange={setSchemaDefinition}
             placeholder={SCHEMA_EMPTY_STATE}
+            onActivate={() => {
+              if (!schemaDefinition) setSchemaDefinition(SAMPLE_SCHEMA_DEFINITION)
+            }}
           />
         </section>
       </Card>
