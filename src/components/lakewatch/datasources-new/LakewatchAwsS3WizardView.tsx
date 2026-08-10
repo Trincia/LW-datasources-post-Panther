@@ -80,7 +80,7 @@ import { cn } from "@/lib/utils"
 const WIZARD_STEPS = [
   "Source location",
   "Ingestion templates",
-  "Name, Alerts & Permissions",
+  "Name and Permissions",
 ] as const
 
 export type LakewatchDatasourceWizardKind =
@@ -1211,9 +1211,6 @@ export function LakewatchAwsS3WizardView({
   const [s3Prefix, setS3Prefix] = React.useState("")
   const templateController = useIntegrationTemplates()
   const pendingSchemas: string[] = []
-  const [alarmEnabled, setAlarmEnabled] = React.useState(true)
-  const [alarmNumber, setAlarmNumber] = React.useState("1")
-  const [alarmPeriod, setAlarmPeriod] = React.useState("days")
   const [catalog, setCatalog] = React.useState("lakewatch")
   const [schema, setSchema] = React.useState("default")
   const [datasourceName, setDatasourceName] = React.useState("lakewatch-account-us-west-2")
@@ -1736,58 +1733,11 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={3}
-              title="Name, Alerts & Permissions"
+              title="Name and Permissions"
               description="Your configured stack was deployed successfully and Lakewatch now has permissions to pull data."
             />
 
             <div className="flex min-h-[512px] flex-col px-6 py-5">
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="source-alarm">
-                  Set an alarm in case this source does not process any events?
-                </Label>
-                <Switch
-                  id="source-alarm"
-                  checked={alarmEnabled}
-                  onCheckedChange={setAlarmEnabled}
-                />
-              </div>
-
-              {alarmEnabled ? (
-                <div className="mt-5 flex items-end justify-between gap-6">
-                  <p className="max-w-[330px] text-sm leading-5 text-foreground">
-                    How long should Lakewatch wait before it sends you an alert that no events have
-                    been processed?
-                  </p>
-                  <div className="flex items-end gap-2">
-                    <div className="flex w-[72px] flex-col gap-2">
-                      <Label htmlFor="alarm-number">Number</Label>
-                      <Input
-                        id="alarm-number"
-                        type="number"
-                        min="1"
-                        value={alarmNumber}
-                        onChange={(event) => setAlarmNumber(event.target.value)}
-                      />
-                    </div>
-                    <div className="flex w-[104px] flex-col gap-2">
-                      <Label>Period</Label>
-                      <Select value={alarmPeriod} onValueChange={setAlarmPeriod}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="hours">Hour(s)</SelectItem>
-                          <SelectItem value="days">Day(s)</SelectItem>
-                          <SelectItem value="weeks">Week(s)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="my-5 h-px bg-border" />
-
               <Label className="mb-2">Datasource name *</Label>
               <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
                 <Select value={catalog} onValueChange={setCatalog}>

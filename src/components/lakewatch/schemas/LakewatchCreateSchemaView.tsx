@@ -407,7 +407,7 @@ export function LakewatchCreateSchemaView() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Create new ingestion schema</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Create new ingestion template</h1>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="default" size="sm" asChild>
@@ -424,7 +424,7 @@ export function LakewatchCreateSchemaView() {
           <h2 className="text-lg font-semibold leading-6 text-foreground">General Info</h2>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="schema-id">Schema ID</Label>
+            <Label htmlFor="schema-id">Name</Label>
             <Input
               id="schema-id"
               value={schemaId}
@@ -484,8 +484,6 @@ export function LakewatchCreateSchemaView() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold leading-6 text-foreground">Ingestion template</h2>
-
           <div className="flex flex-col gap-2">
             <Label htmlFor="schema-parser">Parser</Label>
             <Select value={parser} onValueChange={(value) => setParser(value as ParserType)}>
