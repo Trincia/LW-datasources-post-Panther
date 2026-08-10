@@ -890,7 +890,7 @@ function TemplateSearchDropdown({
   ]
 
   return (
-    <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-md border border-input bg-popover shadow-md">
+    <div className="absolute left-0 top-full z-40 mt-1 w-[480px] max-w-full overflow-hidden rounded-md border border-input bg-popover shadow-md">
       <div className="flex items-center justify-between border-b border-input px-3 py-2">
         <div className="flex items-center gap-1">
           {tabs.map((item) => (
