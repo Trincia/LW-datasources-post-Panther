@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { Check, Loader2, MoreHorizontal, Pencil } from "lucide-react"
+import { Check, Loader2, Lock, MoreHorizontal, Pencil } from "lucide-react"
 
 import {
   CalendarRangeIcon,
@@ -196,6 +196,7 @@ function ProcessingScheduleToolbar() {
   const [editorMode, setEditorMode] = React.useState("ui")
   const [dirty, setDirty] = React.useState(false)
   const [editingSchedule, setEditingSchedule] = React.useState(false)
+  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
 
   const markDirty = () => setDirty(true)
 
@@ -288,12 +289,29 @@ function ProcessingScheduleToolbar() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-[7px]">
+      <div className="flex shrink-0 items-center gap-2">
         <SegmentedControl value={editorMode} onValueChange={setEditorMode}>
           <SegmentedItem value="ui">UI</SegmentedItem>
           <SegmentedItem value="yaml">YAML</SegmentedItem>
         </SegmentedControl>
+        <Select value={runAs} onValueChange={setRunAs}>
+          <SelectTrigger className="w-[272px] shrink-0" aria-label="Run as">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="beau.trincia@databricks.com">
+              Run as: beau.trincia@databricks.com
+            </SelectItem>
+            <SelectItem value="lakewatch-service-principal">
+              Run as: Lakewatch service principal
+            </SelectItem>
+            <SelectItem value="security-platform@databricks.com">
+              Run as: security-platform@databricks.com
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="default" size="sm">
+          <Lock className="h-4 w-4" />
           Permissions
         </Button>
         <Button
