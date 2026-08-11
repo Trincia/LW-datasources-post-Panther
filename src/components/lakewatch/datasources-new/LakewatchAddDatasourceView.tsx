@@ -11,7 +11,10 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { cn } from "@/lib/utils"
 
@@ -583,7 +586,10 @@ export function LakewatchAddDatasourceView() {
           </Breadcrumb>
           <h1 className={PAGE_TITLE_SEMIBOLD}>Add new datasource</h1>
         </div>
-        <LakewatchWarehouseSelector />
+        <div className="flex shrink-0 items-center gap-2">
+          <LakewatchCatalogSelector />
+          <LakewatchWarehouseSelector />
+        </div>
       </div>
 
       <div className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col items-center gap-2 text-center">

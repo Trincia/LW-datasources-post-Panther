@@ -22,7 +22,11 @@ import {
   FolderIcon,
   TableIcon,
 } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   IntegrationTemplatePanel,
@@ -47,6 +51,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -742,11 +753,37 @@ function SchemaSplitPreview({ region }: { region: string }) {
   const [schemaIndex, setSchemaIndex] = React.useState(0)
   const [selectedRowIndex, setSelectedRowIndex] = React.useState<number | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [leftPct, setLeftPct] = React.useState(41)
+  const splitRef = React.useRef<HTMLDivElement>(null)
+  const draggingRef = React.useRef(false)
 
   React.useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500)
     return () => clearTimeout(timer)
   }, [])
+
+  const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    draggingRef.current = true
+    event.currentTarget.setPointerCapture(event.pointerId)
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+  }
+
+  const handleResizeMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current || !splitRef.current) return
+    const rect = splitRef.current.getBoundingClientRect()
+    const pct = ((event.clientX - rect.left) / rect.width) * 100
+    setLeftPct(Math.min(80, Math.max(20, pct)))
+  }
+
+  const handleResizeEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    draggingRef.current = false
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    document.body.style.cursor = ""
+    document.body.style.userSelect = ""
+  }
 
   const schema = DETECTED_SCHEMAS[schemaIndex]
   const inputData = getInputPreviewData(region)
@@ -754,14 +791,6 @@ function SchemaSplitPreview({ region }: { region: string }) {
   const outputData: PreviewTableData = {
     columns: schemaData.columns,
     rows: schemaData.rows.slice(0, inputData.rows.length),
-  }
-
-  const showPreviousSchema = () => {
-    setSchemaIndex((current) => (current - 1 + DETECTED_SCHEMAS.length) % DETECTED_SCHEMAS.length)
-  }
-
-  const showNextSchema = () => {
-    setSchemaIndex((current) => (current + 1) % DETECTED_SCHEMAS.length)
   }
 
   if (loading) {
@@ -775,7 +804,11 @@ function SchemaSplitPreview({ region }: { region: string }) {
 
   return (
     <>
-    <div className="grid h-[176px] grid-cols-[41%_59%] overflow-hidden border-y border-input">
+    <div
+      ref={splitRef}
+      className="relative grid h-[176px] overflow-hidden border-y border-input"
+      style={{ gridTemplateColumns: `${leftPct}% ${100 - leftPct}%` }}
+    >
       <section aria-label="Input preview" className="min-w-0 border-r border-input">
         <div className="flex h-8 min-w-0 items-center gap-1 px-2">
           <span className="text-sm font-semibold text-foreground">Input</span>
@@ -799,23 +832,33 @@ function SchemaSplitPreview({ region }: { region: string }) {
           <TableIcon className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold text-foreground">Output</span>
           <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Show previous schema"
-            onClick={showPreviousSchema}
-          >
-            <ChevronLeftIcon className="h-4 w-4 text-muted-foreground" />
-          </Button>
-          <span className="min-w-[118px] truncate text-sm text-primary">{schema}</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Show next schema"
-            onClick={showNextSchema}
-          >
-            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
+                aria-label="Select ingestion template"
+              >
+                <span className="max-w-[140px] truncate text-sm">{schema}</span>
+                <ChevronDownIcon className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuRadioGroup
+                value={schema}
+                onValueChange={(value) =>
+                  setSchemaIndex(DETECTED_SCHEMAS.indexOf(value as PreviewSchema))
+                }
+              >
+                {DETECTED_SCHEMAS.map((name) => (
+                  <DropdownMenuRadioItem key={name} value={name}>
+                    {name}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
             10 records, {outputData.columns.length} columns
           </span>
@@ -828,6 +871,19 @@ function SchemaSplitPreview({ region }: { region: string }) {
           onRowSelect={setSelectedRowIndex}
         />
       </section>
+
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize input and output panes"
+        onPointerDown={handleResizeStart}
+        onPointerMove={handleResizeMove}
+        onPointerUp={handleResizeEnd}
+        className="group absolute top-0 bottom-0 z-10 flex w-3 -translate-x-1/2 cursor-col-resize items-stretch justify-center"
+        style={{ left: `${leftPct}%` }}
+      >
+        <span className="w-px bg-transparent transition-colors group-hover:bg-primary" />
+      </div>
     </div>
       <SchemaRowDrawer
         schema={schema}
@@ -1011,7 +1067,7 @@ function EventUnwrapPreview({
 
   return (
     <div>
-      <div className="grid h-[176px] grid-cols-2 overflow-hidden border-y border-input">
+      <div className="grid h-[168px] grid-cols-2 overflow-hidden border-y border-input">
         <UnwrapPreviewPane
           label="Source record"
           position={recordIndex + 1}
@@ -1032,7 +1088,7 @@ function EventUnwrapPreview({
           loading={loading}
         />
       </div>
-      <div className="flex h-8 items-center gap-1.5 border-b border-input px-3 text-hint text-muted-foreground">
+      <div className="flex h-6 items-center gap-1.5 border-b border-input px-3 text-hint text-muted-foreground">
         {loading ? (
           <span className="inline-flex items-center gap-1.5">
             <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden />
@@ -1191,7 +1247,6 @@ export function LakewatchAwsS3WizardView({
   const router = useRouter()
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
-  const [sampleLocation, setSampleLocation] = React.useState("")
   const [viewTableName, setViewTableName] = React.useState("")
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
   const [s3RunAs, setS3RunAs] = React.useState("beau.trincia@databricks.com")
@@ -1218,6 +1273,18 @@ export function LakewatchAwsS3WizardView({
   const sampleVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const prepareEventsRef = React.useRef<HTMLDivElement>(null)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [contentWidth, setContentWidth] = React.useState(0)
+
+  React.useEffect(() => {
+    const el = contentRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setContentWidth(entry.contentRect.width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const previewReady =
     sampleVerification === "verified" && regionVerification === "verified"
@@ -1226,6 +1293,11 @@ export function LakewatchAwsS3WizardView({
     templateController.selectedNames.length > 0 || pendingSchemas.length > 0
   const showSplitPreview = (activeStep === 2 || activeStep === 3) && schemasReady
   const templatePanelOpen = activeStep === 2 && templateController.panelOpen
+  // Collapse the vertical stepper into a compact "Step X / N" button whenever the
+  // available width is tight (e.g. the Genie code panel is open) or the template
+  // detail panel is shown, so the step form keeps enough room.
+  const compact = contentWidth > 0 && contentWidth < 900
+  const stepperCollapsed = templatePanelOpen || compact
   const showUnwrapPreview = activeStep === 1 && eventPrep === "unwrap"
   const previewRegion = awsRegion || "us-west-2"
   const isSimpleWizard = kind !== "aws-s3"
@@ -1280,7 +1352,16 @@ export function LakewatchAwsS3WizardView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
+    <div
+      ref={contentRef}
+      className={cn(
+        "flex min-h-0 flex-1 overflow-hidden",
+        // When the detail panel is open it becomes a full-height right column so its
+        // left divider runs to the top of the box; the wizard content stays on the left.
+        templatePanelOpen ? "flex-col lg:flex-row" : "flex-col"
+      )}
+    >
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
       <div className="flex shrink-0 items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
@@ -1298,10 +1379,18 @@ export function LakewatchAwsS3WizardView({
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>
-            {simpleConfig?.title ?? "Create AWS S3 datasource"}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className={PAGE_TITLE_SEMIBOLD}>
+              {simpleConfig?.title ?? "Create AWS S3 datasource"}
+            </h1>
+            <WizardStepMenu
+              steps={isSimpleWizard ? getSimpleWizardSteps(kind) : WIZARD_STEPS}
+              activeStep={activeStep}
+              className={stepperCollapsed ? undefined : "hidden"}
+            />
+          </div>
         </div>
+        <LakewatchCatalogSelector />
         <LakewatchWarehouseSelector />
       </div>
 
@@ -1309,15 +1398,19 @@ export function LakewatchAwsS3WizardView({
         className={cn(
           "grid grid-cols-1 min-h-0 flex-1",
           templatePanelOpen
-            ? "-mx-5 mt-4 border-t border-input lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]"
-            : "mx-auto mt-6 w-full items-start gap-8 max-w-[1168px] lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
+            ? "mt-4 w-full"
+            : compact
+              ? "mx-auto mt-6 w-full max-w-[679px]"
+              : "mx-auto mt-6 w-full items-start gap-8 max-w-[1168px] lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
         )}
       >
-        {!templatePanelOpen ? (
-          <WizardStepper
-            activeStep={activeStep}
-            steps={isSimpleWizard ? getSimpleWizardSteps(kind) : WIZARD_STEPS}
-          />
+        {!stepperCollapsed ? (
+          <div>
+            <WizardStepper
+              activeStep={activeStep}
+              steps={isSimpleWizard ? getSimpleWizardSteps(kind) : WIZARD_STEPS}
+            />
+          </div>
         ) : null}
 
         {activeStep === 1 ? (
@@ -1443,7 +1536,7 @@ export function LakewatchAwsS3WizardView({
                   An optional S3 path to a smaller sample of the data (e.g.
                   s3://my-bucket/logs/sample/).
                 </p>
-                <Select value={sampleLocation} onValueChange={setSampleLocation}>
+                <Select value={dataSampleLocation} onValueChange={validateSampleLocation}>
                   <SelectTrigger className="w-full" aria-label="S3 sample location">
                     <SelectValue placeholder="Select an S3 sample location" />
                   </SelectTrigger>
@@ -1462,7 +1555,7 @@ export function LakewatchAwsS3WizardView({
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label>S3 Run as</Label>
+                <Label>Run as</Label>
                 <p className="text-hint text-muted-foreground">
                   Select the identity Lakewatch uses to access this S3 location.
                 </p>
@@ -1482,33 +1575,6 @@ export function LakewatchAwsS3WizardView({
                     </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="data-sample-location">Data sample location (optional)</Label>
-                <p className="text-hint text-muted-foreground">
-                  An optional S3 path to a smaller sample of the data used to generate the preview
-                  instead of the full source location.
-                </p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="data-sample-location"
-                    value={dataSampleLocation}
-                    onChange={(event) => validateSampleLocation(event.target.value)}
-                    onFocus={() => {
-                      if (!dataSampleLocation) {
-                        validateSampleLocation("s3://production-cloudtrail/AWSLogs/sample/")
-                      }
-                    }}
-                    onClick={() => {
-                      if (!dataSampleLocation) {
-                        validateSampleLocation("s3://production-cloudtrail/AWSLogs/sample/")
-                      }
-                    }}
-                    placeholder="s3://my-bucket/sample/"
-                  />
-                  <VerificationIndicator state={sampleVerification} label="Data sample location" />
-                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -1674,12 +1740,14 @@ export function LakewatchAwsS3WizardView({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="s3-prefix">{prefixProviderLabel} Prefix</Label>
                 <p className="text-hint text-muted-foreground">
-                  Leave blank to create a wildcard (*) prefix and allow ingestion of all files in
+                  The prefix path within the bucket to read from. Leave blank or use an empty string
+                  (&quot;&quot;) to create a wildcard (*) prefix and allow ingestion of all files in
                   the bucket.
                 </p>
                 <Input
                   id="s3-prefix"
                   value={s3Prefix}
+                  placeholder="AWSLogs/123456789012/CloudTrail/"
                   onChange={(event) => setS3Prefix(event.target.value)}
                   onFocus={() =>
                     setS3Prefix((current) =>
@@ -1814,13 +1882,6 @@ export function LakewatchAwsS3WizardView({
             </div>
           </form>
         )}
-
-        {templatePanelOpen ? (
-          <IntegrationTemplatePanel
-            controller={templateController}
-            className="lg:h-full lg:border-l lg:border-input"
-          />
-        ) : null}
       </div>
 
       {previewVisible &&
@@ -1828,10 +1889,7 @@ export function LakewatchAwsS3WizardView({
         ((activeStep === 2 || activeStep === 3) && (previewReady || schemasReady))) ? (
         <section
           aria-label="Data preview"
-          className={cn(
-            "-mx-5 -mb-5 shrink-0 bg-secondary",
-            templatePanelOpen ? "mt-0" : "mt-4"
-          )}
+          className="-mx-5 -mb-5 mt-auto shrink-0 bg-secondary"
         >
           {showSplitPreview ? (
             <SchemaSplitPreview region={previewRegion} />
@@ -1893,6 +1951,14 @@ export function LakewatchAwsS3WizardView({
             </>
           )}
         </section>
+      ) : null}
+      </div>
+
+      {templatePanelOpen ? (
+        <IntegrationTemplatePanel
+          controller={templateController}
+          className="min-h-0 w-full flex-1 border-t border-input lg:w-[520px] lg:flex-none lg:border-l lg:border-t-0"
+        />
       ) : null}
 
       {isExistingTable ? (

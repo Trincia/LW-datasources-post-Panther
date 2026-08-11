@@ -15,7 +15,10 @@ import {
   LakewatchDatasourceLogo,
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -135,7 +138,7 @@ function MetricCard({
 
 function DataProcessedSparkline() {
   return (
-    <div className="relative mt-1 h-12 w-full overflow-hidden" aria-hidden>
+    <div className="relative mt-1 -mx-3.5 -mb-3.5 h-12 overflow-hidden" aria-hidden>
       <img
         alt=""
         src="/lakewatch/charts/data-processed-fill.svg"
@@ -217,6 +220,7 @@ export function LakewatchDatasourcesOverviewView() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
+          <LakewatchCatalogSelector />
           <LakewatchWarehouseSelector />
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/datasources/new">
@@ -236,7 +240,7 @@ export function LakewatchDatasourcesOverviewView() {
         <MetricCard label="Unhealthy" value="1" valueClassName="text-destructive" />
         <MetricCard label="Total events last 7 days" value="12.4 M" trend="up" />
         <MetricCard label="Total events last 24 hours" value="1.8 M" trend="down" />
-        <div className="min-w-[280px] flex-[1.5] rounded bg-muted-foreground/20 p-3.5">
+        <div className="min-w-[280px] flex-[1.5] overflow-hidden rounded bg-muted-foreground/20 p-3.5">
           <p className="text-sm text-foreground">Data processed last 7 days</p>
           <DataProcessedSparkline />
         </div>
@@ -252,7 +256,6 @@ export function LakewatchDatasourcesOverviewView() {
               <TableHead className="w-[13%]">Last data received</TableHead>
               <TableHead className="w-[13%]">Run history</TableHead>
               <TableHead className="w-[14%]">Events</TableHead>
-              <TableHead className="w-[8%]">DLQ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -295,7 +298,6 @@ export function LakewatchDatasourcesOverviewView() {
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-foreground">{row.dlq}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -3,11 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { Loader2, MoreHorizontal } from "lucide-react"
+import { Check, Loader2, MoreHorizontal, Pencil } from "lucide-react"
 
 import {
   CalendarRangeIcon,
-  CatalogIcon,
   ForkIcon,
   InfoSmallIcon,
   NotebookIcon,
@@ -19,7 +18,10 @@ import {
   LakewatchDatasourceLogo,
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -96,23 +98,59 @@ const DATASOURCE_LOGOS: Record<string, LakewatchDatasourceLogoKind> = {
   "1password": "1password",
 }
 
+const CHART_MAX = 95.37
+const CHART_VIEW_W = 1000
+const CHART_VIEW_H = 110
+
 const CHART_SERIES = [
   {
     label: "AWS VPCFlow",
-    colorClassName: "bg-[var(--tag-text-purple)]",
-    src: "/lakewatch/charts/datasource-vpc-flow.svg",
+    color: "#4299E0",
+    values: [58, 62, 66, 70, 68, 72, 75, 73, 76, 74, 71, 69, 66],
   },
   {
     label: "AWS S3ServerAccess",
-    colorClassName: "bg-[var(--tag-text-teal)]",
-    src: "/lakewatch/charts/datasource-s3-access.svg",
+    color: "#3CAA60",
+    values: [30, 33, 36, 38, 42, 45, 43, 40, 38, 41, 39, 37, 35],
   },
   {
     label: "AWS ALB",
-    colorClassName: "bg-[var(--tag-text-coral)]",
-    src: "/lakewatch/charts/datasource-alb.svg",
+    color: "#E65B77",
+    values: [10, 14, 18, 16, 13, 12, 14, 13, 15, 14, 12, 11, 13],
   },
 ] as const
+
+function buildSeriesPaths(values: readonly number[], max: number = CHART_MAX) {
+  const points = values.map((value, index) => ({
+    x: (index / (values.length - 1)) * CHART_VIEW_W,
+    y: CHART_VIEW_H * (1 - value / max),
+  }))
+
+  let line = `M ${points[0].x} ${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] ?? p2
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    line += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+  }
+
+  const last = points[points.length - 1]
+  const area = `${line} L ${last.x} ${CHART_VIEW_H} L ${points[0].x} ${CHART_VIEW_H} Z`
+
+  return { line, area }
+}
+
+const EVENTS_MAX = 500
+const EVENTS_SERIES = {
+  label: "Processed Events",
+  color: "#2EB5A6",
+  values: [410, 414, 411, 417, 415, 413, 419, 416, 422, 420, 417, 405, 35],
+}
 
 const CHART_DATES = [
   ["04:00", "JUL 21"],
@@ -155,101 +193,108 @@ function ProcessingScheduleToolbar() {
   const [cadence, setCadence] = React.useState("at-least-every")
   const [interval, setInterval] = React.useState("10")
   const [unit, setUnit] = React.useState("minutes")
-  const [active, setActive] = React.useState(true)
   const [editorMode, setEditorMode] = React.useState("ui")
   const [dirty, setDirty] = React.useState(false)
+  const [editingSchedule, setEditingSchedule] = React.useState(false)
 
   const markDirty = () => setDirty(true)
 
+  const CADENCE_LABELS: Record<string, string> = {
+    "at-least-every": "At least every",
+    every: "Every",
+    cron: "Cron",
+  }
+  const UNIT_LABELS: Record<string, string> = {
+    minutes: "minutes",
+    hours: "hours",
+    days: "days",
+  }
+  const scheduleLabel = `${CADENCE_LABELS[cadence] ?? cadence} ${interval} ${
+    UNIT_LABELS[unit] ?? unit
+  }`
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-[11px] gap-y-2">
+    <div className="flex items-center justify-between gap-x-3 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-[7px] gap-y-2">
         <p className="shrink-0 text-sm font-semibold leading-5 text-foreground">
           Processing schedule
         </p>
-        <Select
-          value={cadence}
-          onValueChange={(value) => {
-            setCadence(value)
-            markDirty()
-          }}
-        >
-          <SelectTrigger className="w-[151px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="at-least-every">At least every</SelectItem>
-            <SelectItem value="every">Every</SelectItem>
-            <SelectItem value="cron">Cron</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          aria-label="Schedule interval"
-          value={interval}
-          onChange={(event) => {
-            setInterval(event.target.value)
-            markDirty()
-          }}
-          className="w-[65px]"
-        />
-        <Select
-          value={unit}
-          onValueChange={(value) => {
-            setUnit(value)
-            markDirty()
-          }}
-        >
-          <SelectTrigger className="w-[151px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="minutes">Minutes</SelectItem>
-            <SelectItem value="hours">Hours</SelectItem>
-            <SelectItem value="days">Days</SelectItem>
-          </SelectContent>
-        </Select>
-        <InfoSmallIcon
-          size={16}
-          className="shrink-0 text-muted-foreground"
-          aria-hidden
-        />
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold leading-5 text-foreground">
-            Active
-          </span>
-          <Switch
-            checked={active}
-            onCheckedChange={(checked) => {
-              setActive(checked)
-              markDirty()
-            }}
-            aria-label="Processing schedule active"
-          />
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="px-3 font-normal text-primary hover:bg-transparent hover:text-primary"
-        >
-          Advanced options
-        </Button>
+        {editingSchedule ? (
+          <>
+            <Select
+              value={cadence}
+              onValueChange={(value) => {
+                setCadence(value)
+                markDirty()
+              }}
+            >
+              <SelectTrigger className="w-[151px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="at-least-every">At least every</SelectItem>
+                <SelectItem value="every">Every</SelectItem>
+                <SelectItem value="cron">Cron</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Schedule interval"
+              value={interval}
+              onChange={(event) => {
+                setInterval(event.target.value)
+                markDirty()
+              }}
+              className="w-[65px]"
+            />
+            <Select
+              value={unit}
+              onValueChange={(value) => {
+                setUnit(value)
+                markDirty()
+              }}
+            >
+              <SelectTrigger className="w-[151px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">Minutes</SelectItem>
+                <SelectItem value="hours">Hours</SelectItem>
+                <SelectItem value="days">Days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Done editing processing schedule"
+              onClick={() => setEditingSchedule(false)}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="flex h-8 min-w-0 items-center rounded border border-input bg-background px-3 text-sm text-foreground">
+              {scheduleLabel}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Edit processing schedule"
+              onClick={() => setEditingSchedule(true)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-[7px]">
+      <div className="flex shrink-0 items-center gap-[7px]">
         <SegmentedControl value={editorMode} onValueChange={setEditorMode}>
           <SegmentedItem value="ui">UI</SegmentedItem>
           <SegmentedItem value="yaml">YAML</SegmentedItem>
         </SegmentedControl>
         <Button variant="default" size="sm">
           Permissions
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          disabled={!dirty}
-          onClick={() => setDirty(false)}
-        >
-          Discard changes
         </Button>
         <Button
           variant="primary"
@@ -273,18 +318,9 @@ function DataProcessedChart() {
         Data processed by log type
       </h3>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-3">
-          {CHART_SERIES.map((series) => (
-            <div key={series.label} className="flex items-center gap-2 text-sm text-foreground">
-              <span className={`size-2 rounded-full ${series.colorClassName}`} aria-hidden />
-              {series.label}
-            </div>
-          ))}
-        </div>
-
+      <div className="mt-5">
         <div className="min-w-0">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex items-center">
             <SegmentedControl value={scale} onValueChange={setScale}>
               <SegmentedItem value="linear" className="h-6 px-2 text-hint">
                 Linear
@@ -293,9 +329,6 @@ function DataProcessedChart() {
                 Logarithmic
               </SegmentedItem>
             </SegmentedControl>
-            <Button variant="default" size="xs" onClick={() => setScale("linear")}>
-              Reset
-            </Button>
           </div>
 
           <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
@@ -313,16 +346,45 @@ function DataProcessedChart() {
                   <span key={index} className="h-px w-full bg-border/70" />
                 ))}
               </div>
-              {CHART_SERIES.map((series) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={series.label}
-                  src={series.src}
-                  alt=""
-                  className="absolute inset-0 size-full"
-                  aria-hidden
-                />
-              ))}
+              <svg
+                className="absolute inset-0 size-full"
+                viewBox={`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`}
+                preserveAspectRatio="none"
+                aria-hidden
+              >
+                <defs>
+                  {CHART_SERIES.map((series, index) => (
+                    <linearGradient
+                      key={series.label}
+                      id={`chart-fill-${index}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor={series.color} stopOpacity={0.22} />
+                      <stop offset="90%" stopColor={series.color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                {CHART_SERIES.map((series, index) => {
+                  const { line, area } = buildSeriesPaths(series.values)
+                  return (
+                    <g key={series.label}>
+                      <path d={area} fill={`url(#chart-fill-${index})`} stroke="none" />
+                      <path
+                        d={line}
+                        fill="none"
+                        stroke={series.color}
+                        strokeWidth={2}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </g>
+                  )
+                })}
+              </svg>
             </div>
           </div>
 
@@ -342,6 +404,117 @@ function DataProcessedChart() {
             className="mt-3 h-2 w-full"
             aria-hidden
           />
+
+          <div className="ml-[72px] mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {CHART_SERIES.map((series) => (
+              <div
+                key={series.label}
+                className="flex items-center gap-2 text-hint text-foreground"
+              >
+                <span
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: series.color }}
+                  aria-hidden
+                />
+                {series.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EventsChart() {
+  const [scale, setScale] = React.useState("linear")
+  const { line, area } = buildSeriesPaths(EVENTS_SERIES.values, EVENTS_MAX)
+
+  return (
+    <div className="rounded bg-muted/70 p-4">
+      <h3 className="text-sm font-semibold leading-5 text-foreground">Events</h3>
+
+      <div className="mt-5">
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center">
+            <SegmentedControl value={scale} onValueChange={setScale}>
+              <SegmentedItem value="linear" className="h-6 px-2 text-hint">
+                Linear
+              </SegmentedItem>
+              <SegmentedItem value="logarithmic" className="h-6 px-2 text-hint">
+                Logarithmic
+              </SegmentedItem>
+            </SegmentedControl>
+          </div>
+
+          <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
+            <div className="flex h-[110px] flex-col justify-between text-right text-hint text-muted-foreground">
+              <span>500k</span>
+              <span>400k</span>
+              <span>300k</span>
+              <span>200k</span>
+              <span>100k</span>
+              <span>0</span>
+            </div>
+            <div className="relative h-[110px] min-w-0">
+              <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
+                {Array.from({ length: 6 }, (_, index) => (
+                  <span key={index} className="h-px w-full bg-border/70" />
+                ))}
+              </div>
+              <svg
+                className="absolute inset-0 size-full"
+                viewBox={`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`}
+                preserveAspectRatio="none"
+                aria-hidden
+              >
+                <defs>
+                  <linearGradient id="events-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={EVENTS_SERIES.color} stopOpacity={0.22} />
+                    <stop offset="90%" stopColor={EVENTS_SERIES.color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <path d={area} fill="url(#events-fill)" stroke="none" />
+                <path
+                  d={line}
+                  fill="none"
+                  stroke={EVENTS_SERIES.color}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <div className="ml-[72px] mt-2 flex justify-between gap-1 text-center text-hint text-muted-foreground">
+            {CHART_DATES.map(([time, date]) => (
+              <div key={date} className="flex flex-col gap-0.5">
+                <span>{time}</span>
+                <span className="font-semibold">{date}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/lakewatch/charts/datasource-range-slider.svg"
+            alt=""
+            className="mt-3 h-2 w-full"
+            aria-hidden
+          />
+
+          <div className="ml-[72px] mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2 text-hint text-foreground">
+              <span
+                className="size-2 rounded-full"
+                style={{ backgroundColor: EVENTS_SERIES.color }}
+                aria-hidden
+              />
+              {EVENTS_SERIES.label}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -373,75 +546,120 @@ function DateRangeControls() {
   )
 }
 
+const CLASSIFICATION_SERIES = [
+  {
+    label: "Classified",
+    color: "#3CAA60",
+    values: [0.87, 0.9, 0.88, 0.93, 0.91, 0.95, 0.94, 0.96, 0.95, 0.97, 0.92, 0.55, 0.04],
+  },
+  {
+    label: "Unclassified",
+    color: "#E65B77",
+    values: [0.02, 0.03, 0.02, 0.03, 0.02, 0.02, 0.03, 0.02, 0.03, 0.02, 0.03, 0.02, 0.03],
+  },
+] as const
+
 function EventClassificationChart() {
   return (
-    <div className="mt-4 grid gap-6 lg:grid-cols-[120px_minmax(0,1fr)]">
-      <div className="flex flex-col justify-center gap-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <span
-            className="size-2.5 shrink-0 rounded-full bg-[var(--success)]"
-            aria-hidden
-          />
-          Classified
+    <div className="mt-4">
+      <div className="grid grid-cols-[32px_minmax(0,1fr)_40px] gap-3">
+        <div className="flex h-[180px] flex-col justify-between text-right text-hint text-foreground">
+          <span>1</span>
+          <span>0.8</span>
+          <span>0.6</span>
+          <span>0.4</span>
+          <span>0.2</span>
+          <span>0</span>
         </div>
-        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <span className="size-2.5 shrink-0 rounded-full bg-destructive" aria-hidden />
-          Unclassified
+
+        <div className="relative h-[180px] min-w-0">
+          <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
+            {Array.from({ length: 6 }, (_, index) => (
+              <span key={index} className="h-px w-full bg-border/70" />
+            ))}
+          </div>
+          <svg
+            className="absolute inset-0 size-full"
+            viewBox={`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`}
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            <defs>
+              {CLASSIFICATION_SERIES.map((series, index) => (
+                <linearGradient
+                  key={series.label}
+                  id={`classification-fill-${index}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={series.color} stopOpacity={0.22} />
+                  <stop offset="90%" stopColor={series.color} stopOpacity={0} />
+                </linearGradient>
+              ))}
+            </defs>
+            {CLASSIFICATION_SERIES.map((series, index) => {
+              const { line, area } = buildSeriesPaths(series.values, 1)
+              return (
+                <g key={series.label}>
+                  <path d={area} fill={`url(#classification-fill-${index})`} stroke="none" />
+                  <path
+                    d={line}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+
+        <div className="flex h-[180px] flex-col justify-between text-left text-hint text-foreground">
+          <span>500k</span>
+          <span>400k</span>
+          <span>300k</span>
+          <span>200k</span>
+          <span>100k</span>
+          <span>0</span>
         </div>
       </div>
 
-      <div className="min-w-0">
-        <div className="grid grid-cols-[32px_minmax(0,1fr)_40px] gap-3">
-          <div className="flex h-[180px] flex-col justify-between text-right text-hint text-foreground">
-            <span>1</span>
-            <span>0.8</span>
-            <span>0.6</span>
-            <span>0.4</span>
-            <span>0.2</span>
-            <span>0</span>
+      <div className="ml-[44px] mr-[52px] mt-2 flex justify-between gap-1 text-center text-hint text-muted-foreground">
+        {CHART_DATES.map(([time, date]) => (
+          <div key={date} className="flex flex-col gap-0.5">
+            <span>{time}</span>
+            <span className="font-semibold text-foreground">{date}</span>
           </div>
+        ))}
+      </div>
 
-          <div className="relative h-[180px] min-w-0">
-            <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
-              {Array.from({ length: 6 }, (_, index) => (
-                <span key={index} className="h-px w-full bg-border/70" />
-              ))}
-            </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/lakewatch/charts/datasource-classification.svg"
-              alt=""
-              className="absolute inset-0 size-full"
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/lakewatch/charts/datasource-range-slider.svg"
+        alt=""
+        className="ml-[44px] mr-[52px] mt-3 h-2 w-[calc(100%-96px)]"
+        aria-hidden
+      />
+
+      <div className="ml-[44px] mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {CLASSIFICATION_SERIES.map((series) => (
+          <div
+            key={series.label}
+            className="flex items-center gap-2 text-hint text-foreground"
+          >
+            <span
+              className="size-2 rounded-full"
+              style={{ backgroundColor: series.color }}
               aria-hidden
             />
+            {series.label}
           </div>
-
-          <div className="flex h-[180px] flex-col justify-between text-left text-hint text-foreground">
-            <span>500k</span>
-            <span>400k</span>
-            <span>300k</span>
-            <span>200k</span>
-            <span>100k</span>
-            <span>0</span>
-          </div>
-        </div>
-
-        <div className="ml-[44px] mr-[52px] mt-2 flex justify-between gap-1 text-center text-hint text-muted-foreground">
-          {CHART_DATES.map(([time, date]) => (
-            <div key={date} className="flex flex-col gap-0.5">
-              <span>{time}</span>
-              <span className="font-semibold text-foreground">{date}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/lakewatch/charts/datasource-range-slider.svg"
-          alt=""
-          className="ml-[44px] mr-[52px] mt-3 h-2 w-[calc(100%-96px)]"
-          aria-hidden
-        />
+        ))}
       </div>
     </div>
   )
@@ -467,7 +685,7 @@ function DatasourceHealthTab() {
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold leading-6 text-foreground">
-            Source errors (Dead letter Queue)
+            Source errors
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-[216px]">
@@ -533,21 +751,21 @@ function DatasourceSchemasTab() {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold leading-6 text-foreground">Schemas</h2>
+      <h2 className="text-lg font-semibold leading-6 text-foreground">
+        Ingestion template
+      </h2>
       <Table className="mt-3">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="font-semibold text-foreground">Header label</TableHead>
-            <TableHead className="font-semibold text-foreground">Header label</TableHead>
+            <TableHead className="font-semibold text-foreground">
+              Ingestion template name
+            </TableHead>
             <TableHead className="w-[120px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {pendingSchemas.map((schema) => (
             <TableRow key={schema}>
-              <TableCell className="text-muted-foreground">
-                Inferring header label from sample data…
-              </TableCell>
               <TableCell className="text-foreground">{schema}</TableCell>
               <TableCell className="text-right">
                 <Badge variant="secondary" className="gap-1">
@@ -559,7 +777,6 @@ function DatasourceSchemasTab() {
           ))}
           {DATASOURCE_SCHEMAS.map((row) => (
             <TableRow key={row.schema}>
-              <TableCell className="text-foreground">{row.path}</TableCell>
               <TableCell className="text-foreground">{row.schema}</TableCell>
               <TableCell className="text-right">
                 <Button variant="default" size="sm" asChild>
@@ -1056,17 +1273,7 @@ function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
 function DetailHeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <Button
-        variant="default"
-        size="sm"
-        className="min-w-[213px] justify-between gap-2 font-normal"
-      >
-        <span className="flex items-center gap-2">
-          <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
-          <span className="text-foreground">group_7_demo</span>
-        </span>
-        <span className="text-muted-foreground">⌄</span>
-      </Button>
+      <LakewatchCatalogSelector />
       <LakewatchWarehouseSelector />
     </div>
   )
@@ -1109,8 +1316,7 @@ export function LakewatchDatasourceDetailView() {
       <Tabs defaultValue="overview" className="mt-5">
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="schemas">Schemas</TabsTrigger>
-          <TabsTrigger value="health">Health</TabsTrigger>
+          <TabsTrigger value="schemas">Ingestion template</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -1119,11 +1325,21 @@ export function LakewatchDatasourceDetailView() {
           <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] lg:gap-8">
             <section>
               <h2 className="text-lg font-semibold leading-6 text-foreground">Basic info</h2>
-              <dl className="mt-3 grid grid-cols-[112px_1fr] gap-x-4 gap-y-2 text-sm">
+              <dl className="mt-3 grid grid-cols-[128px_1fr] items-center gap-x-4 gap-y-2 text-sm">
                 <dt className="text-foreground">Source ID</dt>
                 <dd className="text-primary">422e7cbe-3ec2-4c68-9fcf-f04ef87f8170</dd>
                 <dt className="text-foreground">AWS account ID</dt>
                 <dd className="text-primary">296062572198</dd>
+                <dt className="text-foreground">Destination table</dt>
+                <dd>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-sm font-normal text-primary"
+                    asChild
+                  >
+                    <Link href="#">lakewatch.default.audit_logs_7830bcf</Link>
+                  </Button>
+                </dd>
               </dl>
             </section>
 
@@ -1171,9 +1387,7 @@ export function LakewatchDatasourceDetailView() {
 
               <div className="grid min-w-0 gap-4">
                 <DataProcessedChart />
-                <div className="min-h-[180px] rounded bg-muted/70 p-4">
-                  <h3 className="text-sm text-foreground">Events</h3>
-                </div>
+                <EventsChart />
               </div>
             </div>
           </section>
@@ -1181,9 +1395,6 @@ export function LakewatchDatasourceDetailView() {
 
         <TabsContent value="schemas" className="pt-4">
           <DatasourceSchemasTab />
-        </TabsContent>
-        <TabsContent value="health" className="pt-4">
-          <DatasourceHealthTab />
         </TabsContent>
       </Tabs>
     </div>

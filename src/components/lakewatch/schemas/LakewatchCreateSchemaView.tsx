@@ -427,6 +427,7 @@ export function LakewatchCreateSchemaView() {
             <Label htmlFor="schema-id">Name</Label>
             <Input
               id="schema-id"
+              placeholder={SAMPLE_SCHEMA_ID}
               value={schemaId}
               onChange={(event) => setSchemaId(event.target.value)}
               onFocus={() => {
@@ -440,6 +441,7 @@ export function LakewatchCreateSchemaView() {
             <Input
               id="reference-url"
               type="url"
+              placeholder={SAMPLE_REFERENCE_URL}
               value={referenceUrl}
               onChange={(event) => setReferenceUrl(event.target.value)}
               onFocus={() => {
@@ -452,6 +454,7 @@ export function LakewatchCreateSchemaView() {
             <Label htmlFor="schema-description">Description</Label>
             <Textarea
               id="schema-description"
+              placeholder={SAMPLE_DESCRIPTION}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               onFocus={() => {

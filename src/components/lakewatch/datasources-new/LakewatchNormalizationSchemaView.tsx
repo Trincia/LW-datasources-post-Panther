@@ -7,11 +7,13 @@ import { MoreHorizontal, X } from "lucide-react"
 
 import {
   BranchIcon,
-  CatalogIcon,
   ChevronDownIcon,
   CodeIcon,
 } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -468,17 +470,7 @@ const NORMALIZATION_FIELDS: Record<string, NormalizationField[]> = {
 function HeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <Button
-        variant="default"
-        size="sm"
-        className="min-w-[213px] justify-between gap-2 font-normal"
-      >
-        <span className="flex items-center gap-2">
-          <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
-          <span className="text-foreground">group_7_demo</span>
-        </span>
-        <ChevronDownIcon className="h-4 w-4 text-muted-foreground" aria-hidden />
-      </Button>
+      <LakewatchCatalogSelector />
       <LakewatchWarehouseSelector />
       <Button variant="ghost" size="icon-sm" aria-label="Schema options">
         <MoreHorizontal className="h-4 w-4 text-muted-foreground" />

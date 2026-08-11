@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation"
 import { Check, X } from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -160,6 +164,22 @@ export function LakewatchLakeflowConnectWizardView({
   const [sourceType, setSourceType] = React.useState("events")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const [contentWidth, setContentWidth] = React.useState(0)
+
+  React.useEffect(() => {
+    const el = contentRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setContentWidth(entry.contentRect.width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  // Collapse the vertical stepper into a compact button when width is tight
+  // (e.g. the Genie code panel is open).
+  const compact = contentWidth > 0 && contentWidth < 900
 
   const cancelHref = "/lakewatch/datasources/new"
 
@@ -171,7 +191,10 @@ export function LakewatchLakeflowConnectWizardView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 lg:overflow-hidden">
+    <div
+      ref={contentRef}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 lg:overflow-hidden"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
@@ -189,13 +212,32 @@ export function LakewatchLakeflowConnectWizardView({
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Ingest from {label}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className={PAGE_TITLE_SEMIBOLD}>Ingest from {label}</h1>
+            <WizardStepMenu
+              steps={CONNECT_STEPS}
+              activeStep={activeStep}
+              className={compact ? undefined : "hidden"}
+            />
+          </div>
         </div>
+        <LakewatchCatalogSelector />
         <LakewatchWarehouseSelector />
       </div>
 
-      <div className="mx-auto mt-6 grid w-full max-w-[1168px] grid-cols-1 items-start gap-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40">
-        <WizardStepper activeStep={activeStep} />
+      <div
+        className={cn(
+          "mx-auto mt-6 grid w-full grid-cols-1 items-start lg:min-h-0 lg:flex-1",
+          compact
+            ? "max-w-[679px]"
+            : "max-w-[1168px] gap-8 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
+        )}
+      >
+        {!compact ? (
+          <div>
+            <WizardStepper activeStep={activeStep} />
+          </div>
+        ) : null}
 
         {activeStep === 1 ? (
           <form

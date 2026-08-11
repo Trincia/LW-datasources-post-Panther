@@ -135,18 +135,18 @@ export function LakewatchSidebar({
           <SectionLabel>Configure</SectionLabel>
         </div>
         <NavRow
-          href="/lakewatch/datasources"
-          icon={DatasourceNavIcon}
-          active={activeItem === "datasources"}
-        >
-          Datasources
-        </NavRow>
-        <NavRow
           href="/lakewatch/schemas"
           icon={SchemasNavIcon}
           active={activeItem === "schemas"}
         >
           Ingestion templates
+        </NavRow>
+        <NavRow
+          href="/lakewatch/datasources"
+          icon={DatasourceNavIcon}
+          active={activeItem === "datasources"}
+        >
+          Datasources
         </NavRow>
         <NavRow
           href="/lakewatch/detection"

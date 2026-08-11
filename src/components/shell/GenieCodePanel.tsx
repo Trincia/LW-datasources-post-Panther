@@ -56,12 +56,54 @@ function uid() {
   return `msg-${++msgCounter}`
 }
 
+const MIN_PANEL_WIDTH = 320
+const MAX_PANEL_WIDTH = 760
+
 export function GenieCodePanel({ open, onClose, className }: GenieCodePanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [tags, setTags] = useState<GenieTag[]>([])
   const [isThinking, setIsThinking] = useState(false)
+  const [width, setWidth] = useState(360)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
+
+  const handleResizeMove = React.useCallback((event: PointerEvent) => {
+    if (!dragState.current) return
+    const delta = dragState.current.startX - event.clientX
+    const next = Math.min(
+      MAX_PANEL_WIDTH,
+      Math.max(MIN_PANEL_WIDTH, dragState.current.startWidth + delta)
+    )
+    setWidth(next)
+  }, [])
+
+  const handleResizeEnd = React.useCallback(() => {
+    dragState.current = null
+    window.removeEventListener("pointermove", handleResizeMove)
+    window.removeEventListener("pointerup", handleResizeEnd)
+    document.body.style.removeProperty("user-select")
+    document.body.style.removeProperty("cursor")
+  }, [handleResizeMove])
+
+  const handleResizeStart = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      dragState.current = { startX: event.clientX, startWidth: width }
+      window.addEventListener("pointermove", handleResizeMove)
+      window.addEventListener("pointerup", handleResizeEnd)
+      document.body.style.userSelect = "none"
+      document.body.style.cursor = "col-resize"
+    },
+    [width, handleResizeMove, handleResizeEnd]
+  )
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", handleResizeMove)
+      window.removeEventListener("pointerup", handleResizeEnd)
+    }
+  }, [handleResizeMove, handleResizeEnd])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -110,13 +152,25 @@ export function GenieCodePanel({ open, onClose, className }: GenieCodePanelProps
   return (
     <div
       className={cn(
-        "flex flex-col shrink-0 bg-background overflow-hidden",
-        open ? "w-[360px]" : "w-0",
+        "relative flex flex-col shrink-0 bg-background overflow-hidden",
+        !open && "w-0",
         className
       )}
+      style={{ width: open ? width : 0 }}
     >
       {open && (
         <>
+          {/* Resize handle on the left edge */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize Genie Code panel"
+            onPointerDown={handleResizeStart}
+            className="group absolute inset-y-0 left-0 z-20 flex w-1.5 cursor-col-resize touch-none items-stretch"
+          >
+            <span className="mx-auto h-full w-px bg-transparent transition-colors group-hover:bg-primary/40" />
+          </div>
+
           {/* Header */}
           <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
             <div className="flex flex-1 items-center gap-2">

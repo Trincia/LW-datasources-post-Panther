@@ -9,7 +9,10 @@ import {
   PlusIcon,
   SearchIcon,
 } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchCatalogSelector,
+  LakewatchWarehouseSelector,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -132,6 +135,7 @@ export function LakewatchSchemasView() {
       <div className="flex items-center justify-between gap-4">
         <h1 className={PAGE_TITLE_SEMIBOLD}>Ingestion templates</h1>
         <div className="flex shrink-0 items-center gap-3">
+          <LakewatchCatalogSelector />
           <LakewatchWarehouseSelector />
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/schemas/new">

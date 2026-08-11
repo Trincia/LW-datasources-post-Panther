@@ -26,14 +26,14 @@ export function LakewatchDatasourceLogo({
   return (
     <span
       className={cn(
-        "block shrink-0 overflow-hidden rounded",
+        "block shrink-0 overflow-hidden rounded-[24%]",
         size === "detail" ? "size-10" : size === "node" ? "size-6" : "size-8",
       )}
       aria-hidden
     >
       {brandSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={brandSrc} alt="" className="size-full object-contain" />
+        <img src={brandSrc} alt="" className="size-full scale-[1.02] object-cover" />
       ) : kind === "fluentbit" ? (
         <span className="block size-full bg-muted-foreground/20" />
       ) : (

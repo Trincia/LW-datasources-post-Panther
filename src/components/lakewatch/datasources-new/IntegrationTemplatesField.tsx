@@ -6,6 +6,13 @@ import { ArrowRight, ChevronDown, ChevronRight, LoaderCircle, Search, X } from "
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -21,6 +28,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 const TODAY_LABEL = "Aug 9, 2026"
+
+// Version history for the details panel picker. Listed lowest-to-highest, with
+// higher versions being the newer (more recent) releases.
+const TEMPLATE_VERSIONS = [
+  { version: "v1", date: "Jan 15, 2025" },
+  { version: "v2", date: "Mar 3, 2025" },
+  { version: "v3", date: "May 20, 2025" },
+  { version: "v4", date: "Jul 8, 2025" },
+  { version: "v5", date: "Aug 1, 2025" },
+] as const
 
 type TemplateKind = "built-in" | "custom"
 
@@ -341,6 +358,7 @@ function TemplateDetailsPanel({
   const [destCatalog, setDestCatalog] = React.useState("lakewatch")
   const [destSchema, setDestSchema] = React.useState("default")
   const [tableName, setTableName] = React.useState(() => toTableName(template.name))
+  const [selectedVersion, setSelectedVersion] = React.useState(template.version)
 
   return (
     <div
@@ -353,17 +371,56 @@ function TemplateDetailsPanel({
           <>
             <div className="flex shrink-0 flex-col gap-4 border-b border-input px-6 py-5">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-lg font-semibold text-foreground">
-                  {template.name} {template.version}
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Close details"
-                  onClick={onClose}
-                >
-                  <X className="h-4 w-4 text-muted-foreground" />
-                </Button>
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="truncate text-lg font-semibold text-foreground">
+                    {template.name} {template.version}
+                  </h2>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="default" size="sm" className="shrink-0 gap-1">
+                        Versions
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuRadioGroup
+                        value={selectedVersion}
+                        onValueChange={setSelectedVersion}
+                      >
+                        {TEMPLATE_VERSIONS.map((entry) => (
+                          <DropdownMenuRadioItem
+                            key={entry.version}
+                            value={entry.version}
+                            className="justify-between gap-4 pr-2"
+                          >
+                            <span className="text-foreground">{entry.version}</span>
+                            <span className="text-hint text-muted-foreground">{entry.date}</span>
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {template.kind === "built-in" ? (
+                    <>
+                      <Button variant="default" size="sm">
+                        Edit
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => onClone(template)}>
+                        Clone template
+                      </Button>
+                    </>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Close details"
+                    onClick={onClose}
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -375,7 +432,7 @@ function TemplateDetailsPanel({
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Select value={destCatalog} onValueChange={setDestCatalog}>
+                  <Select value={destCatalog} onValueChange={setDestCatalog} disabled>
                     <SelectTrigger className="w-full" aria-label="Destination catalog">
                       <SelectValue />
                     </SelectTrigger>
@@ -424,11 +481,7 @@ function TemplateDetailsPanel({
                     </>
                   )}
                 </div>
-                {template.kind === "built-in" ? (
-                  <Button variant="primary" size="sm" onClick={() => onClone(template)}>
-                    Clone template
-                  </Button>
-                ) : (
+                {template.kind === "built-in" ? null : (
                   <div className="flex items-center gap-2">
                     <Button variant="default" size="sm" onClick={onClose}>
                       Cancel
@@ -804,9 +857,24 @@ function SelectedTemplateCard({
   return (
     <div
       className={cn(
-        "relative flex flex-col gap-2 rounded-md border bg-card p-4",
-        active ? "border-primary ring-1 ring-primary" : "border-border"
+        "relative flex flex-col gap-2 rounded-md border bg-card p-4 transition-colors",
+        active ? "border-primary ring-1 ring-primary" : "border-border",
+        onViewDetails &&
+          "cursor-pointer hover:border-primary/60 hover:bg-muted/40 active:bg-primary/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       )}
+      {...(onViewDetails
+        ? {
+            role: "button",
+            tabIndex: 0,
+            onClick: onViewDetails,
+            onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                onViewDetails()
+              }
+            },
+          }
+        : {})}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -821,12 +889,19 @@ function SelectedTemplateCard({
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove ${template.name}`}
-            onClick={onRemove}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemove()
+            }}
           >
             <X className="h-4 w-4 text-muted-foreground" />
           </Button>
         ) : null}
       </div>
+
+      <p className="truncate text-hint text-muted-foreground">
+        lakewatch.default.{toTableName(template.name)}
+      </p>
 
       <div className="flex items-center justify-between gap-2">
         {pending ? (
@@ -837,21 +912,24 @@ function SelectedTemplateCard({
         ) : (
           <TemplateKindBadge kind={template.kind} />
         )}
-        <span className="text-hint text-muted-foreground">{template.fieldCount} fields</span>
+        <div className="flex items-center gap-3">
+          <span className="text-hint text-muted-foreground">{template.fieldCount} fields</span>
+          {onViewDetails ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`View ${template.name} details`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onViewDetails()
+              }}
+            >
+              <ArrowRight className="h-4 w-4 text-primary" />
+            </Button>
+          ) : null}
+        </div>
       </div>
-
-      {onViewDetails ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-auto self-start px-0 py-0 font-normal text-primary hover:bg-transparent hover:text-primary"
-          onClick={onViewDetails}
-        >
-          View details
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      ) : null}
     </div>
   )
 }
