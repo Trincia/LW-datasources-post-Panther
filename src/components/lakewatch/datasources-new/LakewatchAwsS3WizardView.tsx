@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   ArrowRight,
   Check,
+  Clock,
   Filter,
   LoaderCircle,
   MoreVertical,
@@ -469,6 +470,249 @@ function StepPanelHeader({
       <p className="text-sm font-semibold text-foreground">STEP {step}</p>
       <h2 className="text-lg font-semibold leading-6 text-foreground">{title}</h2>
       <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"]
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
+
+function formatDateTime(date: Date) {
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  const yyyy = date.getFullYear()
+  return `${mm}/${dd}/${yyyy}, ${formatTime(date)}`
+}
+
+function formatTime(date: Date) {
+  let hours = date.getHours()
+  const minutes = String(date.getMinutes()).padStart(2, "0")
+  const ampm = hours >= 12 ? "PM" : "AM"
+  hours %= 12
+  if (hours === 0) hours = 12
+  return `${hours}:${minutes} ${ampm}`
+}
+
+function parseTime(text: string): { hours: number; minutes: number } | null {
+  const match = text.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return null
+  let hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return null
+  const meridiem = match[3]?.toUpperCase()
+  if (meridiem === "PM" && hours < 12) hours += 12
+  if (meridiem === "AM" && hours === 12) hours = 0
+  return { hours, minutes }
+}
+
+function DateTimePicker({
+  value,
+  onChange,
+}: {
+  value: Date
+  onChange: (date: Date) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [view, setView] = React.useState(() => ({
+    year: value.getFullYear(),
+    month: value.getMonth(),
+  }))
+  const [timeText, setTimeText] = React.useState(() => formatTime(value))
+
+  React.useEffect(() => {
+    setTimeText(formatTime(value))
+  }, [value])
+
+  const firstWeekday = new Date(view.year, view.month, 1).getDay()
+  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate()
+
+  const cells: { date: Date; inMonth: boolean }[] = []
+  for (let i = 0; i < firstWeekday; i += 1) {
+    const day = new Date(view.year, view.month, i - firstWeekday + 1)
+    cells.push({ date: day, inMonth: false })
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({ date: new Date(view.year, view.month, day), inMonth: true })
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const next = new Date(view.year, view.month, daysInMonth + (cells.length - daysInMonth - firstWeekday) + 1)
+    cells.push({ date: next, inMonth: next.getMonth() === view.month })
+    if (cells.length >= 42) break
+  }
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  const commitDay = (day: Date) => {
+    const next = new Date(day)
+    next.setHours(value.getHours(), value.getMinutes(), 0, 0)
+    onChange(next)
+    setView({ year: day.getFullYear(), month: day.getMonth() })
+  }
+
+  const shiftMonth = (delta: number) => {
+    setView((current) => {
+      const base = new Date(current.year, current.month + delta, 1)
+      return { year: base.getFullYear(), month: base.getMonth() }
+    })
+  }
+
+  const applyRelative = (daysAgo: number) => {
+    const next = new Date()
+    next.setDate(next.getDate() - daysAgo)
+    onChange(next)
+    setView({ year: next.getFullYear(), month: next.getMonth() })
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-8 items-center gap-2 rounded border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring"
+        >
+          <span className="text-muted-foreground">Date:</span>
+          <span className="text-foreground">{formatDateTime(value)}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[320px] p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-foreground">
+            {MONTH_LABELS[view.month]} {view.year}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Previous month"
+              onClick={() => shiftMonth(-1)}
+            >
+              <ChevronLeftIcon className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Next month"
+              onClick={() => shiftMonth(1)}
+            >
+              <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-7 gap-1">
+          {WEEKDAY_LABELS.map((label, index) => (
+            <span
+              key={`${label}-${index}`}
+              className="flex h-8 items-center justify-center text-hint text-muted-foreground"
+            >
+              {label}
+            </span>
+          ))}
+          {cells.map(({ date, inMonth }) => {
+            const selected = isSameDay(date, value)
+            return (
+              <button
+                key={date.toISOString()}
+                type="button"
+                onClick={() => commitDay(date)}
+                className={cn(
+                  "flex h-8 items-center justify-center rounded text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-primary",
+                  selected
+                    ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary"
+                    : inMonth
+                      ? "text-foreground"
+                      : "text-muted-foreground/50"
+                )}
+              >
+                {date.getDate()}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" variant="default" size="sm" onClick={() => applyRelative(0)}>
+            Now
+          </Button>
+          <Button type="button" variant="default" size="sm" onClick={() => applyRelative(1)}>
+            Yesterday
+          </Button>
+          <Button type="button" variant="default" size="sm" onClick={() => applyRelative(7)}>
+            7 days ago
+          </Button>
+          <Button type="button" variant="default" size="sm" onClick={() => applyRelative(30)}>
+            30 days ago
+          </Button>
+        </div>
+
+        <div className="relative mt-3">
+          <Input
+            aria-label="Time"
+            value={timeText}
+            onChange={(event) => setTimeText(event.target.value)}
+            onBlur={() => {
+              const parsed = parseTime(timeText)
+              if (parsed) {
+                const next = new Date(value)
+                next.setHours(parsed.hours, parsed.minutes, 0, 0)
+                onChange(next)
+              } else {
+                setTimeText(formatTime(value))
+              }
+            }}
+            className="pr-9"
+          />
+          <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function WizardDataTimeRangeField() {
+  const [mode, setMode] = React.useState("all")
+  const [date, setDate] = React.useState(() => new Date(2026, 6, 12, 0, 0))
+
+  return (
+    <div className="mt-5 flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <Label>Data time range</Label>
+        <p className="text-hint text-muted-foreground">
+          Limit ingestion to files modified after a specific date, or ingest all available data.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={mode} onValueChange={setMode}>
+          <SelectTrigger className="w-fit min-w-[110px]" aria-label="Data time range mode">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All data</SelectItem>
+            <SelectItem value="modified-after">Data modified after</SelectItem>
+          </SelectContent>
+        </Select>
+        {mode === "modified-after" ? (
+          <DateTimePicker value={date} onChange={setDate} />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1349,7 +1593,6 @@ export function LakewatchAwsS3WizardView({
   const [catalog, setCatalog] = React.useState("lakewatch")
   const [schema, setSchema] = React.useState("default")
   const [datasourceName, setDatasourceName] = React.useState("lakewatch-account-us-west-2")
-  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
   const sampleVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const prepareEventsRef = React.useRef<HTMLDivElement>(null)
@@ -1992,25 +2235,7 @@ export function LakewatchAwsS3WizardView({
                 {catalog}.{schema}.{datasourceName || "datasource_name"}
               </p>
 
-              <div className="mt-5 flex flex-col gap-2">
-                <Label>Run as</Label>
-                <Select value={runAs} onValueChange={setRunAs}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="beau.trincia@databricks.com">
-                      Run datasource as: beau.trincia@databricks.com
-                    </SelectItem>
-                    <SelectItem value="lakewatch-service-principal">
-                      Run datasource as: Lakewatch service principal
-                    </SelectItem>
-                    <SelectItem value="security-platform@databricks.com">
-                      Run datasource as: security-platform@databricks.com
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <WizardDataTimeRangeField />
 
               <WizardProcessingScheduleField />
 
@@ -2021,7 +2246,7 @@ export function LakewatchAwsS3WizardView({
                 be imported from your source.
               </p>
 
-              <div className="mt-auto flex items-center justify-between pt-6">
+              <div className="mt-4 flex items-center justify-between">
                 <Button
                   type="button"
                   variant="ghost"
