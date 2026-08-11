@@ -15,6 +15,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -45,8 +46,25 @@ const STARLARK_DEFAULT = `def parse(log):
 
 const SAMPLE_SCHEMA_ID = "Custom.AcmeAuthService"
 
-const SAMPLE_REFERENCE_URL =
-  "https://wiki.acmecorp.internal/engineering/docs/auth-service-log-spec"
+const TAG_TYPE_OPTIONS = [
+  "ip",
+  "domain",
+  "url",
+  "email",
+  "username",
+  "hostname",
+  "mac_address",
+  "aws_arn",
+  "aws_account_id",
+  "aws_instance_id",
+  "sha256",
+  "sha1",
+  "md5",
+  "trace_id",
+  "actor_id",
+  "process_id",
+  "file_path",
+]
 
 const SAMPLE_DESCRIPTION =
   "Parses authentication, token generation, and login audit events emitted by the internal Acme IAM microservice. Inferred from structured JSON payload samples."
@@ -361,12 +379,99 @@ function RegexConfiguration() {
   )
 }
 
+function TagsInput({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (tags: string[]) => void
+}) {
+  const [inputValue, setInputValue] = React.useState("")
+  const [open, setOpen] = React.useState(false)
+
+  const suggestions = React.useMemo(() => {
+    const query = inputValue.trim().toLowerCase()
+    return TAG_TYPE_OPTIONS.filter(
+      (option) =>
+        !value.includes(option) && (!query || option.toLowerCase().includes(query)),
+    )
+  }, [inputValue, value])
+
+  const addTag = (tag: string) => {
+    const next = tag.trim()
+    if (!next || value.includes(next)) return
+    onChange([...value, next])
+    setInputValue("")
+    setOpen(false)
+  }
+
+  const removeTag = (tag: string) => onChange(value.filter((item) => item !== tag))
+
+  return (
+    <div className="relative">
+      <div className="flex min-h-8 flex-wrap items-center gap-1.5 rounded border border-input bg-transparent px-2 py-1 focus-within:border-ring focus-within:ring-[2px] focus-within:ring-ring">
+        {value.map((tag) => (
+          <Badge key={tag} variant="secondary" className="gap-1">
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(tag)}
+              aria-label={`Remove ${tag}`}
+              className="ml-0.5 rounded-sm text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+        <input
+          value={inputValue}
+          onChange={(event) => {
+            setInputValue(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              addTag(suggestions[0] ?? inputValue)
+            } else if (event.key === "Backspace" && !inputValue && value.length > 0) {
+              removeTag(value[value.length - 1])
+            }
+          }}
+          placeholder={value.length ? "" : "Add tags…"}
+          className="h-6 min-w-[100px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          aria-label="Add tags"
+        />
+      </div>
+      {open && suggestions.length > 0 ? (
+        <div className="absolute left-0 top-full z-40 mt-1 w-full overflow-hidden rounded-md border border-input bg-popover shadow-md">
+          <div className="max-h-[220px] overflow-y-auto py-1">
+            {suggestions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => addTag(option)}
+                className="flex w-full items-center px-3 py-1.5 text-left font-mono text-sm text-foreground hover:bg-muted"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function LakewatchCreateSchemaView() {
   const router = useRouter()
   const [schemaId, setSchemaId] = React.useState("")
+  const [destSchema, setDestSchema] = React.useState("default")
   const [description, setDescription] = React.useState("")
-  const [referenceUrl, setReferenceUrl] = React.useState("")
-  const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
+  const [tags, setTags] = React.useState<string[]>([])
+  const fieldDiscovery = true
   const [parser, setParser] = React.useState<ParserType>("json")
   const [schemaDefinition, setSchemaDefinition] = React.useState("")
   const [starlarkConfiguration, setStarlarkConfiguration] =
@@ -425,29 +530,49 @@ export function LakewatchCreateSchemaView() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="schema-id">Name</Label>
-            <Input
-              id="schema-id"
-              placeholder={SAMPLE_SCHEMA_ID}
-              value={schemaId}
-              onChange={(event) => setSchemaId(event.target.value)}
-              onFocus={() => {
-                if (!schemaId) setSchemaId(SAMPLE_SCHEMA_ID)
-              }}
-            />
+            <div className="flex items-center gap-1">
+              <Select value="lakewatch" disabled>
+                <SelectTrigger className="w-full" aria-label="Catalog">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lakewatch">lakewatch</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground">.</span>
+              <Select value={destSchema} onValueChange={setDestSchema}>
+                <SelectTrigger className="w-full" aria-label="Schema">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">default</SelectItem>
+                  <SelectItem value="bronze">bronze</SelectItem>
+                  <SelectItem value="production">production</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground">.</span>
+              <Input
+                id="schema-id"
+                aria-label="Name"
+                placeholder={SAMPLE_SCHEMA_ID}
+                value={schemaId}
+                onChange={(event) => setSchemaId(event.target.value)}
+                onFocus={() => {
+                  if (!schemaId) setSchemaId(SAMPLE_SCHEMA_ID)
+                }}
+              />
+            </div>
+            <p className="text-hint leading-4 text-muted-foreground">
+              lakewatch.{destSchema}.{schemaId || "name"}
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="reference-url">Reference URL</Label>
-            <Input
-              id="reference-url"
-              type="url"
-              placeholder={SAMPLE_REFERENCE_URL}
-              value={referenceUrl}
-              onChange={(event) => setReferenceUrl(event.target.value)}
-              onFocus={() => {
-                if (!referenceUrl) setReferenceUrl(SAMPLE_REFERENCE_URL)
-              }}
-            />
+            <Label>Tags</Label>
+            <TagsInput value={tags} onChange={setTags} />
+            <p className="text-hint leading-4 text-muted-foreground">
+              Type to search tag types and press Enter to add.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -462,26 +587,6 @@ export function LakewatchCreateSchemaView() {
               }}
               className="min-h-16 resize-none"
             />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="field-discovery">Field discovery</Label>
-              <Switch
-                id="field-discovery"
-                size="sm"
-                checked={fieldDiscovery}
-                onCheckedChange={setFieldDiscovery}
-              />
-              <span className="text-sm text-foreground">
-                {fieldDiscovery ? "Enabled" : "Disabled"}
-              </span>
-            </div>
-            <p className="text-hint leading-4 text-muted-foreground">
-              By enabling this feature, Databricks will not drop any fields from an event that
-              aren&apos;t included in the ingestion template. This allows you to query all the
-              fields, and also lets detections access them.
-            </p>
           </div>
 
         </section>

@@ -7,6 +7,11 @@ import { Check, X } from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  IntegrationTemplatePanel,
+  IntegrationTemplatesField,
+  useIntegrationTemplates,
+} from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -28,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Ingest", "Create datasource"] as const
+const CONNECT_STEPS = ["Ingest", "Ingestion templates", "Create datasource"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -157,10 +162,9 @@ export function LakewatchLakeflowConnectWizardView({
   const [scheduleMode, setScheduleMode] = React.useState("at-least-every")
   const [scheduleInterval, setScheduleInterval] = React.useState("10")
   const [scheduleUnit, setScheduleUnit] = React.useState("minutes")
-  const [sourceName, setSourceName] = React.useState<string>(label)
-  const [sourceType, setSourceType] = React.useState("events")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
+  const templateController = useIntegrationTemplates(label)
   const contentRef = React.useRef<HTMLDivElement>(null)
   const [contentWidth, setContentWidth] = React.useState(0)
 
@@ -175,8 +179,10 @@ export function LakewatchLakeflowConnectWizardView({
   }, [])
 
   // Collapse the vertical stepper into a compact button when width is tight
-  // (e.g. the Genie code panel is open).
+  // (e.g. the Genie code panel is open) or the template detail panel is open.
   const compact = contentWidth > 0 && contentWidth < 900
+  const templatePanelOpen = activeStep === 2 && templateController.panelOpen
+  const stepperCollapsed = templatePanelOpen || compact
 
   const cancelHref = "/lakewatch/datasources/new"
 
@@ -187,11 +193,62 @@ export function LakewatchLakeflowConnectWizardView({
     router.push(`/lakewatch/datasources/${encodeURIComponent(name)}`)
   }
 
-  return (
-    <div
-      ref={contentRef}
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 lg:overflow-hidden"
+  const dataPreviewSection = previewVisible ? (
+    <section
+      aria-label="Data preview"
+      className={cn(
+        "shrink-0 bg-secondary",
+        templatePanelOpen ? undefined : "-mx-5 -mb-5 mt-auto"
+      )}
     >
+      <div className="flex h-8 items-center justify-between border-y border-input px-2">
+        <h2 className="text-sm font-semibold leading-5 text-foreground">Data preview</h2>
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={previewExpanded ? "Collapse data preview" : "Expand data preview"}
+            onClick={() => setPreviewExpanded((current) => !current)}
+          >
+            <ChevronDownIcon
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform",
+                !previewExpanded && "-rotate-90"
+              )}
+            />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close data preview"
+            onClick={() => setPreviewVisible(false)}
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
+      </div>
+      {previewExpanded ? (
+        <div className="flex h-[94px] flex-col items-center justify-center gap-1">
+          <TableIcon className="h-9 w-9 text-muted-foreground" />
+          <p className="text-sm leading-5 text-foreground">
+            Configure a table to see a preview
+          </p>
+        </div>
+      ) : null}
+    </section>
+  ) : null
+
+  return (
+    <div ref={contentRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 overflow-hidden",
+          templatePanelOpen ? "flex-col lg:flex-row" : "flex-col"
+        )}
+      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <Breadcrumb>
@@ -214,7 +271,7 @@ export function LakewatchLakeflowConnectWizardView({
             <WizardStepMenu
               steps={CONNECT_STEPS}
               activeStep={activeStep}
-              className={compact ? undefined : "hidden"}
+              className={stepperCollapsed ? undefined : "hidden"}
             />
           </div>
         </div>
@@ -223,13 +280,15 @@ export function LakewatchLakeflowConnectWizardView({
 
       <div
         className={cn(
-          "mx-auto mt-6 grid w-full grid-cols-1 items-start lg:min-h-0 lg:flex-1",
-          compact
-            ? "max-w-[679px]"
-            : "max-w-[1168px] gap-8 lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
+          "grid grid-cols-1 min-h-0 flex-1",
+          templatePanelOpen
+            ? "mt-4 w-full"
+            : compact
+              ? "mx-auto mt-6 w-full max-w-[679px]"
+              : "mx-auto mt-6 w-full items-start gap-8 max-w-[1168px] lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
         )}
       >
-        {!compact ? (
+        {!stepperCollapsed ? (
           <div>
             <WizardStepper activeStep={activeStep} />
           </div>
@@ -283,6 +342,41 @@ export function LakewatchLakeflowConnectWizardView({
               </div>
             </div>
           </form>
+        ) : activeStep === 2 ? (
+          <form
+            className={cn(
+              "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
+              templatePanelOpen ? "lg:my-6 lg:ml-5 lg:mr-6" : "w-full h-full"
+            )}
+            onSubmit={(event) => {
+              event.preventDefault()
+              setActiveStep(3)
+            }}
+          >
+            <StepPanelHeader
+              step={2}
+              title="Ingestion templates"
+              description={`Select the ingestion templates Lakewatch should use to classify data from ${label}.`}
+            />
+
+            <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
+              <IntegrationTemplatesField controller={templateController} />
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveStep(1)}
+              >
+                Back
+              </Button>
+              <Button type="submit" variant="primary" size="sm">
+                Continue
+              </Button>
+            </div>
+          </form>
         ) : (
           <form
             className="flex w-full flex-col overflow-hidden rounded-md border border-border"
@@ -292,7 +386,7 @@ export function LakewatchLakeflowConnectWizardView({
             }}
           >
             <StepPanelHeader
-              step={2}
+              step={3}
               title={`Create datasource from ${label}`}
               description={description}
             />
@@ -363,41 +457,14 @@ export function LakewatchLakeflowConnectWizardView({
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-source">Source *</Label>
-                <p className="text-hint text-muted-foreground">
-                  The name of the datasource system (e.g., Slack, Workday, Crowdstrike)
-                </p>
-                <Input
-                  id="connect-source"
-                  value={sourceName}
-                  onChange={(event) => setSourceName(event.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-source-type">Source type *</Label>
-                <p className="text-hint text-muted-foreground">
-                  The type of data being ingested from the source (e.g., auditPlogs, events)
-                </p>
-                <Input
-                  id="connect-source-type"
-                  value={sourceType}
-                  onChange={(event) => setSourceType(event.target.value)}
-                  required
-                />
-              </div>
-
               <div className="mt-auto flex items-center justify-between pt-2">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="px-0 font-normal text-primary hover:bg-transparent hover:text-primary"
-                  onClick={() => setActiveStep(1)}
+                  onClick={() => setActiveStep(2)}
                 >
-                  Cancel
+                  Back
                 </Button>
                 <Button type="submit" variant="primary" size="sm">
                   Finish
@@ -408,49 +475,18 @@ export function LakewatchLakeflowConnectWizardView({
         )}
       </div>
 
-      {previewVisible ? (
-        <section
-          aria-label="Data preview"
-          className="-mx-5 -mb-5 mt-4 shrink-0 bg-secondary"
-        >
-          <div className="flex h-8 items-center justify-between border-y border-input px-2">
-            <h2 className="text-sm font-semibold leading-5 text-foreground">Data preview</h2>
-            <div className="flex items-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={previewExpanded ? "Collapse data preview" : "Expand data preview"}
-                onClick={() => setPreviewExpanded((current) => !current)}
-              >
-                <ChevronDownIcon
-                  className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform",
-                    !previewExpanded && "-rotate-90"
-                  )}
-                />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close data preview"
-                onClick={() => setPreviewVisible(false)}
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </div>
-          </div>
-          {previewExpanded ? (
-            <div className="flex h-[94px] flex-col items-center justify-center gap-1">
-              <TableIcon className="h-9 w-9 text-muted-foreground" />
-              <p className="text-sm leading-5 text-foreground">
-                Configure a table to see a preview
-              </p>
-            </div>
-          ) : null}
-        </section>
+      {!templatePanelOpen ? dataPreviewSection : null}
+      </div>
+
+      {templatePanelOpen ? (
+        <IntegrationTemplatePanel
+          controller={templateController}
+          className="min-h-0 w-full flex-1 border-t border-input lg:w-[520px] lg:flex-none lg:border-l lg:border-t-0"
+        />
       ) : null}
+      </div>
+
+      {templatePanelOpen ? dataPreviewSection : null}
     </div>
   )
 }

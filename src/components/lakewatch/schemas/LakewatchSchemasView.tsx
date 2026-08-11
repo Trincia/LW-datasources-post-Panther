@@ -11,8 +11,20 @@ import {
 } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  SegmentedControl,
+  SegmentedItem,
+} from "@/components/ui/segmented-control"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -100,8 +112,117 @@ function SortableHeader({
   )
 }
 
+type TemplateVersion = { version: string; created: string }
+
+const MONTH_LABELS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+function hashString(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
+
+function formatDateTime(date: Date): string {
+  const month = MONTH_LABELS[date.getMonth()]
+  const day = date.getDate()
+  const year = date.getFullYear()
+  const minutes = date.getMinutes().toString().padStart(2, "0")
+  const ampm = date.getHours() >= 12 ? "PM" : "AM"
+  const hour12 = date.getHours() % 12 || 12
+  return `${month} ${day}, ${year}, ${hour12}:${minutes} ${ampm}`
+}
+
+/**
+ * Deterministically builds a version history for a template row (newest first)
+ * so each row shows a stable set of versions and matching creation timestamps.
+ */
+function buildVersions(name: string): TemplateVersion[] {
+  const seed = hashString(name)
+  const count = 3 + (seed % 3)
+  const base = new Date(2026, 7, 6, 9, 0)
+  const versions: TemplateVersion[] = []
+  for (let i = 0; i < count; i += 1) {
+    const versionNumber = count - i
+    const daysBack = i * (4 + (seed % 6)) + (seed % 4)
+    const hour = 8 + ((seed >> (i + 1)) % 9)
+    const minute = (seed * (i + 3)) % 60
+    const date = new Date(base)
+    date.setDate(date.getDate() - daysBack)
+    date.setHours(hour, minute)
+    versions.push({ version: `v${versionNumber}`, created: formatDateTime(date) })
+  }
+  return versions
+}
+
+function TemplateRow({ schema }: { schema: SchemaRow }) {
+  const versions = React.useMemo(() => buildVersions(schema.name), [schema.name])
+  const [selectedVersion, setSelectedVersion] = React.useState(versions[0].version)
+  const created =
+    versions.find((item) => item.version === selectedVersion)?.created ?? versions[0].created
+
+  return (
+    <TableRow className="h-14">
+      <TableCell>
+        <Link
+          href={`/lakewatch/schemas/${encodeURIComponent(schema.name)}`}
+          className="font-semibold text-foreground hover:text-primary"
+        >
+          {schema.name}
+        </Link>
+      </TableCell>
+      <TableCell>
+        {schema.managedBy === "Databricks" ? (
+          <Badge variant="teal">Built-in</Badge>
+        ) : (
+          <Badge variant="brown">Custom</Badge>
+        )}
+      </TableCell>
+      <TableCell>
+        <Select value={selectedVersion} onValueChange={setSelectedVersion}>
+          <SelectTrigger className="w-[92px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {versions.map((item) => (
+              <SelectItem key={item.version} value={item.version}>
+                {item.version}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell className="text-foreground">{created}</TableCell>
+      <TableCell className="whitespace-normal leading-5">{schema.description}</TableCell>
+      <TableCell>{schema.managedBy === "Databricks" ? "Databricks" : "You"}</TableCell>
+      <TableCell>
+        <span className="flex items-center gap-2">
+          <span
+            className={
+              schema.fieldDiscovery === "Enabled"
+                ? "size-1.5 rounded-full bg-[var(--success)]"
+                : "size-1.5 rounded-full bg-muted-foreground/50"
+            }
+            aria-hidden
+          />
+          {schema.fieldDiscovery}
+        </span>
+      </TableCell>
+      <TableCell>
+        {schema.datasourceCount}{" "}
+        {schema.datasourceCount === 1 ? "Datasource" : "Datasources"}
+      </TableCell>
+    </TableRow>
+  )
+}
+
 export function LakewatchSchemasView() {
   const [query, setQuery] = React.useState("")
+  const [typeFilter, setTypeFilter] = React.useState<"all" | "built-in" | "custom">("all")
   const [customSchemas, setCustomSchemas] = React.useState<SchemaRow[]>([])
 
   React.useEffect(() => {
@@ -123,9 +244,14 @@ export function LakewatchSchemasView() {
         !normalizedQuery ||
         schema.name.toLowerCase().includes(normalizedQuery) ||
         schema.description.toLowerCase().includes(normalizedQuery)
-      return matchesQuery
+      const isBuiltIn = schema.managedBy === "Databricks"
+      const matchesType =
+        typeFilter === "all" ||
+        (typeFilter === "built-in" && isBuiltIn) ||
+        (typeFilter === "custom" && !isBuiltIn)
+      return matchesQuery && matchesType
     })
-  }, [customSchemas, query])
+  }, [customSchemas, query, typeFilter])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
@@ -136,14 +262,14 @@ export function LakewatchSchemasView() {
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/schemas/new">
               <PlusIcon size={16} />
-              Add Ingestion template
+              Create ingestion template
             </Link>
           </Button>
         </div>
       </div>
 
-      <div className="mt-4 w-full max-w-[320px]">
-        <div className="relative">
+      <div className="mt-4 flex items-center gap-3">
+        <div className="relative w-full max-w-[320px]">
           <SearchIcon
             size={16}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -157,54 +283,37 @@ export function LakewatchSchemasView() {
             className="pl-9"
           />
         </div>
+        <SegmentedControl
+          value={typeFilter}
+          onValueChange={(value) =>
+            setTypeFilter(value as "all" | "built-in" | "custom")
+          }
+        >
+          <SegmentedItem value="all">All</SegmentedItem>
+          <SegmentedItem value="built-in">Built-in</SegmentedItem>
+          <SegmentedItem value="custom">Custom</SegmentedItem>
+        </SegmentedControl>
       </div>
 
       <div className="mt-4 min-h-0 overflow-x-auto">
-        <Table className="min-w-[980px] table-fixed">
+        <Table className="min-w-[1180px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <SortableHeader className="w-[20%]">Ingestion template Name</SortableHeader>
-              <SortableHeader className="w-[34%]">Description</SortableHeader>
+              <SortableHeader className="w-[10%]">Type</SortableHeader>
+              <SortableHeader className="w-[10%]">Version</SortableHeader>
+              <SortableHeader className="w-[16%]">Created time</SortableHeader>
+              <SortableHeader className="w-[16%]">Description</SortableHeader>
               <TableHead className="h-10 w-[12%] bg-muted/70 font-normal text-muted-foreground">
-                Managed by
+                Creator
               </TableHead>
-              <SortableHeader className="w-[18%]">Field Discovery</SortableHeader>
+              <SortableHeader className="w-[16%]">Field Discovery</SortableHeader>
               <SortableHeader className="w-[16%]">Used by</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((schema) => (
-              <TableRow key={schema.name} className="h-14">
-                <TableCell>
-                  <Link
-                    href={`/lakewatch/schemas/${encodeURIComponent(schema.name)}`}
-                    className="font-semibold text-foreground hover:text-primary"
-                  >
-                    {schema.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="whitespace-normal leading-5">
-                  {schema.description}
-                </TableCell>
-                <TableCell>{schema.managedBy}</TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={
-                        schema.fieldDiscovery === "Enabled"
-                          ? "size-1.5 rounded-full bg-[var(--success)]"
-                          : "size-1.5 rounded-full bg-muted-foreground/50"
-                      }
-                      aria-hidden
-                    />
-                    {schema.fieldDiscovery}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {schema.datasourceCount}{" "}
-                  {schema.datasourceCount === 1 ? "Datasource" : "Datasources"}
-                </TableCell>
-              </TableRow>
+              <TemplateRow key={schema.name} schema={schema} />
             ))}
           </TableBody>
         </Table>

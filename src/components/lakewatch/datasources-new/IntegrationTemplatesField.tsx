@@ -248,6 +248,68 @@ const INITIAL_TEMPLATES: IntegrationTemplate[] = [
   },
 ]
 
+const FAMILY_EVENT_FIELDS: TemplateField[] = [
+  { name: "id", type: "string" },
+  { name: "timestamp", type: "timestamp", timeFormats: ["rfc3339"] },
+  {
+    name: "actor",
+    type: "object",
+    fields: [
+      { name: "id", type: "string" },
+      { name: "email", type: "string" },
+    ],
+  },
+  { name: "action", type: "string" },
+  { name: "entity", type: "string" },
+  { name: "ipAddress", type: "string" },
+  { name: "userAgent", type: "string" },
+  { name: "outcome", type: "string" },
+]
+
+/**
+ * Builds the built-in ingestion templates for a specific source family (e.g.
+ * "Slack"), so the Lakeflow Connect wizard only surfaces templates relevant to
+ * the connector the user picked.
+ */
+function buildFamilyTemplates(family: string): IntegrationTemplate[] {
+  const slug = toTableName(family)
+  const base = {
+    kind: "built-in" as const,
+    group: family,
+    modified: "Aug 6, 2026",
+    fields: FAMILY_EVENT_FIELDS,
+    fieldCount: FAMILY_EVENT_FIELDS.length,
+    linkedDatasource: `${slug}-connection`,
+    createdBy: "J. Martinez",
+  }
+  return [
+    {
+      ...base,
+      id: `${slug}-audit-logs`,
+      name: `${family} Audit Logs`,
+      version: "v2",
+      description: `${family} audit and admin activity events`,
+      defaultOutput: `main.audit_logs.${slug}_audit`,
+    },
+    {
+      ...base,
+      id: `${slug}-access-logs`,
+      name: `${family} Access Logs`,
+      version: "v1",
+      description: `${family} authentication and access events`,
+      defaultOutput: `main.access_logs.${slug}_access`,
+    },
+    {
+      ...base,
+      id: `${slug}-events`,
+      name: `${family} Events`,
+      version: "v1",
+      description: `${family} activity and event stream`,
+      defaultOutput: `main.events.${slug}_events`,
+    },
+  ]
+}
+
 function fieldsToYaml(fields: TemplateField[], indent = 0): string {
   const pad = "  ".repeat(indent)
   const lines: string[] = []
@@ -1060,8 +1122,10 @@ function TemplateSearchDropdown({
 
 export type IntegrationTemplatesController = ReturnType<typeof useIntegrationTemplates>
 
-export function useIntegrationTemplates() {
-  const [templates, setTemplates] = React.useState<IntegrationTemplate[]>(INITIAL_TEMPLATES)
+export function useIntegrationTemplates(family?: string) {
+  const [templates, setTemplates] = React.useState<IntegrationTemplate[]>(() =>
+    family ? buildFamilyTemplates(family) : INITIAL_TEMPLATES,
+  )
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [detailsId, setDetailsId] = React.useState<string | null>(null)
   const [cloneBase, setCloneBase] = React.useState<IntegrationTemplate | null>(null)
