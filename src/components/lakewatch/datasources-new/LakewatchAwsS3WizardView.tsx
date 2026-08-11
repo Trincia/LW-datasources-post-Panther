@@ -2201,7 +2201,7 @@ export function LakewatchAwsS3WizardView({
               description="Your configured stack was deployed successfully and Lakewatch now has permissions to pull data."
             />
 
-            <div className="flex min-h-[512px] flex-col px-6 py-5">
+            <div className="flex flex-col px-6 pt-5 pb-4">
               <Label className="mb-2">Datasource name *</Label>
               <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
                 <Select value={catalog} onValueChange={setCatalog}>
