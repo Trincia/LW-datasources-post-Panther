@@ -347,12 +347,10 @@ function toTableName(name: string) {
 function TemplateDetailsPanel({
   template,
   onClose,
-  onClone,
   className,
 }: {
   template: IntegrationTemplate
   onClose: () => void
-  onClone: (template: IntegrationTemplate) => void
   className?: string
 }) {
   const [destCatalog, setDestCatalog] = React.useState("lakewatch")
@@ -402,13 +400,6 @@ function TemplateDetailsPanel({
                   </DropdownMenu>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {template.kind === "built-in" ? (
-                    <>
-                      <Button variant="primary" size="sm" onClick={() => onClone(template)}>
-                        Clone template
-                      </Button>
-                    </>
-                  ) : null}
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -1164,7 +1155,7 @@ export function IntegrationTemplatePanel({
   controller: IntegrationTemplatesController
   className?: string
 }) {
-  const { cloneBase, detailsTemplate, closePanel, openClone, createClone } = controller
+  const { cloneBase, detailsTemplate, closePanel, createClone } = controller
 
   if (cloneBase) {
     return (
@@ -1184,7 +1175,6 @@ export function IntegrationTemplatePanel({
         key={detailsTemplate.id}
         template={detailsTemplate}
         onClose={closePanel}
-        onClone={openClone}
         className={className}
       />
     )

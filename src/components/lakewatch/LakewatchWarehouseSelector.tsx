@@ -19,19 +19,44 @@ const COMPUTE_OPTIONS = [
   "Shared Warehouse",
 ]
 
+const CATALOG_OPTIONS = ["group_7_demo", "staging", "production"]
+
 export function LakewatchCatalogSelector() {
+  const [catalog, setCatalog] = React.useState(CATALOG_OPTIONS[0])
+
   return (
-    <Button
-      variant="default"
-      size="sm"
-      className="min-w-[213px] justify-between gap-2 font-normal"
-    >
-      <span className="flex items-center gap-2">
-        <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
-        <span className="text-foreground">group_7_demo</span>
-      </span>
-      <ChevronDownIcon size={16} className="text-muted-foreground" />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="default"
+          size="sm"
+          className="min-w-[213px] justify-between gap-2 font-normal"
+          aria-label={`Catalog: ${catalog}`}
+        >
+          <span className="flex items-center gap-2">
+            <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
+            <span className="text-foreground">{catalog}</span>
+          </span>
+          <ChevronDownIcon size={16} className="text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[213px]">
+        <DropdownMenuRadioGroup value={catalog} onValueChange={setCatalog}>
+          {CATALOG_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option}>
+              <span className="flex items-center gap-2">
+                <CatalogIcon
+                  size={16}
+                  className="text-muted-foreground"
+                  aria-hidden
+                />
+                {option}
+              </span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
