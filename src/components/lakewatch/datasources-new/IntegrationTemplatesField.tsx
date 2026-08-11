@@ -404,9 +404,6 @@ function TemplateDetailsPanel({
                 <div className="flex shrink-0 items-center gap-2">
                   {template.kind === "built-in" ? (
                     <>
-                      <Button variant="default" size="sm">
-                        Edit
-                      </Button>
                       <Button variant="primary" size="sm" onClick={() => onClone(template)}>
                         Clone template
                       </Button>
@@ -624,6 +621,7 @@ function CloneTemplatePanel({
     <div
       className={cn(
         "flex h-full min-h-0 w-full flex-col overflow-hidden bg-background",
+        "animate-in slide-in-from-right-16 fade-in-0 duration-300 ease-out",
         className
       )}
     >
@@ -1123,12 +1121,20 @@ export function useIntegrationTemplates() {
     setCloneBase(null)
   }, [])
 
-  const createClone = React.useCallback((template: IntegrationTemplate) => {
-    setTemplates((current) => [...current, template])
-    setSelectedIds((current) => [...current, template.id])
-    setCloneBase(null)
-    setDetailsId(template.id)
-  }, [])
+  const createClone = React.useCallback(
+    (template: IntegrationTemplate) => {
+      const baseId = cloneBase?.id
+      setTemplates((current) => [...current, template])
+      setSelectedIds((current) =>
+        baseId && current.includes(baseId)
+          ? current.map((id) => (id === baseId ? template.id : id))
+          : [...current, template.id]
+      )
+      setCloneBase(null)
+      setDetailsId(template.id)
+    },
+    [cloneBase]
+  )
 
   const detailsTemplate = detailsId ? templateById.get(detailsId) ?? null : null
   const panelOpen = Boolean(cloneBase) || Boolean(detailsTemplate)

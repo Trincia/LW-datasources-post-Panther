@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation"
 import { Check, X } from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
-import {
-  LakewatchCatalogSelector,
-  LakewatchWarehouseSelector,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -221,8 +218,7 @@ export function LakewatchLakeflowConnectWizardView({
             />
           </div>
         </div>
-        <LakewatchCatalogSelector />
-        <LakewatchWarehouseSelector />
+        <LakewatchDataControls />
       </div>
 
       <div

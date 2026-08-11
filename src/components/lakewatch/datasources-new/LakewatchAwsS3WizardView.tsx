@@ -8,6 +8,7 @@ import {
   Filter,
   LoaderCircle,
   MoreVertical,
+  Pencil,
   Plus,
   Search,
   X,
@@ -22,10 +23,7 @@ import {
   FolderIcon,
   TableIcon,
 } from "@/components/icons"
-import {
-  LakewatchCatalogSelector,
-  LakewatchWarehouseSelector,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -471,6 +469,88 @@ function StepPanelHeader({
       <p className="text-sm font-semibold text-foreground">STEP {step}</p>
       <h2 className="text-lg font-semibold leading-6 text-foreground">{title}</h2>
       <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+const SCHEDULE_CADENCE_LABELS: Record<string, string> = {
+  "at-least-every": "At least every",
+  every: "Every",
+  cron: "Cron",
+}
+const SCHEDULE_UNIT_LABELS: Record<string, string> = {
+  minutes: "minutes",
+  hours: "hours",
+  days: "days",
+}
+
+function WizardProcessingScheduleField() {
+  const [cadence, setCadence] = React.useState("at-least-every")
+  const [interval, setInterval] = React.useState("10")
+  const [unit, setUnit] = React.useState("minutes")
+  const [editing, setEditing] = React.useState(false)
+
+  const scheduleLabel = `${SCHEDULE_CADENCE_LABELS[cadence] ?? cadence} ${interval} ${
+    SCHEDULE_UNIT_LABELS[unit] ?? unit
+  }`
+
+  return (
+    <div className="mt-5 flex flex-col gap-2">
+      <Label>Processing schedule</Label>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-[7px] gap-y-2">
+        {editing ? (
+          <>
+            <Select value={cadence} onValueChange={setCadence}>
+              <SelectTrigger className="w-[151px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="at-least-every">At least every</SelectItem>
+                <SelectItem value="every">Every</SelectItem>
+                <SelectItem value="cron">Cron</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Schedule interval"
+              value={interval}
+              onChange={(event) => setInterval(event.target.value)}
+              className="w-[65px]"
+            />
+            <Select value={unit} onValueChange={setUnit}>
+              <SelectTrigger className="w-[151px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">Minutes</SelectItem>
+                <SelectItem value="hours">Hours</SelectItem>
+                <SelectItem value="days">Days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Done editing processing schedule"
+              onClick={() => setEditing(false)}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="flex h-8 min-w-0 items-center rounded border border-input bg-background px-3 text-sm text-foreground">
+              {scheduleLabel}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Edit processing schedule"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1351,16 +1431,90 @@ export function LakewatchAwsS3WizardView({
     }, 1100)
   }
 
+  const dataPreviewSection =
+    previewVisible &&
+    (activeStep === 1 ||
+      ((activeStep === 2 || activeStep === 3) &&
+        (previewReady || schemasReady))) ? (
+      <section
+        aria-label="Data preview"
+        className={cn(
+          "shrink-0 bg-secondary",
+          templatePanelOpen ? undefined : "-mx-5 -mb-5 mt-auto"
+        )}
+      >
+        {showSplitPreview ? (
+          <SchemaSplitPreview region={previewRegion} />
+        ) : (
+          <>
+            <div className="flex h-8 items-center justify-between border-y border-input px-2">
+              <h2 className="text-sm font-semibold leading-5 text-foreground">
+                {showUnwrapPreview
+                  ? "Data preview"
+                  : previewReady
+                    ? "aws_sec_lake_raw"
+                    : "Data preview"}
+              </h2>
+              <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={previewExpanded ? "Collapse data preview" : "Expand data preview"}
+                  onClick={() => setPreviewExpanded((current) => !current)}
+                >
+                  <ChevronDownIcon
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform",
+                      !previewExpanded && "-rotate-90"
+                    )}
+                  />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close data preview"
+                  onClick={() => setPreviewVisible(false)}
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
+            {previewExpanded ? (
+              showUnwrapPreview ? (
+                <EventUnwrapPreview eventArrayPath={eventArrayPath} copyFields={copyFields} />
+              ) : previewReady ? (
+                <RawDataPreview region={previewRegion} />
+              ) : previewLoading ? (
+                <div className="flex h-20 flex-col items-center justify-center gap-2">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <p className="text-sm leading-5 text-foreground">Loading data preview</p>
+                </div>
+              ) : (
+                <div className="flex h-20 flex-col items-center justify-center gap-1">
+                  <TableIcon className="h-9 w-9 text-muted-foreground" />
+                  <p className="text-sm leading-5 text-foreground">
+                    Configure a table to see a preview
+                  </p>
+                </div>
+              )
+            ) : null}
+          </>
+        )}
+      </section>
+    ) : null
+
   return (
-    <div
-      ref={contentRef}
-      className={cn(
-        "flex min-h-0 flex-1 overflow-hidden",
-        // When the detail panel is open it becomes a full-height right column so its
-        // left divider runs to the top of the box; the wizard content stays on the left.
-        templatePanelOpen ? "flex-col lg:flex-row" : "flex-col"
-      )}
-    >
+    <div ref={contentRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 overflow-hidden",
+          // When the detail panel is open it becomes a full-height right column so its
+          // left divider runs to the top of the box; the wizard content stays on the left.
+          templatePanelOpen ? "flex-col lg:flex-row" : "flex-col"
+        )}
+      >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
       <div className="flex shrink-0 items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
@@ -1390,8 +1544,7 @@ export function LakewatchAwsS3WizardView({
             />
           </div>
         </div>
-        <LakewatchCatalogSelector />
-        <LakewatchWarehouseSelector />
+        <LakewatchDataControls />
       </div>
 
       <div
@@ -1840,7 +1993,7 @@ export function LakewatchAwsS3WizardView({
               </p>
 
               <div className="mt-5 flex flex-col gap-2">
-                <Label>Datasource Run as</Label>
+                <Label>Run as</Label>
                 <Select value={runAs} onValueChange={setRunAs}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -1858,6 +2011,8 @@ export function LakewatchAwsS3WizardView({
                   </SelectContent>
                 </Select>
               </div>
+
+              <WizardProcessingScheduleField />
 
               <p className="mt-5 text-sm leading-5 text-foreground">
                 You can now visit your datasource where you can monitor ingestion and make edits
@@ -1884,74 +2039,7 @@ export function LakewatchAwsS3WizardView({
         )}
       </div>
 
-      {previewVisible &&
-      (activeStep === 1 ||
-        ((activeStep === 2 || activeStep === 3) && (previewReady || schemasReady))) ? (
-        <section
-          aria-label="Data preview"
-          className="-mx-5 -mb-5 mt-auto shrink-0 bg-secondary"
-        >
-          {showSplitPreview ? (
-            <SchemaSplitPreview region={previewRegion} />
-          ) : (
-            <>
-          <div className="flex h-8 items-center justify-between border-y border-input px-2">
-            <h2 className="text-sm font-semibold leading-5 text-foreground">
-              {showUnwrapPreview
-                ? "Data preview"
-                : previewReady
-                  ? "aws_sec_lake_raw"
-                  : "Data preview"}
-            </h2>
-            <div className="flex items-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={previewExpanded ? "Collapse data preview" : "Expand data preview"}
-                onClick={() => setPreviewExpanded((current) => !current)}
-              >
-                <ChevronDownIcon
-                  className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform",
-                    !previewExpanded && "-rotate-90"
-                  )}
-                />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close data preview"
-                onClick={() => setPreviewVisible(false)}
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </div>
-          </div>
-          {previewExpanded ? (
-            showUnwrapPreview ? (
-              <EventUnwrapPreview eventArrayPath={eventArrayPath} copyFields={copyFields} />
-            ) : previewReady ? (
-              <RawDataPreview region={previewRegion} />
-            ) : previewLoading ? (
-              <div className="flex h-20 flex-col items-center justify-center gap-2">
-                <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                <p className="text-sm leading-5 text-foreground">Loading data preview</p>
-              </div>
-            ) : (
-              <div className="flex h-20 flex-col items-center justify-center gap-1">
-                <TableIcon className="h-9 w-9 text-muted-foreground" />
-                <p className="text-sm leading-5 text-foreground">
-                  Configure a table to see a preview
-                </p>
-              </div>
-            )
-          ) : null}
-            </>
-          )}
-        </section>
-      ) : null}
+      {!templatePanelOpen ? dataPreviewSection : null}
       </div>
 
       {templatePanelOpen ? (
@@ -1960,6 +2048,9 @@ export function LakewatchAwsS3WizardView({
           className="min-h-0 w-full flex-1 border-t border-input lg:w-[520px] lg:flex-none lg:border-l lg:border-t-0"
         />
       ) : null}
+      </div>
+
+      {templatePanelOpen ? dataPreviewSection : null}
 
       {isExistingTable ? (
         <UnityCatalogExplorerModal
