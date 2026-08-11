@@ -197,21 +197,7 @@ function TemplateRow({ schema }: { schema: SchemaRow }) {
         </Select>
       </TableCell>
       <TableCell className="text-foreground">{created}</TableCell>
-      <TableCell className="whitespace-normal leading-5">{schema.description}</TableCell>
       <TableCell>{schema.managedBy === "Databricks" ? "Databricks" : "You"}</TableCell>
-      <TableCell>
-        <span className="flex items-center gap-2">
-          <span
-            className={
-              schema.fieldDiscovery === "Enabled"
-                ? "size-1.5 rounded-full bg-[var(--success)]"
-                : "size-1.5 rounded-full bg-muted-foreground/50"
-            }
-            aria-hidden
-          />
-          {schema.fieldDiscovery}
-        </span>
-      </TableCell>
       <TableCell>
         {schema.datasourceCount}{" "}
         {schema.datasourceCount === 1 ? "Datasource" : "Datasources"}
@@ -296,19 +282,17 @@ export function LakewatchSchemasView() {
       </div>
 
       <div className="mt-4 min-h-0 overflow-x-auto">
-        <Table className="min-w-[1180px] table-fixed">
+        <Table className="min-w-[980px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortableHeader className="w-[20%]">Ingestion template Name</SortableHeader>
-              <SortableHeader className="w-[10%]">Type</SortableHeader>
-              <SortableHeader className="w-[10%]">Version</SortableHeader>
-              <SortableHeader className="w-[16%]">Created time</SortableHeader>
-              <SortableHeader className="w-[16%]">Description</SortableHeader>
-              <TableHead className="h-10 w-[12%] bg-muted/70 font-normal text-muted-foreground">
+              <SortableHeader className="w-[22%]">Ingestion template Name</SortableHeader>
+              <SortableHeader className="w-[12%]">Type</SortableHeader>
+              <SortableHeader className="w-[12%]">Version</SortableHeader>
+              <SortableHeader className="w-[20%]">Created time</SortableHeader>
+              <TableHead className="h-10 w-[14%] bg-muted/70 font-normal text-muted-foreground">
                 Creator
               </TableHead>
-              <SortableHeader className="w-[16%]">Field Discovery</SortableHeader>
-              <SortableHeader className="w-[16%]">Used by</SortableHeader>
+              <SortableHeader className="w-[20%]">Used by</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
