@@ -471,6 +471,7 @@ export function LakewatchCreateSchemaView() {
   const [destSchema, setDestSchema] = React.useState("default")
   const [description, setDescription] = React.useState("")
   const [tags, setTags] = React.useState<string[]>([])
+  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
   const fieldDiscovery = true
   const [parser, setParser] = React.useState<ParserType>("json")
   const [schemaDefinition, setSchemaDefinition] = React.useState("")
@@ -587,6 +588,26 @@ export function LakewatchCreateSchemaView() {
               }}
               className="min-h-16 resize-none"
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>Run as</Label>
+            <Select value={runAs} onValueChange={setRunAs}>
+              <SelectTrigger className="w-full" aria-label="Run as">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beau.trincia@databricks.com">
+                  Run as: beau.trincia@databricks.com
+                </SelectItem>
+                <SelectItem value="lakewatch-service-principal">
+                  Run as: Lakewatch service principal
+                </SelectItem>
+                <SelectItem value="security-platform@databricks.com">
+                  Run as: security-platform@databricks.com
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
         </section>
