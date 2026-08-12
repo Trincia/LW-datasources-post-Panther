@@ -589,7 +589,7 @@ export function LakewatchAddDatasourceView() {
 
       <div className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col items-center gap-2 text-center">
         <h2 className="text-[22px] font-semibold leading-7 text-foreground">
-          What type of logs do you want to monitor with this datasource?
+          Where is the data you want to onboard?
         </h2>
         <p className="text-sm text-foreground">
           You can search by service, category or log types

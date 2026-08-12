@@ -418,7 +418,7 @@ export function LakewatchSchemaDetailView({
               {isCustom ? (
                 <Button variant="default" size="sm" asChild>
                   <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/edit`}>
-                    Edit
+                    Clone & edit
                   </Link>
                 </Button>
               ) : null}

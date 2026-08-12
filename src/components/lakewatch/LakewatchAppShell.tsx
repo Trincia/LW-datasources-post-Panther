@@ -93,7 +93,7 @@ export function LakewatchAppShell({
           />
         ) : null}
       </div>
-      <Toaster position="top-right" />
+      <Toaster position="top-left" />
     </div>
   )
 }

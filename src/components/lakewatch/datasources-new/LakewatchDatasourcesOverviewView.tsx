@@ -221,7 +221,7 @@ export function LakewatchDatasourcesOverviewView() {
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/datasources/new">
               <PlusIcon size={16} />
-              Create datasource
+              Create
             </Link>
           </Button>
         </div>

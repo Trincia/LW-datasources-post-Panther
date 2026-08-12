@@ -248,7 +248,7 @@ export function LakewatchSchemasView() {
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/schemas/new">
               <PlusIcon size={16} />
-              Create ingestion template
+              Create
             </Link>
           </Button>
         </div>

@@ -26,6 +26,7 @@ import {
   TableIcon,
 } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -1768,14 +1769,29 @@ export function LakewatchAwsS3WizardView({
   const isS3 = kind === "aws-s3"
   const previewSamplePlaceholder = isSqs
     ? "s3://my-bucket/sqs-sample/"
-    : "s3://my-bucket/logs/sample/"
+    : kind === "google-cloud-storage"
+      ? "gs://my-bucket/logs/sample/"
+      : kind === "azure-blob-storage"
+        ? "abfss://container@account.dfs.core.windows.net/logs/sample/"
+        : kind === "uc-volume"
+          ? "/Volumes/catalog/schema/volume/sample/"
+          : "s3://my-bucket/logs/sample/"
   const previewSampleFill = isSqs
     ? "s3://lakewatch-security-logs/sqs-sample/"
-    : "s3://lakewatch-security-logs/"
+    : kind === "google-cloud-storage"
+      ? "gs://lakewatch-security-logs/sample/"
+      : kind === "azure-blob-storage"
+        ? "abfss://security-logs@lakewatchlogs.dfs.core.windows.net/sample/"
+        : kind === "uc-volume"
+          ? "/Volumes/lakewatch/default/raw_logs/sample/"
+          : "s3://lakewatch-security-logs/"
   const previewRegion = isSqs && awsRegion.trim() ? awsRegion : "us-west-2"
   const isSimpleWizard = kind !== "aws-s3"
   const isExistingTable = kind === "existing-table"
   const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
+  // Path-based sources surface the optional "Preview location" control in the
+  // data preview header (existing-table uses an inline "View table name" instead).
+  const showHeaderPreviewLocation = isS3 || (isSimpleWizard && !isExistingTable)
   React.useEffect(
     () => () => {
       if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
@@ -1854,7 +1870,7 @@ export function LakewatchAwsS3WizardView({
             <div
               className={cn(
                 "flex items-center justify-between border-y border-input px-2",
-                (isSqs || isS3) && !showUnwrapPreview ? "h-10" : "h-8"
+                showHeaderPreviewLocation && !showUnwrapPreview ? "h-10" : "h-8"
               )}
             >
               <div className="flex min-w-0 items-center gap-4">
@@ -1865,7 +1881,7 @@ export function LakewatchAwsS3WizardView({
                       ? "aws_sec_lake_raw"
                       : "Data preview"}
                 </h2>
-                {(isSqs || isS3) && !showUnwrapPreview ? (
+                {showHeaderPreviewLocation && !showUnwrapPreview ? (
                   <div className="ml-4 flex items-center gap-1.5">
                     {isS3 ? (
                       <Button
@@ -1960,7 +1976,7 @@ export function LakewatchAwsS3WizardView({
                 <div
                   className={cn(
                     "flex flex-col items-center justify-center gap-1 px-4 text-center",
-                    isSqs || isS3 ? "h-[180px]" : "h-20"
+                    showHeaderPreviewLocation ? "h-[180px]" : "h-20"
                   )}
                 >
                   <TableIcon className="h-9 w-9 text-muted-foreground" />
@@ -1969,7 +1985,9 @@ export function LakewatchAwsS3WizardView({
                       ? "An optional S3 path to a smaller sample of the data to preview."
                       : isS3
                         ? "An optional S3 path to a smaller sample of the data."
-                        : "Configure a table to see a preview"}
+                        : isSimpleWizard && !isExistingTable
+                          ? "An optional path to a smaller sample of the data to preview."
+                          : "Configure a table to see a preview"}
                   </p>
                 </div>
               )
@@ -2079,28 +2097,11 @@ export function LakewatchAwsS3WizardView({
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <Label>Run as</Label>
-                    <p className="text-hint text-muted-foreground">
-                      Select the identity Lakewatch uses to access this SQS queue.
-                    </p>
-                    <Select value={s3RunAs} onValueChange={setS3RunAs}>
-                      <SelectTrigger className="w-full" aria-label="Run as">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="beau.trincia@databricks.com">
-                          Run as: beau.trincia@databricks.com
-                        </SelectItem>
-                        <SelectItem value="lakewatch-service-principal">
-                          Run as: Lakewatch service principal
-                        </SelectItem>
-                        <SelectItem value="security-platform@databricks.com">
-                          Run as: security-platform@databricks.com
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <RunAsControl
+                    value={s3RunAs}
+                    onValueChange={setS3RunAs}
+                    className="self-start"
+                  />
 
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="aws-region">AWS region *</Label>
@@ -2176,33 +2177,25 @@ export function LakewatchAwsS3WizardView({
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="simple-secondary-location">
-                  {isExistingTable ? "View table name" : "Preview location (optional)"}
-                </Label>
-                <p className="text-hint text-muted-foreground">
-                  {isExistingTable
-                    ? "Name of the Lakewatch bronze view to expose this table through."
-                    : "An optional path to a smaller sample of the data to preview."}
-                </p>
-                <div className="flex items-center gap-2">
+              {isExistingTable ? (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="simple-secondary-location">View table name</Label>
+                  <p className="text-hint text-muted-foreground">
+                    Name of the Lakewatch bronze view to expose this table through.
+                  </p>
                   <Input
                     id="simple-secondary-location"
-                    value={isExistingTable ? viewTableName : dataSampleLocation}
-                    onChange={(event) =>
-                      isExistingTable
-                        ? setViewTableName(event.target.value)
-                        : validateSampleLocation(event.target.value)
-                    }
+                    value={viewTableName}
+                    onChange={(event) => setViewTableName(event.target.value)}
                   />
-                  {isExistingTable ? null : (
-                    <VerificationIndicator
-                      state={sampleVerification}
-                      label="Preview location"
-                    />
-                  )}
                 </div>
-              </div>
+              ) : null}
+
+              <RunAsControl
+                value={s3RunAs}
+                onValueChange={setS3RunAs}
+                className="self-start"
+              />
 
               <div className="flex items-center justify-between pt-2">
                 <Button variant="ghost" size="sm" asChild>
@@ -2272,28 +2265,11 @@ export function LakewatchAwsS3WizardView({
                 {timeRangeOpen ? <WizardDataTimeRangeField /> : null}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label>Run as</Label>
-                <p className="text-hint text-muted-foreground">
-                  Select the identity Lakewatch uses to access this S3 location.
-                </p>
-                <Select value={s3RunAs} onValueChange={setS3RunAs}>
-                  <SelectTrigger className="w-full" aria-label="S3 Run as">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="beau.trincia@databricks.com">
-                      Run as: beau.trincia@databricks.com
-                    </SelectItem>
-                    <SelectItem value="lakewatch-service-principal">
-                      Run as: Lakewatch service principal
-                    </SelectItem>
-                    <SelectItem value="security-platform@databricks.com">
-                      Run as: security-platform@databricks.com
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <RunAsControl
+                value={s3RunAs}
+                onValueChange={setS3RunAs}
+                className="self-start"
+              />
 
               <div className="flex flex-col gap-2">
                 <div>

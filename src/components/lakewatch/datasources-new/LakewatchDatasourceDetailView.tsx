@@ -19,6 +19,7 @@ import {
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -291,22 +292,7 @@ function ProcessingScheduleToolbar() {
           <SegmentedItem value="ui">UI</SegmentedItem>
           <SegmentedItem value="yaml">YAML</SegmentedItem>
         </SegmentedControl>
-        <Select value={runAs} onValueChange={setRunAs}>
-          <SelectTrigger className="w-[272px] shrink-0" aria-label="Run as">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="beau.trincia@databricks.com">
-              Run as: beau.trincia@databricks.com
-            </SelectItem>
-            <SelectItem value="lakewatch-service-principal">
-              Run as: Lakewatch service principal
-            </SelectItem>
-            <SelectItem value="security-platform@databricks.com">
-              Run as: security-platform@databricks.com
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
         <Button variant="default" size="sm">
           <Lock className="h-4 w-4" />
           Permissions
