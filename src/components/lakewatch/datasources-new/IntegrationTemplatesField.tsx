@@ -510,9 +510,6 @@ function TemplateDetailsPanel({
                     onChange={(event) => setTableName(event.target.value)}
                   />
                 </div>
-                <p className="text-hint text-muted-foreground">
-                  {destCatalog}.{destSchema}.{tableName || "table_name"}
-                </p>
               </div>
             </div>
 
@@ -992,11 +989,13 @@ function TemplateSearchDropdown({
   selectedIds,
   onToggle,
   onToggleGroup,
+  hideCustom = false,
 }: {
   templates: IntegrationTemplate[]
   selectedIds: string[]
   onToggle: (id: string) => void
   onToggleGroup: (ids: string[], select: boolean) => void
+  hideCustom?: boolean
 }) {
   const [tab, setTab] = React.useState<SearchTab>("all")
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({})
@@ -1015,7 +1014,7 @@ function TemplateSearchDropdown({
   const tabs: { value: SearchTab; label: string }[] = [
     { value: "all", label: "All" },
     { value: "built-in", label: "Built-in" },
-    { value: "custom", label: "Custom" },
+    ...(hideCustom ? [] : [{ value: "custom" as const, label: "Custom" }]),
   ]
 
   return (
@@ -1126,7 +1125,9 @@ export function useIntegrationTemplates(family?: string) {
   const [templates, setTemplates] = React.useState<IntegrationTemplate[]>(() =>
     family ? buildFamilyTemplates(family) : INITIAL_TEMPLATES,
   )
-  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(() =>
+    family ? buildFamilyTemplates(family).map((template) => template.id) : [],
+  )
   const [detailsId, setDetailsId] = React.useState<string | null>(null)
   const [cloneBase, setCloneBase] = React.useState<IntegrationTemplate | null>(null)
 
@@ -1195,6 +1196,7 @@ export function useIntegrationTemplates(family?: string) {
   const panelOpen = Boolean(cloneBase) || Boolean(detailsTemplate)
 
   return {
+    family,
     templates,
     selectedIds,
     detailsId,
@@ -1254,10 +1256,13 @@ export function IntegrationTemplatesField({
   controller: IntegrationTemplatesController
   pendingNames?: string[]
 }) {
-  const { templates, selectedIds, detailsId, templateById, toggle, toggleGroup, openDetails } =
+  const { family, templates, selectedIds, detailsId, templateById, toggle, toggleGroup, openDetails } =
     controller
   const [query, setQuery] = React.useState("")
   const [open, setOpen] = React.useState(false)
+  const [skipTemplates, setSkipTemplates] = React.useState(false)
+  const [rawSchema, setRawSchema] = React.useState("default")
+  const [rawName, setRawName] = React.useState("")
   const containerRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -1335,6 +1340,7 @@ export function IntegrationTemplatesField({
               selectedIds={selectedIds}
               onToggle={toggle}
               onToggleGroup={toggleGroup}
+              hideCustom={Boolean(family)}
             />
           ) : null}
         </div>
@@ -1375,6 +1381,60 @@ export function IntegrationTemplatesField({
           </p>
         </div>
       )}
+
+      {!hasSelection ? (
+        <div className="flex flex-col gap-3">
+          <label
+            htmlFor="skip-ingestion-templates"
+            className="flex cursor-pointer items-center gap-2"
+          >
+            <Checkbox
+              id="skip-ingestion-templates"
+              checked={skipTemplates}
+              onCheckedChange={(value) => setSkipTemplates(value === true)}
+            />
+            <span className="text-sm text-foreground">
+              Skip ingestion templates for now
+            </span>
+          </label>
+
+          {skipTemplates ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-hint text-muted-foreground">
+                It is recommended that you write this datasource to a raw table you
+                define if there are no ingestion templates. Lakewatch uses ingestion
+                metadata for recovery and processing.
+              </p>
+              <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
+                <Select value="lakewatch" disabled>
+                  <SelectTrigger className="w-full" aria-label="Catalog">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lakewatch">lakewatch</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={rawSchema} onValueChange={setRawSchema}>
+                  <SelectTrigger className="w-full" aria-label="Schema">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">default</SelectItem>
+                    <SelectItem value="bronze">bronze</SelectItem>
+                    <SelectItem value="production">production</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  aria-label="Raw table name"
+                  value={rawName}
+                  onChange={(event) => setRawName(event.target.value)}
+                  placeholder="raw_table_name"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

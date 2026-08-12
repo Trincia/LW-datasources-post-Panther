@@ -11,10 +11,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import {
-  LakewatchCatalogSelector,
-  LakewatchWarehouseSelector,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { cn } from "@/lib/utils"
 
@@ -43,13 +40,12 @@ function SupportedSourceIcon({
   )
 }
 
-const DATABRICKS_FORMATS: SourceCard[] = [
+const UNITY_CATALOG_SOURCES: SourceCard[] = [
   {
     id: "existing-table",
     title: "Existing table",
     description: "An existing table in your workspace Unity Catalog",
     href: "/lakewatch/datasources/new/existing-table",
-    wide: true,
     categories: ["Existing table", "Data platform", "Custom datasources"],
     icon: (
       <div className="flex size-8 items-center justify-center rounded-md bg-[rgba(2,179,2,0.13)]">
@@ -62,13 +58,12 @@ const DATABRICKS_FORMATS: SourceCard[] = [
     title: "UC Volume",
     description: "Onboard UC Volume Storage as a datasource in Lakewatch.",
     href: "/lakewatch/datasources/new/uc-volume",
-    wide: true,
     categories: ["Cloud", "Custom datasources", "Data platform"],
     icon: <div className="size-8 shrink-0 rounded bg-pink-100" aria-hidden />,
   },
 ]
 
-const CUSTOM_FORMATS: SourceCard[] = [
+const OBJECT_STORAGE_SOURCES: SourceCard[] = [
   {
     id: "s3",
     title: "AWS S3 Bucket",
@@ -88,6 +83,7 @@ const CUSTOM_FORMATS: SourceCard[] = [
     id: "sqs",
     title: "AWS SQS Queue",
     description: "Onboard AWS SQS Queue as a datasource in Lakewatch",
+    href: "/lakewatch/datasources/new/aws-sqs",
     categories: ["AWS", "Cloud", "Custom datasources"],
     icon: (
       <div className="flex size-8 items-center justify-center rounded-md bg-pink-100 text-hint font-semibold text-pink-700">
@@ -566,8 +562,8 @@ export function LakewatchAddDatasourceView() {
   const [search, setSearch] = React.useState("")
   const [activeCategory] = React.useState<string | null>(null)
 
-  const customVisible = filterCards(CUSTOM_FORMATS, search, activeCategory)
-  const databricksVisible = filterCards(DATABRICKS_FORMATS, search, activeCategory)
+  const unityCatalogVisible = filterCards(UNITY_CATALOG_SOURCES, search, activeCategory)
+  const objectStorageVisible = filterCards(OBJECT_STORAGE_SOURCES, search, activeCategory)
   const supportedVisible = filterCards(ALL_SUPPORTED_FORMATS, search, activeCategory)
 
   return (
@@ -587,7 +583,6 @@ export function LakewatchAddDatasourceView() {
           <h1 className={PAGE_TITLE_SEMIBOLD}>Add new datasource</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <LakewatchCatalogSelector />
           <LakewatchWarehouseSelector />
         </div>
       </div>
@@ -614,36 +609,37 @@ export function LakewatchAddDatasourceView() {
         </div>
       </div>
 
-      {customVisible.length > 0 ? (
+      {unityCatalogVisible.length > 0 ? (
         <section className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col gap-4">
           <SectionHeader
-            title="Custom formats"
-            description={
-              <>
-                Define your own custom schemas. You can ingest custom logs into Lakewatch via a{" "}
-                <Link href="#" className="text-primary hover:underline">
-                  Data Transport
-                </Link>
-                . Your custom schema will then normalize and classify the data.
-              </>
-            }
+            title="Unity Catalog"
+            description="Onboard data that already lives in your Databricks workspace, such as Unity Catalog tables and volumes."
           />
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-            {customVisible.map((card) => (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {unityCatalogVisible.map((card) => (
               <SourceCardTile key={card.id} card={card} />
             ))}
           </div>
         </section>
       ) : null}
 
-      {databricksVisible.length > 0 ? (
-        <section className="mx-auto mt-8 flex w-full max-w-[1120px] flex-col gap-4">
+      {objectStorageVisible.length > 0 ? (
+        <section className="mx-auto mt-10 flex w-full max-w-[1120px] flex-col gap-4">
           <SectionHeader
-            title="Databricks formats"
-            description="Onboard data that already lives in your Databricks workspace, such as Unity Catalog tables and volumes."
+            title="Object Storage & Message Queues"
+            description={
+              <>
+                Define your own custom schemas or onboard logs from cloud object storage and message
+                queues. You can also ingest custom logs into Lakewatch via a{" "}
+                <Link href="#" className="text-primary hover:underline">
+                  Data Transport
+                </Link>
+                .
+              </>
+            }
           />
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-            {databricksVisible.map((card) => (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {objectStorageVisible.map((card) => (
               <SourceCardTile key={card.id} card={card} />
             ))}
           </div>
@@ -653,7 +649,7 @@ export function LakewatchAddDatasourceView() {
       {supportedVisible.length > 0 ? (
         <section className="mx-auto mt-10 flex w-full max-w-[1120px] flex-col gap-4">
           <SectionHeader
-            title="Lakeflow Connect supported formats"
+            title="API Connectors"
             description="Lakewatch supports log ingestion either through native puller integrations or via custom integrations built with one of the supported Data Transports."
           />
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">

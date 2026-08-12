@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { DbIcon } from "@/components/ui/db-icon"
+import { LakewatchCatalogSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import {
   GridIcon,
   DatasourceNavIcon,
@@ -117,6 +118,12 @@ export function LakewatchSidebar({
       )}
     >
       <div className="flex flex-col gap-1 px-1.5 py-2">
+        <div className="flex flex-col gap-1 px-1.5 pb-2">
+          <span className="text-hint text-muted-foreground">Catalog</span>
+          <LakewatchCatalogSelector className="w-full min-w-0 border-transparent hover:border-transparent dark:border-transparent dark:hover:border-transparent" />
+        </div>
+        <div className="mb-1 h-px bg-grey-600" />
+
         <NavRow href="/lakewatch" icon={GridIcon} active={activeItem === "overview"}>
           Overview
         </NavRow>

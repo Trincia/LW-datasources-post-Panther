@@ -139,12 +139,12 @@ function DataProcessedSparkline() {
       <img
         alt=""
         src="/lakewatch/charts/data-processed-fill.svg"
-        className="absolute inset-x-0 top-0 h-[47px] w-full"
+        className="absolute left-4 right-4 top-0 h-[47px]"
       />
       <img
         alt=""
         src="/lakewatch/charts/data-processed-line.svg"
-        className="absolute inset-x-0 top-0 h-[34px] w-full"
+        className="absolute left-4 right-4 top-0 h-[34px]"
       />
     </div>
   )

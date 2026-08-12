@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -68,7 +69,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Sheet,
   SheetContent,
@@ -77,6 +77,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -89,28 +90,22 @@ import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
   "Source location",
-  "Ingestion templates",
-  "Name and Permissions",
+  "Name & Ingestion templates",
+  "Additional details",
 ] as const
 
 export type LakewatchDatasourceWizardKind =
   | "aws-s3"
+  | "aws-sqs"
   | "existing-table"
   | "google-cloud-storage"
   | "uc-volume"
   | "azure-blob-storage"
 
-function getPrefixProviderLabel(kind: LakewatchDatasourceWizardKind) {
-  if (kind === "google-cloud-storage") return "GCS"
-  if (kind === "azure-blob-storage") return "Azure"
-  return "S3"
-}
-
-function getSimpleWizardSteps(kind: LakewatchDatasourceWizardKind) {
-  const prefixLabel = getPrefixProviderLabel(kind)
+function getSimpleWizardSteps(_kind: LakewatchDatasourceWizardKind) {
   return [
     "Configure source",
-    `${prefixLabel} prefix & ingestion templates`,
+    "Name & Ingestion templates",
     "Additional details",
   ] as const
 }
@@ -119,6 +114,11 @@ const SIMPLE_WIZARD_CONFIG: Record<
   Exclude<LakewatchDatasourceWizardKind, "aws-s3">,
   { title: string; sourceHint?: string }
 > = {
+  "aws-sqs": {
+    title: "Configure AWS SQS Queue datasource",
+    sourceHint:
+      "The URL of the SQS queue Lakewatch should consume messages from (e.g. https://sqs.us-east-1.amazonaws.com/123456789012/lakewatch-events).",
+  },
   "existing-table": {
     title: "Use an existing table",
     sourceHint:
@@ -141,8 +141,12 @@ const GCS_SOURCE_LOCATION_SAMPLE =
 const AZURE_SOURCE_LOCATION_SAMPLE =
   "https://portal.azure.com/#blade/Microsoft_Azure_Storage/ContainerMenuBlade/overview/storageAccountId/%2Fsubscriptions%2F00000000-0000-0000-0000-000000000000%2FresourceGroups%2Flakewatch-rg%2Fproviders%2FMicrosoft.Storage%2FstorageAccounts%2Flakewatchlogs%2FblobServices%2Fdefault%2Fcontainers%2Fsecurity-logs"
 
+const SQS_SOURCE_LOCATION_SAMPLE =
+  "https://sqs.us-east-1.amazonaws.com/123456789012/lakewatch-events"
+
 function getCloudSourceLocationSample(kind: LakewatchDatasourceWizardKind) {
   if (kind === "azure-blob-storage") return AZURE_SOURCE_LOCATION_SAMPLE
+  if (kind === "aws-sqs") return SQS_SOURCE_LOCATION_SAMPLE
   return GCS_SOURCE_LOCATION_SAMPLE
 }
 
@@ -276,11 +280,6 @@ const UNWRAP_SOURCE_RECORDS: UnwrapSourceRecord[] = Array.from({ length: 10 }, (
   }
 })
 
-const UNWRAP_TOTAL_EVENTS = UNWRAP_SOURCE_RECORDS.reduce(
-  (total, record) => total + record.Records.length,
-  0
-)
-
 const UNWRAP_COPYABLE_FIELDS = ["accountId", "region", "bucket", "requestId"] as const
 
 function buildLogicalEvents(
@@ -293,17 +292,6 @@ function buildLogicalEvents(
     if (typeof value === "string") copied[field] = value
   }
   return record.Records.map((event) => ({ ...event, ...copied }))
-}
-
-function formatSourceRecord(record: UnwrapSourceRecord, arrayPath: string) {
-  const { Records, ...rest } = record
-  const lines = ["{"]
-  for (const [key, value] of Object.entries(rest)) {
-    lines.push(`  ${JSON.stringify(key)}: ${JSON.stringify(value)},`)
-  }
-  lines.push(`  ${JSON.stringify(arrayPath)}: [ … ${Records.length} events ]`)
-  lines.push("}")
-  return lines.join("\n")
 }
 
 const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
@@ -403,6 +391,155 @@ const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
 
 function formatAwsRegion(region: (typeof AWS_REGIONS)[number]) {
   return `${region.label} — ${region.id}`
+}
+
+function VerificationIndicator({
+  state,
+  label,
+}: {
+  state: VerificationState
+  label: string
+}) {
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center" aria-live="polite">
+      {state === "validating" ? (
+        <LoaderCircle
+          className="h-4 w-4 animate-spin text-muted-foreground"
+          aria-label={`Verifying ${label}`}
+        />
+      ) : state === "verified" ? (
+        <CheckCircleIcon
+          className="h-4 w-4 text-[var(--success)]"
+          ariaLabel={`${label} verified`}
+        />
+      ) : null}
+    </span>
+  )
+}
+
+function AwsRegionTypeahead({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [menuWidth, setMenuWidth] = React.useState<number>()
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const selectedRegion = AWS_REGIONS.find((region) => region.id === value)
+  const displayValue = selectedRegion ? formatAwsRegion(selectedRegion) : value
+
+  const filteredRegions = AWS_REGIONS.filter((region) => {
+    if (!value.trim() || selectedRegion) return true
+    const haystack = formatAwsRegion(region).toLowerCase()
+    return haystack.includes(value.trim().toLowerCase())
+  })
+
+  const updateMenuWidth = () => {
+    setMenuWidth(containerRef.current?.offsetWidth)
+  }
+
+  React.useEffect(() => {
+    updateMenuWidth()
+    window.addEventListener("resize", updateMenuWidth)
+    return () => window.removeEventListener("resize", updateMenuWidth)
+  }, [])
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    return () => document.removeEventListener("mousedown", handlePointerDown)
+  }, [open])
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div className="relative w-full">
+            <Input
+              id="aws-region"
+              role="combobox"
+              aria-controls="aws-region-options"
+              aria-expanded={open}
+              aria-autocomplete="list"
+              value={displayValue}
+              placeholder="us-east-1"
+              autoComplete="off"
+              onChange={(event) => {
+                onValueChange(event.target.value)
+                setOpen(true)
+              }}
+              onFocus={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onClick={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setOpen(false)
+                }
+                if (event.key === "ArrowDown") {
+                  updateMenuWidth()
+                  setOpen(true)
+                }
+              }}
+              className="pr-9"
+            />
+            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="p-0"
+          style={menuWidth ? { width: menuWidth } : undefined}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            if (containerRef.current?.contains(event.target as Node)) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <Command shouldFilter={false}>
+            <CommandList id="aws-region-options" className="max-h-[264px]">
+              <CommandEmpty>No regions found</CommandEmpty>
+              <CommandGroup>
+                {filteredRegions.map((region) => (
+                  <CommandItem
+                    key={region.id}
+                    value={formatAwsRegion(region)}
+                    onSelect={() => {
+                      onValueChange(region.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        value === region.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span>{formatAwsRegion(region)}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
 }
 
 function WizardStepper({
@@ -692,7 +829,7 @@ function WizardDataTimeRangeField() {
   const [date, setDate] = React.useState(() => new Date(2026, 6, 12, 0, 0))
 
   return (
-    <div className="mt-5 flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-1">
         <Label>Data time range</Label>
         <p className="text-hint text-muted-foreground">
@@ -722,13 +859,14 @@ const SCHEDULE_CADENCE_LABELS: Record<string, string> = {
   every: "Every",
   cron: "Cron",
 }
+
 const SCHEDULE_UNIT_LABELS: Record<string, string> = {
   minutes: "minutes",
   hours: "hours",
   days: "days",
 }
 
-function WizardProcessingScheduleField() {
+export function WizardProcessingScheduleField() {
   const [cadence, setCadence] = React.useState("at-least-every")
   const [interval, setInterval] = React.useState("10")
   const [unit, setUnit] = React.useState("minutes")
@@ -739,13 +877,13 @@ function WizardProcessingScheduleField() {
   }`
 
   return (
-    <div className="mt-5 flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <Label>Processing schedule</Label>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-[7px] gap-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         {editing ? (
           <>
             <Select value={cadence} onValueChange={setCadence}>
-              <SelectTrigger className="w-[151px]">
+              <SelectTrigger className="w-[151px]" aria-label="Schedule cadence">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -761,7 +899,7 @@ function WizardProcessingScheduleField() {
               className="w-[65px]"
             />
             <Select value={unit} onValueChange={setUnit}>
-              <SelectTrigger className="w-[151px]">
+              <SelectTrigger className="w-[151px]" aria-label="Schedule unit">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -771,6 +909,7 @@ function WizardProcessingScheduleField() {
               </SelectContent>
             </Select>
             <Button
+              type="button"
               variant="ghost"
               size="icon-sm"
               aria-label="Done editing processing schedule"
@@ -785,6 +924,7 @@ function WizardProcessingScheduleField() {
               {scheduleLabel}
             </div>
             <Button
+              type="button"
               variant="ghost"
               size="icon-sm"
               aria-label="Edit processing schedule"
@@ -799,27 +939,130 @@ function WizardProcessingScheduleField() {
   )
 }
 
-function VerificationIndicator({
-  state,
-  label,
-}: {
-  state: VerificationState
-  label: string
-}) {
+export function WizardComputeModeField() {
+  const [open, setOpen] = React.useState(false)
+  const [mode, setMode] = React.useState("standard")
+
   return (
-    <span className="flex size-6 shrink-0 items-center justify-center" aria-live="polite">
-      {state === "validating" ? (
-        <LoaderCircle
-          className="h-4 w-4 animate-spin text-muted-foreground"
-          aria-label={`Verifying ${label}`}
+    <div className="flex flex-col gap-2">
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto self-start gap-1 p-0"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        Compute mode (optional)
+        <ChevronDownIcon
+          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
         />
-      ) : state === "verified" ? (
-        <CheckCircleIcon
-          className="h-4 w-4 text-[var(--success)]"
-          ariaLabel={`${label} verified`}
-        />
+      </Button>
+      {open ? (
+        <RadioGroup value={mode} onValueChange={setMode} className="gap-2">
+          <label
+            htmlFor="compute-mode-standard"
+            className="flex cursor-pointer items-center gap-2"
+          >
+            <RadioGroupItem value="standard" id="compute-mode-standard" />
+            <span className="text-sm text-foreground">Standard</span>
+          </label>
+          <label
+            htmlFor="compute-mode-performance"
+            className="flex cursor-pointer items-center gap-2"
+          >
+            <RadioGroupItem value="performance" id="compute-mode-performance" />
+            <span className="text-sm text-foreground">Performance optimized</span>
+          </label>
+        </RadioGroup>
       ) : null}
-    </span>
+    </div>
+  )
+}
+
+export function WizardAnnotationsField() {
+  const [open, setOpen] = React.useState(false)
+  const [rows, setRows] = React.useState<{ key: string; value: string }[]>([
+    { key: "", value: "" },
+  ])
+
+  const updateRow = (index: number, field: "key" | "value", value: string) => {
+    setRows((current) =>
+      current.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    )
+  }
+
+  const addRow = () => {
+    setRows((current) => [...current, { key: "", value: "" }])
+  }
+
+  const removeRow = (index: number) => {
+    setRows((current) => current.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto self-start gap-1 p-0"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        Annotations (optional)
+        <ChevronDownIcon
+          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+        />
+      </Button>
+      {open ? (
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+            <span className="text-hint text-muted-foreground">Key</span>
+            <span className="text-hint text-muted-foreground">Value</span>
+            <span className="w-8" aria-hidden />
+          </div>
+          {rows.map((row, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-[1fr_1fr_auto] items-center gap-2"
+            >
+              <Input
+                aria-label={`Annotation key ${index + 1}`}
+                value={row.key}
+                onChange={(event) => updateRow(index, "key", event.target.value)}
+                placeholder="Key"
+              />
+              <Input
+                aria-label={`Annotation value ${index + 1}`}
+                value={row.value}
+                onChange={(event) => updateRow(index, "value", event.target.value)}
+                placeholder="Value"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove annotation ${index + 1}`}
+                onClick={() => removeRow(index)}
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Add annotation"
+            className="self-start"
+            onClick={addRow}
+          >
+            <Plus className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -1073,7 +1316,67 @@ function SchemaRowDrawer({
   )
 }
 
-function SchemaSplitPreview({ region }: { region: string }) {
+type PreviewField = { name: string; type: string }
+type ActiveTemplatePreview = { name: string; fields: PreviewField[] }
+
+function sampleCellValue(field: PreviewField, rowIndex: number): string {
+  const name = field.name.toLowerCase()
+  const type = field.type.toLowerCase()
+  if (type.includes("time") || name.includes("time") || name.includes("date")) {
+    return `2025-02-24T05:${(51 + rowIndex).toString().padStart(2, "0")}:0${rowIndex % 10}Z`
+  }
+  if (type === "object") return "{ … }"
+  if (type.includes("bool")) return rowIndex % 2 === 0 ? "true" : "false"
+  if (
+    type.includes("int") ||
+    type.includes("number") ||
+    type.includes("long") ||
+    type.includes("float") ||
+    type.includes("double")
+  ) {
+    return `${(rowIndex + 1) * 7}`
+  }
+  if (name.includes("email")) return `user${rowIndex + 1}@acme.com`
+  if (name === "ip" || name.includes("ipaddress") || name.includes("sourceip") || name.includes("addr")) {
+    return `10.0.${rowIndex}.${rowIndex + 1}`
+  }
+  if (name.includes("action")) {
+    return ["CreateUser", "AssumeRole", "GetObject", "ConsoleLogin"][rowIndex % 4]
+  }
+  if (name.includes("outcome") || name.includes("status") || name.includes("result")) {
+    return rowIndex % 3 === 0 ? "failure" : "success"
+  }
+  if (name.includes("user") || name.includes("actor")) {
+    return ["a.chen", "j.martinez", "s.patel", "admin"][rowIndex % 4]
+  }
+  if (name.includes("region")) return ["us-west-2", "us-east-1", "eu-west-1"][rowIndex % 3]
+  if (name.includes("account")) return "123456789012"
+  if (name.includes("id")) return `evt-${1000 + rowIndex}`
+  return `${field.name}_${rowIndex + 1}`
+}
+
+function buildTemplateOutputData(
+  template: ActiveTemplatePreview,
+  rowCount: number
+): PreviewTableData {
+  const columns = template.fields.map((field) => field.name)
+  const safeColumns = columns.length ? columns : ["value"]
+  const rows = Array.from({ length: rowCount }, (_, rowIndex) =>
+    safeColumns.map((columnName, colIndex) => {
+      const field = template.fields[colIndex] ?? { name: columnName, type: "string" }
+      return sampleCellValue(field, rowIndex)
+    })
+  )
+  return { columns: safeColumns, rows }
+}
+
+function SchemaSplitPreview({
+  region,
+  activeTemplate,
+}: {
+  region: string
+  activeTemplate?: ActiveTemplatePreview | null
+}) {
   const [schemaIndex, setSchemaIndex] = React.useState(0)
   const [selectedRowIndex, setSelectedRowIndex] = React.useState<number | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -1112,10 +1415,13 @@ function SchemaSplitPreview({ region }: { region: string }) {
   const schema = DETECTED_SCHEMAS[schemaIndex]
   const inputData = getInputPreviewData(region)
   const schemaData = SCHEMA_PREVIEW_DATA[schema]
-  const outputData: PreviewTableData = {
-    columns: schemaData.columns,
-    rows: schemaData.rows.slice(0, inputData.rows.length),
-  }
+  const outputData: PreviewTableData = activeTemplate
+    ? buildTemplateOutputData(activeTemplate, inputData.rows.length)
+    : {
+        columns: schemaData.columns,
+        rows: schemaData.rows.slice(0, inputData.rows.length),
+      }
+  const outputLabel = activeTemplate?.name ?? schema
 
   if (loading) {
     return (
@@ -1151,40 +1457,46 @@ function SchemaSplitPreview({ region }: { region: string }) {
         <PreviewDataTable data={inputData} className="min-w-[650px]" />
       </section>
 
-      <section aria-label={`${schema} output preview`} className="min-w-0">
+      <section aria-label={`${outputLabel} output preview`} className="min-w-0">
         <div className="flex h-8 min-w-0 items-center gap-1 px-2">
           <TableIcon className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold text-foreground">Output</span>
           <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
-                aria-label="Select ingestion template"
-              >
-                <span className="max-w-[140px] truncate text-sm">{schema}</span>
-                <ChevronDownIcon className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuRadioGroup
-                value={schema}
-                onValueChange={(value) =>
-                  setSchemaIndex(DETECTED_SCHEMAS.indexOf(value as PreviewSchema))
-                }
-              >
-                {DETECTED_SCHEMAS.map((name) => (
-                  <DropdownMenuRadioItem key={name} value={name}>
-                    {name}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {activeTemplate ? (
+            <span className="max-w-[220px] truncate text-sm font-semibold text-foreground">
+              {outputLabel}
+            </span>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
+                  aria-label="Select ingestion template"
+                >
+                  <span className="max-w-[140px] truncate text-sm">{schema}</span>
+                  <ChevronDownIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuRadioGroup
+                  value={schema}
+                  onValueChange={(value) =>
+                    setSchemaIndex(DETECTED_SCHEMAS.indexOf(value as PreviewSchema))
+                  }
+                >
+                  {DETECTED_SCHEMAS.map((name) => (
+                    <DropdownMenuRadioItem key={name} value={name}>
+                      {name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
-            10 records, {outputData.columns.length} columns
+            {outputData.rows.length} records, {outputData.columns.length} columns
           </span>
           <PreviewPanelActions />
         </div>
@@ -1287,76 +1599,11 @@ function CopyFieldsEditor({
   )
 }
 
-function UnwrapPreviewPane({
-  label,
-  position,
-  total,
-  json,
-  onPrevious,
-  onNext,
-  className,
-  loading = false,
-}: {
-  label: string
-  position: number
-  total: number
-  json: string
-  onPrevious: () => void
-  onNext: () => void
-  className?: string
-  loading?: boolean
-}) {
-  return (
-    <section aria-label={label} className={cn("flex min-w-0 flex-col", className)}>
-      <div className="flex h-8 min-w-0 items-center gap-1 px-2">
-        <TableIcon className="h-4 w-4 shrink-0 text-primary" />
-        <span className="text-sm font-semibold text-foreground">{label}</span>
-        {loading ? (
-          <Skeleton className="ml-1 h-3 w-12" />
-        ) : (
-          <span className="ml-1 whitespace-nowrap text-hint text-muted-foreground">
-            {position} of {total}
-          </span>
-        )}
-        <div className="ml-auto flex shrink-0 items-center">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Show previous ${label.toLowerCase()}`}
-            disabled={loading}
-            onClick={onPrevious}
-          >
-            <ChevronLeftIcon className="h-4 w-4 text-muted-foreground" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Show next ${label.toLowerCase()}`}
-            disabled={loading}
-            onClick={onNext}
-          >
-            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
-      </div>
-      {loading ? (
-        <div className="min-h-0 flex-1 space-y-2 px-3 py-2.5">
-          <Skeleton className="h-3 w-1/2" />
-          <Skeleton className="h-3 w-3/4" />
-          <Skeleton className="h-3 w-2/3" />
-          <Skeleton className="h-3 w-3/5" />
-          <Skeleton className="h-3 w-2/5" />
-        </div>
-      ) : (
-        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre px-3 py-2 font-mono text-hint leading-4 text-foreground">
-          {json}
-        </pre>
-      )}
-    </section>
-  )
-}
+const UNWRAP_PREVIEW_RECORDS = UNWRAP_SOURCE_RECORDS.slice(0, 5)
+const UNWRAP_PREVIEW_TOTAL_EVENTS = UNWRAP_PREVIEW_RECORDS.reduce(
+  (total, record) => total + record.Records.length,
+  0
+)
 
 function EventUnwrapPreview({
   eventArrayPath,
@@ -1366,198 +1613,91 @@ function EventUnwrapPreview({
   copyFields: string[]
 }) {
   const [recordIndex, setRecordIndex] = React.useState(0)
-  const [eventIndex, setEventIndex] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
+    setLoading(true)
     const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
   }, [])
 
-  const record = UNWRAP_SOURCE_RECORDS[recordIndex]
+  const safeRecordIndex = Math.min(recordIndex, UNWRAP_PREVIEW_RECORDS.length - 1)
+  const record = UNWRAP_PREVIEW_RECORDS[safeRecordIndex]
   const events = buildLogicalEvents(record, copyFields)
-  const safeEventIndex = Math.min(eventIndex, events.length - 1)
 
-  const changeRecord = (next: number) => {
-    const count = UNWRAP_SOURCE_RECORDS.length
-    setRecordIndex(((next % count) + count) % count)
-    setEventIndex(0)
+  const sourceData: PreviewTableData = {
+    columns: [eventArrayPath, "accountId", "region", "bucket", "requestId"],
+    rows: UNWRAP_PREVIEW_RECORDS.map((item) => [
+      `[ ${item.Records.length} events ]`,
+      item.accountId,
+      item.region,
+      item.bucket,
+      item.requestId,
+    ]),
   }
 
-  const changeEvent = (next: number) => {
-    const count = events.length
-    setEventIndex(((next % count) + count) % count)
+  const eventColumns = ["eventName", "eventTime", "sourceIP", ...copyFields]
+  const eventData: PreviewTableData = {
+    columns: eventColumns,
+    rows: events.map((event) =>
+      eventColumns.map((column) => event[column] ?? "")
+    ),
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[176px] flex-col items-center justify-center gap-2 border-y border-input">
+        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+        <p className="text-sm leading-5 text-foreground">Building unwrap preview</p>
+      </div>
+    )
   }
 
   return (
     <div>
-      <div className="grid h-[168px] grid-cols-2 overflow-hidden border-y border-input">
-        <UnwrapPreviewPane
-          label="Source record"
-          position={recordIndex + 1}
-          total={UNWRAP_SOURCE_RECORDS.length}
-          json={formatSourceRecord(record, eventArrayPath)}
-          onPrevious={() => changeRecord(recordIndex - 1)}
-          onNext={() => changeRecord(recordIndex + 1)}
-          className="border-r border-input"
-          loading={loading}
-        />
-        <UnwrapPreviewPane
-          label="Logical events"
-          position={safeEventIndex + 1}
-          total={events.length}
-          json={JSON.stringify(events[safeEventIndex], null, 2)}
-          onPrevious={() => changeEvent(safeEventIndex - 1)}
-          onNext={() => changeEvent(safeEventIndex + 1)}
-          loading={loading}
-        />
+      <div className="grid grid-cols-2 overflow-hidden border-y border-input">
+        <section aria-label="Source records" className="min-w-0 border-r border-input">
+          <div className="flex h-8 min-w-0 items-center gap-1 px-2">
+            <span className="text-sm font-semibold text-foreground">Input</span>
+            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+            <TableIcon className="h-4 w-4 text-primary" />
+            <span className="text-sm text-foreground">Source records</span>
+            <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+              {UNWRAP_PREVIEW_RECORDS.length} records
+            </span>
+          </div>
+          <PreviewDataTable
+            data={sourceData}
+            className="min-w-[560px]"
+            selectedRowIndex={safeRecordIndex}
+            onRowSelect={setRecordIndex}
+          />
+        </section>
+
+        <section aria-label="Logical events" className="min-w-0">
+          <div className="flex h-8 min-w-0 items-center gap-1 px-2">
+            <TableIcon className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold text-foreground">Output</span>
+            <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-foreground">Logical events</span>
+            <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+              from {record.requestId} · {events.length} events
+            </span>
+          </div>
+          <PreviewDataTable data={eventData} className="min-w-[720px]" />
+        </section>
       </div>
       <div className="flex h-6 items-center gap-1.5 border-b border-input px-3 text-hint text-muted-foreground">
-        {loading ? (
-          <span className="inline-flex items-center gap-1.5">
-            <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden />
-            Building preview…
-          </span>
-        ) : (
-          <>
-            <span className="text-foreground">
-              {UNWRAP_SOURCE_RECORDS.length} source records
-            </span>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="text-foreground">{UNWRAP_TOTAL_EVENTS} logical events</span>
-            <span className="mx-1 text-muted-foreground">·</span>
-            <span className="inline-flex items-center gap-1">
-              <Check className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" aria-hidden />
-              Preview up to date
-            </span>
-          </>
-        )}
+        <span className="text-foreground">
+          {UNWRAP_PREVIEW_RECORDS.length} source records
+        </span>
+        <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="text-foreground">{UNWRAP_PREVIEW_TOTAL_EVENTS} logical events</span>
+        <span className="mx-1 text-muted-foreground">·</span>
+        <span className="text-muted-foreground">
+          selected record {record.requestId} → {events.length} events
+        </span>
       </div>
-    </div>
-  )
-}
-
-function AwsRegionTypeahead({
-  value,
-  onValueChange,
-}: {
-  value: string
-  onValueChange: (value: string) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [menuWidth, setMenuWidth] = React.useState<number>()
-  const containerRef = React.useRef<HTMLDivElement>(null)
-  const selectedRegion = AWS_REGIONS.find((region) => region.id === value)
-  const displayValue = selectedRegion ? formatAwsRegion(selectedRegion) : value
-
-  const filteredRegions = AWS_REGIONS.filter((region) => {
-    if (!value.trim() || selectedRegion) return true
-    const haystack = formatAwsRegion(region).toLowerCase()
-    return haystack.includes(value.trim().toLowerCase())
-  })
-
-  const updateMenuWidth = () => {
-    setMenuWidth(containerRef.current?.offsetWidth)
-  }
-
-  React.useEffect(() => {
-    updateMenuWidth()
-    window.addEventListener("resize", updateMenuWidth)
-    return () => window.removeEventListener("resize", updateMenuWidth)
-  }, [])
-
-  React.useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown)
-    return () => document.removeEventListener("mousedown", handlePointerDown)
-  }, [open])
-
-  return (
-    <div ref={containerRef} className="relative w-full">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor asChild>
-          <div className="relative w-full">
-            <Input
-              id="aws-region"
-              role="combobox"
-              aria-controls="aws-region-options"
-              aria-expanded={open}
-              aria-autocomplete="list"
-              value={displayValue}
-              placeholder="us-east-1"
-              autoComplete="off"
-              onChange={(event) => {
-                onValueChange(event.target.value)
-                setOpen(true)
-              }}
-              onFocus={() => {
-                updateMenuWidth()
-                setOpen(true)
-              }}
-              onClick={() => {
-                updateMenuWidth()
-                setOpen(true)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setOpen(false)
-                }
-                if (event.key === "ArrowDown") {
-                  updateMenuWidth()
-                  setOpen(true)
-                }
-              }}
-              className="pr-9"
-            />
-            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          </div>
-        </PopoverAnchor>
-        <PopoverContent
-          align="start"
-          sideOffset={4}
-          className="p-0"
-          style={menuWidth ? { width: menuWidth } : undefined}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          onInteractOutside={(event) => {
-            if (containerRef.current?.contains(event.target as Node)) {
-              event.preventDefault()
-            }
-          }}
-        >
-          <Command shouldFilter={false}>
-            <CommandList id="aws-region-options" className="max-h-[264px]">
-              <CommandEmpty>No regions found</CommandEmpty>
-              <CommandGroup>
-                {filteredRegions.map((region) => (
-                  <CommandItem
-                    key={region.id}
-                    value={formatAwsRegion(region)}
-                    onSelect={() => {
-                      onValueChange(region.id)
-                      setOpen(false)
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "h-4 w-4",
-                        value === region.id ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <span>{formatAwsRegion(region)}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
     </div>
   )
 }
@@ -1580,14 +1720,16 @@ export function LakewatchAwsS3WizardView({
   const [awsRegion, setAwsRegion] = React.useState("")
   const [regionVerification, setRegionVerification] =
     React.useState<VerificationState>("idle")
+  const [timeRangeOpen, setTimeRangeOpen] = React.useState(false)
+  const [description, setDescription] = React.useState("")
   const [managedNotifications, setManagedNotifications] = React.useState(false)
   const [eventPrep, setEventPrep] = React.useState<EventPrepMode>("record")
   const [unwrapMethod, setUnwrapMethod] = React.useState("json-array")
   const [eventArrayPath, setEventArrayPath] = React.useState("Records")
   const [copyFields, setCopyFields] = React.useState<string[]>(["accountId", "region"])
+  const [unwrapPreviewRequested, setUnwrapPreviewRequested] = React.useState(false)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const [previewVisible, setPreviewVisible] = React.useState(true)
-  const [s3Prefix, setS3Prefix] = React.useState("")
   const templateController = useIntegrationTemplates()
   const pendingSchemas: string[] = []
   const [catalog, setCatalog] = React.useState("lakewatch")
@@ -1609,25 +1751,31 @@ export function LakewatchAwsS3WizardView({
     return () => observer.disconnect()
   }, [])
 
-  const previewReady =
-    sampleVerification === "verified" && regionVerification === "verified"
-  const previewLoading = Boolean(dataSampleLocation.trim()) && !previewReady
+  const previewReady = sampleVerification === "verified"
+  const previewLoading = sampleVerification === "validating"
   const schemasReady =
     templateController.selectedNames.length > 0 || pendingSchemas.length > 0
-  const showSplitPreview = (activeStep === 2 || activeStep === 3) && schemasReady
+  const showSplitPreview = activeStep === 2 && schemasReady
   const templatePanelOpen = activeStep === 2 && templateController.panelOpen
   // Collapse the vertical stepper into a compact "Step X / N" button whenever the
   // available width is tight (e.g. the Genie code panel is open) or the template
   // detail panel is shown, so the step form keeps enough room.
   const compact = contentWidth > 0 && contentWidth < 900
   const stepperCollapsed = templatePanelOpen || compact
-  const showUnwrapPreview = activeStep === 1 && eventPrep === "unwrap"
-  const previewRegion = awsRegion || "us-west-2"
+  const showUnwrapPreview =
+    activeStep === 1 && eventPrep === "unwrap" && unwrapPreviewRequested
+  const isSqs = kind === "aws-sqs"
+  const isS3 = kind === "aws-s3"
+  const previewSamplePlaceholder = isSqs
+    ? "s3://my-bucket/sqs-sample/"
+    : "s3://my-bucket/logs/sample/"
+  const previewSampleFill = isSqs
+    ? "s3://lakewatch-security-logs/sqs-sample/"
+    : "s3://lakewatch-security-logs/"
+  const previewRegion = isSqs && awsRegion.trim() ? awsRegion : "us-west-2"
   const isSimpleWizard = kind !== "aws-s3"
   const isExistingTable = kind === "existing-table"
   const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
-  const prefixProviderLabel = getPrefixProviderLabel(kind)
-
   React.useEffect(
     () => () => {
       if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
@@ -1639,8 +1787,19 @@ export function LakewatchAwsS3WizardView({
   React.useEffect(() => {
     if (eventPrep === "unwrap") {
       prepareEventsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    } else {
+      setUnwrapPreviewRequested(false)
     }
   }, [eventPrep])
+
+  const setSampleValueOnly = (value: string) => {
+    setDataSampleLocation(value)
+    if (sampleVerificationTimer.current) {
+      clearTimeout(sampleVerificationTimer.current)
+      sampleVerificationTimer.current = null
+    }
+    setSampleVerification("idle")
+  }
 
   const validateSampleLocation = (value: string) => {
     setDataSampleLocation(value)
@@ -1677,8 +1836,7 @@ export function LakewatchAwsS3WizardView({
   const dataPreviewSection =
     previewVisible &&
     (activeStep === 1 ||
-      ((activeStep === 2 || activeStep === 3) &&
-        (previewReady || schemasReady))) ? (
+      (activeStep === 2 && (previewReady || schemasReady))) ? (
       <section
         aria-label="Data preview"
         className={cn(
@@ -1687,17 +1845,81 @@ export function LakewatchAwsS3WizardView({
         )}
       >
         {showSplitPreview ? (
-          <SchemaSplitPreview region={previewRegion} />
+          <SchemaSplitPreview
+            region={previewRegion}
+            activeTemplate={templateController.detailsTemplate}
+          />
         ) : (
           <>
-            <div className="flex h-8 items-center justify-between border-y border-input px-2">
-              <h2 className="text-sm font-semibold leading-5 text-foreground">
-                {showUnwrapPreview
-                  ? "Data preview"
-                  : previewReady
-                    ? "aws_sec_lake_raw"
-                    : "Data preview"}
-              </h2>
+            <div
+              className={cn(
+                "flex items-center justify-between border-y border-input px-2",
+                (isSqs || isS3) && !showUnwrapPreview ? "h-10" : "h-8"
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-4">
+                <h2 className="shrink-0 text-sm font-semibold leading-5 text-foreground">
+                  {showUnwrapPreview
+                    ? "Data preview"
+                    : previewReady
+                      ? "aws_sec_lake_raw"
+                      : "Data preview"}
+                </h2>
+                {(isSqs || isS3) && !showUnwrapPreview ? (
+                  <div className="ml-4 flex items-center gap-1.5">
+                    {isS3 ? (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="xs"
+                        onClick={() =>
+                          validateSampleLocation(
+                            sourceLocation.trim() || previewSampleFill
+                          )
+                        }
+                      >
+                        Use source location
+                      </Button>
+                    ) : null}
+                    <Label
+                      htmlFor="sqs-preview-location"
+                      className="shrink-0 whitespace-nowrap text-hint font-normal text-foreground"
+                    >
+                      Preview location (optional)
+                    </Label>
+                    <Input
+                      id="sqs-preview-location"
+                      aria-label="Preview location"
+                      value={dataSampleLocation}
+                      onChange={(event) => setSampleValueOnly(event.target.value)}
+                      onFocus={() =>
+                        setDataSampleLocation((current) => current || previewSampleFill)
+                      }
+                      onClick={() =>
+                        setDataSampleLocation((current) => current || previewSampleFill)
+                      }
+                      placeholder={previewSamplePlaceholder}
+                      className="h-6 w-64 bg-background dark:bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      onClick={() =>
+                        validateSampleLocation(
+                          dataSampleLocation.trim() || previewSampleFill
+                        )
+                      }
+                    >
+                      Preview sample
+                    </Button>
+                    <VerificationIndicator
+                      state={sampleVerification}
+                      label="Preview location"
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div className="flex items-center">
                 <Button
                   type="button"
@@ -1735,10 +1957,19 @@ export function LakewatchAwsS3WizardView({
                   <p className="text-sm leading-5 text-foreground">Loading data preview</p>
                 </div>
               ) : (
-                <div className="flex h-20 flex-col items-center justify-center gap-1">
+                <div
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 px-4 text-center",
+                    isSqs || isS3 ? "h-[180px]" : "h-20"
+                  )}
+                >
                   <TableIcon className="h-9 w-9 text-muted-foreground" />
                   <p className="text-sm leading-5 text-foreground">
-                    Configure a table to see a preview
+                    {isSqs
+                      ? "An optional S3 path to a smaller sample of the data to preview."
+                      : isS3
+                        ? "An optional S3 path to a smaller sample of the data."
+                        : "Configure a table to see a preview"}
                   </p>
                 </div>
               )
@@ -1810,7 +2041,90 @@ export function LakewatchAwsS3WizardView({
         ) : null}
 
         {activeStep === 1 ? (
-          isSimpleWizard ? (
+          isSqs ? (
+            <form
+              className="flex max-h-full w-full min-h-0 flex-col self-start overflow-hidden rounded-md border border-input"
+              onSubmit={(event) => {
+                event.preventDefault()
+                setActiveStep(2)
+              }}
+            >
+              <StepPanelHeader
+                step={1}
+                title="Source location"
+                description="Configure the SQS queue and region Lakewatch should use to consume messages"
+              />
+
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="sqs-source-location">SQS Queue URL *</Label>
+                    <p className="text-hint text-muted-foreground">
+                      {simpleConfig?.sourceHint}
+                    </p>
+                    <Input
+                      id="sqs-source-location"
+                      value={sourceLocation}
+                      onChange={(event) => setSourceLocation(event.target.value)}
+                      onFocus={() => {
+                        if (!sourceLocation) {
+                          setSourceLocation(getCloudSourceLocationSample(kind))
+                        }
+                      }}
+                      onClick={() => {
+                        if (!sourceLocation) {
+                          setSourceLocation(getCloudSourceLocationSample(kind))
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label>Run as</Label>
+                    <p className="text-hint text-muted-foreground">
+                      Select the identity Lakewatch uses to access this SQS queue.
+                    </p>
+                    <Select value={s3RunAs} onValueChange={setS3RunAs}>
+                      <SelectTrigger className="w-full" aria-label="Run as">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beau.trincia@databricks.com">
+                          Run as: beau.trincia@databricks.com
+                        </SelectItem>
+                        <SelectItem value="lakewatch-service-principal">
+                          Run as: Lakewatch service principal
+                        </SelectItem>
+                        <SelectItem value="security-platform@databricks.com">
+                          Run as: security-platform@databricks.com
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="aws-region">AWS region *</Label>
+                    <p className="text-hint text-muted-foreground">
+                      The AWS region the SQS queue lives in.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <AwsRegionTypeahead value={awsRegion} onValueChange={validateRegion} />
+                      <VerificationIndicator state={regionVerification} label="AWS region" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center justify-between px-4 py-3">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/lakewatch/datasources/new">Cancel</Link>
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm">
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            </form>
+          ) : isSimpleWizard ? (
             <form
               className="flex w-full flex-col gap-6 lg:pt-20"
               onSubmit={(event) => {
@@ -1866,16 +2180,28 @@ export function LakewatchAwsS3WizardView({
                 <Label htmlFor="simple-secondary-location">
                   {isExistingTable ? "View table name" : "Preview location (optional)"}
                 </Label>
-                <p className="text-hint text-muted-foreground">Hint text here</p>
-                <Input
-                  id="simple-secondary-location"
-                  value={isExistingTable ? viewTableName : dataSampleLocation}
-                  onChange={(event) =>
-                    isExistingTable
-                      ? setViewTableName(event.target.value)
-                      : validateSampleLocation(event.target.value)
-                  }
-                />
+                <p className="text-hint text-muted-foreground">
+                  {isExistingTable
+                    ? "Name of the Lakewatch bronze view to expose this table through."
+                    : "An optional path to a smaller sample of the data to preview."}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="simple-secondary-location"
+                    value={isExistingTable ? viewTableName : dataSampleLocation}
+                    onChange={(event) =>
+                      isExistingTable
+                        ? setViewTableName(event.target.value)
+                        : validateSampleLocation(event.target.value)
+                    }
+                  />
+                  {isExistingTable ? null : (
+                    <VerificationIndicator
+                      state={sampleVerification}
+                      label="Preview location"
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -1889,7 +2215,7 @@ export function LakewatchAwsS3WizardView({
             </form>
           ) : (
           <form
-            className="flex h-full w-full min-h-0 flex-col overflow-hidden rounded-md border border-input"
+            className="flex max-h-full w-full min-h-0 flex-col self-start overflow-hidden rounded-md border border-input"
             onSubmit={(event) => {
               event.preventDefault()
               setActiveStep(2)
@@ -1927,27 +2253,23 @@ export function LakewatchAwsS3WizardView({
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label>S3 sample location (optional)</Label>
-                <p className="text-hint text-muted-foreground">
-                  An optional S3 path to a smaller sample of the data (e.g.
-                  s3://my-bucket/logs/sample/).
-                </p>
-                <Select value={dataSampleLocation} onValueChange={validateSampleLocation}>
-                  <SelectTrigger className="w-full" aria-label="S3 sample location">
-                    <SelectValue placeholder="Select an S3 sample location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="s3://lakewatch-security-logs/sample/">
-                      s3://lakewatch-security-logs/sample/
-                    </SelectItem>
-                    <SelectItem value="s3://production-cloudtrail/AWSLogs/sample/">
-                      s3://production-cloudtrail/AWSLogs/sample/
-                    </SelectItem>
-                    <SelectItem value="s3://security-data/vpc-flow/sample/">
-                      s3://security-data/vpc-flow/sample/
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto self-start gap-1 p-0"
+                  aria-expanded={timeRangeOpen}
+                  onClick={() => setTimeRangeOpen((current) => !current)}
+                >
+                  Time range (optional)
+                  <ChevronDownIcon
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      timeRangeOpen && "rotate-180"
+                    )}
+                  />
+                </Button>
+                {timeRangeOpen ? <WizardDataTimeRangeField /> : null}
               </div>
 
               <div className="flex flex-col gap-2">
@@ -1971,19 +2293,6 @@ export function LakewatchAwsS3WizardView({
                     </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="aws-region">AWS region</Label>
-                <p className="text-hint text-muted-foreground">
-                  The AWS region of the S3 bucket (e.g. us-east-1).
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <AwsRegionTypeahead value={awsRegion} onValueChange={validateRegion} />
-                  </div>
-                  <VerificationIndicator state={regionVerification} label="AWS region" />
-                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -2093,6 +2402,18 @@ export function LakewatchAwsS3WizardView({
                       <Label className="mt-1.5 font-normal">Copy to each event</Label>
                       <CopyFieldsEditor value={copyFields} onChange={setCopyFields} />
                     </div>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="self-end"
+                      onClick={() => {
+                        setPreviewVisible(true)
+                        setUnwrapPreviewRequested(true)
+                      }}
+                    >
+                      Preview unwrap
+                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -2113,7 +2434,7 @@ export function LakewatchAwsS3WizardView({
           <form
             className={cn(
               "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
-              templatePanelOpen ? "lg:my-6 lg:ml-5 lg:mr-6" : "w-full h-full"
+              templatePanelOpen ? "h-full lg:my-6 lg:ml-5 lg:mr-6" : "w-full self-start"
             )}
             onSubmit={(event) => {
               event.preventDefault()
@@ -2122,40 +2443,46 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Ingestion templates"
-              description={`Specify the ${prefixProviderLabel} prefix and ingestion templates Lakewatch should use to classify your logs`}
+              title="Name & Ingestion templates"
+              description="Name your datasource and specify the ingestion templates Lakewatch should use to classify your logs"
             />
 
-            <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
-              <p className="mb-5 text-sm leading-5 text-foreground">
-                Enter the {prefixProviderLabel} prefix you would like Lakewatch to read data from
-                followed by the ingestion templates that classify data as it comes into Lakewatch.
-                You can also add exclusion filters, which will exclude prefixes from being read.
-              </p>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="s3-prefix">{prefixProviderLabel} Prefix</Label>
-                <p className="text-hint text-muted-foreground">
-                  The prefix path within the bucket to read from. Leave blank or use an empty string
-                  (&quot;&quot;) to create a wildcard (*) prefix and allow ingestion of all files in
-                  the bucket.
-                </p>
-                <Input
-                  id="s3-prefix"
-                  value={s3Prefix}
-                  placeholder="AWSLogs/123456789012/CloudTrail/"
-                  onChange={(event) => setS3Prefix(event.target.value)}
-                  onFocus={() =>
-                    setS3Prefix((current) =>
-                      current || "AWSLogs/123456789012/CloudTrail/us-west-2/"
-                    )
-                  }
-                  onClick={() =>
-                    setS3Prefix((current) =>
-                      current || "AWSLogs/123456789012/CloudTrail/us-west-2/"
-                    )
-                  }
-                />
+            <div
+              className={cn(
+                "flex flex-col px-8 py-6",
+                templatePanelOpen ? "min-h-0 flex-1 overflow-y-auto" : undefined
+              )}
+            >
+              <div className="mb-5 flex flex-col">
+                <Label className="mb-2">Datasource name *</Label>
+                <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
+                  <Select value={catalog} onValueChange={setCatalog} disabled>
+                    <SelectTrigger className="w-full" aria-label="Catalog">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lakewatch">lakewatch</SelectItem>
+                      <SelectItem value="main">main</SelectItem>
+                      <SelectItem value="security">security</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={schema} onValueChange={setSchema}>
+                    <SelectTrigger className="w-full" aria-label="Schema">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">default</SelectItem>
+                      <SelectItem value="bronze">bronze</SelectItem>
+                      <SelectItem value="production">production</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    aria-label="Datasource name"
+                    value={datasourceName}
+                    onChange={(event) => setDatasourceName(event.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="mt-4">
@@ -2182,11 +2509,10 @@ export function LakewatchAwsS3WizardView({
           </form>
         ) : (
           <form
-            className="w-full overflow-hidden rounded-md border border-border"
+            className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
-              const name =
-                datasourceName.trim() || "lakewatch-account-us-west-2"
+              const name = datasourceName.trim() || "lakewatch-account-us-west-2"
               const inferredParam = pendingSchemas.length
                 ? `?inferred=${pendingSchemas.map(encodeURIComponent).join(",")}`
                 : ""
@@ -2197,68 +2523,38 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={3}
-              title="Name and Permissions"
-              description="Your configured stack was deployed successfully and Lakewatch now has permissions to pull data."
+              title="Additional details"
+              description="Configure how often Lakewatch runs this datasource and add optional metadata"
             />
 
-            <div className="flex flex-col px-6 pt-5 pb-4">
-              <Label className="mb-2">Datasource name *</Label>
-              <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
-                <Select value={catalog} onValueChange={setCatalog}>
-                  <SelectTrigger className="w-full" aria-label="Catalog">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lakewatch">lakewatch</SelectItem>
-                    <SelectItem value="main">main</SelectItem>
-                    <SelectItem value="security">security</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={schema} onValueChange={setSchema}>
-                  <SelectTrigger className="w-full" aria-label="Schema">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">default</SelectItem>
-                    <SelectItem value="bronze">bronze</SelectItem>
-                    <SelectItem value="production">production</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  aria-label="Datasource name"
-                  value={datasourceName}
-                  onChange={(event) => setDatasourceName(event.target.value)}
-                  required
+            <div className="flex min-h-[370px] flex-1 flex-col gap-5 overflow-y-auto px-8 py-6 lg:min-h-0">
+              <WizardProcessingScheduleField />
+              <WizardComputeModeField />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="datasource-description">Description (optional)</Label>
+                <Textarea
+                  id="datasource-description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Add a description for this datasource"
+                  className="min-h-[80px]"
                 />
               </div>
-              <p className="mt-1 text-hint text-muted-foreground">
-                {catalog}.{schema}.{datasourceName || "datasource_name"}
-              </p>
+              <WizardAnnotationsField />
+            </div>
 
-              <WizardDataTimeRangeField />
-
-              <WizardProcessingScheduleField />
-
-              <p className="mt-5 text-sm leading-5 text-foreground">
-                You can now visit your datasource where you can monitor ingestion and make edits
-                using the button below. Although setup is complete, please keep in mind that{" "}
-                <span className="text-[var(--warning)]">it may take a few minutes</span> for data to
-                be imported from your source.
-              </p>
-
-              <div className="mt-4 flex items-center justify-between">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveStep(2)}
-                >
-                  Back
-                </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  View datasource
-                </Button>
-              </div>
+            <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveStep(2)}
+              >
+                Back
+              </Button>
+              <Button type="submit" variant="primary" size="sm">
+                Create datasource
+              </Button>
             </div>
           </form>
         )}

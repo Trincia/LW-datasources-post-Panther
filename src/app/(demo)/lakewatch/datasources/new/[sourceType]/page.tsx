@@ -9,6 +9,7 @@ import {
 } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 
 const SUPPORTED_SOURCE_TYPES = new Set<LakewatchDatasourceWizardKind>([
+  "aws-sqs",
   "existing-table",
   "google-cloud-storage",
   "uc-volume",

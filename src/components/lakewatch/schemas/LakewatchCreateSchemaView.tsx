@@ -563,9 +563,6 @@ export function LakewatchCreateSchemaView() {
                 }}
               />
             </div>
-            <p className="text-hint leading-4 text-muted-foreground">
-              lakewatch.{destSchema}.{schemaId || "name"}
-            </p>
           </div>
 
           <div className="flex flex-col gap-2">

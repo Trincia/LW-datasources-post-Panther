@@ -18,10 +18,7 @@ import {
   LakewatchDatasourceLogo,
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
-import {
-  LakewatchCatalogSelector,
-  LakewatchWarehouseSelector,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -320,7 +317,7 @@ function ProcessingScheduleToolbar() {
           disabled={!dirty}
           onClick={() => setDirty(false)}
         >
-          Apply changes
+          Save
         </Button>
       </div>
     </div>
@@ -1291,7 +1288,6 @@ function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
 function DetailHeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <LakewatchCatalogSelector />
       <LakewatchWarehouseSelector />
     </div>
   )

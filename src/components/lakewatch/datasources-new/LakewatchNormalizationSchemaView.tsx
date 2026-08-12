@@ -10,10 +10,7 @@ import {
   ChevronDownIcon,
   CodeIcon,
 } from "@/components/icons"
-import {
-  LakewatchCatalogSelector,
-  LakewatchWarehouseSelector,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -470,7 +467,6 @@ const NORMALIZATION_FIELDS: Record<string, NormalizationField[]> = {
 function HeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <LakewatchCatalogSelector />
       <LakewatchWarehouseSelector />
       <Button variant="ghost" size="icon-sm" aria-label="Schema options">
         <MoreHorizontal className="h-4 w-4 text-muted-foreground" />

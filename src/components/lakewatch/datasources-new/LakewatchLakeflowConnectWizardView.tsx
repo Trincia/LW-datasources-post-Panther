@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Check, X } from "lucide-react"
+import { Check, LoaderCircle, Plus, X } from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
@@ -12,6 +12,11 @@ import {
   IntegrationTemplatesField,
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
+import {
+  WizardAnnotationsField,
+  WizardComputeModeField,
+  WizardProcessingScheduleField,
+} from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -22,8 +27,28 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -31,9 +56,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Ingest", "Ingestion templates", "Create datasource"] as const
+const CONNECT_STEPS = ["Ingest", "Name & Ingestion templates", "Additional details"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -145,6 +171,124 @@ function StepPanelHeader({
   )
 }
 
+function ConnectionTypeahead({
+  connections,
+  value,
+  onValueChange,
+}: {
+  connections: string[]
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const [menuWidth, setMenuWidth] = React.useState<number>()
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  const options = React.useMemo(() => {
+    const all = value && !connections.includes(value) ? [value, ...connections] : connections
+    return Array.from(new Set(all))
+  }, [connections, value])
+
+  const filtered = options.filter((item) => {
+    if (!query.trim()) return true
+    return item.toLowerCase().includes(query.trim().toLowerCase())
+  })
+
+  const updateMenuWidth = () => {
+    setMenuWidth(containerRef.current?.offsetWidth)
+  }
+
+  React.useEffect(() => {
+    updateMenuWidth()
+    window.addEventListener("resize", updateMenuWidth)
+    return () => window.removeEventListener("resize", updateMenuWidth)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div className="relative w-full">
+            <Input
+              id="connect-connection"
+              role="combobox"
+              aria-controls="connect-connection-options"
+              aria-expanded={open}
+              aria-autocomplete="list"
+              value={open ? query : value}
+              placeholder="Select a connection"
+              autoComplete="off"
+              onChange={(event) => {
+                setQuery(event.target.value)
+                onValueChange(event.target.value)
+                setOpen(true)
+              }}
+              onFocus={() => {
+                setQuery("")
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onClick={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setOpen(false)
+                if (event.key === "ArrowDown") {
+                  updateMenuWidth()
+                  setOpen(true)
+                }
+              }}
+              className="pr-9"
+            />
+            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="p-0"
+          style={menuWidth ? { width: menuWidth } : undefined}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            if (containerRef.current?.contains(event.target as Node)) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <Command shouldFilter={false}>
+            <CommandList id="connect-connection-options" className="max-h-[264px]">
+              <CommandEmpty>No connections found</CommandEmpty>
+              <CommandGroup>
+                {filtered.map((item) => (
+                  <CommandItem
+                    key={item}
+                    value={item}
+                    onSelect={() => {
+                      onValueChange(item)
+                      setQuery("")
+                      setOpen(false)
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        value === item ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span>{item}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
 /** Figma 144:27282 / 155:31119 — Lakeflow Connect two-step ingest wizard. */
 export function LakewatchLakeflowConnectWizardView({
   source,
@@ -157,11 +301,15 @@ export function LakewatchLakeflowConnectWizardView({
 
   const [activeStep, setActiveStep] = React.useState(1)
   const [connection, setConnection] = React.useState("")
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [newConnName, setNewConnName] = React.useState("")
+  const [newClientId, setNewClientId] = React.useState("")
+  const [newClientSecret, setNewClientSecret] = React.useState("")
+  const [signingIn, setSigningIn] = React.useState(false)
   const [datasourceName, setDatasourceName] = React.useState("")
-  const [bronzeTable, setBronzeTable] = React.useState("")
-  const [scheduleMode, setScheduleMode] = React.useState("at-least-every")
-  const [scheduleInterval, setScheduleInterval] = React.useState("10")
-  const [scheduleUnit, setScheduleUnit] = React.useState("minutes")
+  const [catalog, setCatalog] = React.useState("lakewatch")
+  const [schema, setSchema] = React.useState("default")
+  const [datasourceDescription, setDatasourceDescription] = React.useState("")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const templateController = useIntegrationTemplates(label)
@@ -191,6 +339,32 @@ export function LakewatchLakeflowConnectWizardView({
   const handleFinish = () => {
     const name = datasourceName.trim() || `${source}-datasource`
     router.push(`/lakewatch/datasources/${encodeURIComponent(name)}`)
+  }
+
+  const sampleConnName = `${source}-audit-logs`
+  const sampleClientId = "48291057304.7382910485726"
+  const sampleClientSecret = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+  const createReady = Boolean(
+    newConnName.trim() && newClientId.trim() && newClientSecret.trim()
+  )
+
+  const openCreateConnection = () => {
+    setNewConnName("")
+    setNewClientId("")
+    setNewClientSecret("")
+    setSigningIn(false)
+    setCreateOpen(true)
+  }
+
+  const handleCreateConnection = () => {
+    if (!createReady || signingIn) return
+    setSigningIn(true)
+    window.setTimeout(() => {
+      setConnection(newConnName.trim())
+      setSigningIn(false)
+      setCreateOpen(false)
+      setActiveStep(2)
+    }, 1400)
   }
 
   const dataPreviewSection = previewVisible ? (
@@ -311,19 +485,23 @@ export function LakewatchLakeflowConnectWizardView({
             <div className="flex min-h-[240px] flex-col px-8 py-6">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="connect-connection">Connection</Label>
-                <Select value={connection} onValueChange={setConnection}>
-                  <SelectTrigger id="connect-connection" className="w-full">
-                    <SelectValue placeholder="Select a connection" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {connections.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__create__">+ Create new connection</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <ConnectionTypeahead
+                    connections={connections}
+                    value={connection}
+                    onValueChange={setConnection}
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={openCreateConnection}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create connection
+                  </Button>
+                </div>
               </div>
 
               <div className="mt-auto flex items-center justify-between pt-8">
@@ -355,12 +533,46 @@ export function LakewatchLakeflowConnectWizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Ingestion templates"
-              description={`Select the ingestion templates Lakewatch should use to classify data from ${label}.`}
+              title="Name & Ingestion templates"
+              description={`Name your datasource and select the ingestion templates Lakewatch should use to classify data from ${label}.`}
             />
 
             <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
-              <IntegrationTemplatesField controller={templateController} />
+              <div className="mb-5 flex flex-col">
+                <Label className="mb-2">Datasource name *</Label>
+                <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
+                  <Select value={catalog} onValueChange={setCatalog} disabled>
+                    <SelectTrigger className="w-full" aria-label="Catalog">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lakewatch">lakewatch</SelectItem>
+                      <SelectItem value="main">main</SelectItem>
+                      <SelectItem value="security">security</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={schema} onValueChange={setSchema}>
+                    <SelectTrigger className="w-full" aria-label="Schema">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">default</SelectItem>
+                      <SelectItem value="bronze">bronze</SelectItem>
+                      <SelectItem value="production">production</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    aria-label="Datasource name"
+                    value={datasourceName}
+                    onChange={(event) => setDatasourceName(event.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <IntegrationTemplatesField controller={templateController} />
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
@@ -387,75 +599,24 @@ export function LakewatchLakeflowConnectWizardView({
           >
             <StepPanelHeader
               step={3}
-              title={`Create datasource from ${label}`}
-              description={description}
+              title="Additional details"
+              description="Configure how often Lakewatch runs this datasource and add optional metadata"
             />
 
             <div className="flex min-h-[370px] flex-col gap-5 px-8 py-6">
+              <WizardProcessingScheduleField />
+              <WizardComputeModeField />
               <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-datasource-name">Datasource name *</Label>
-                <p className="text-hint text-muted-foreground">
-                  Enter a name for the datasource
-                </p>
-                <Input
-                  id="connect-datasource-name"
-                  value={datasourceName}
-                  onChange={(event) => setDatasourceName(event.target.value)}
-                  required
+                <Label htmlFor="connect-description">Description (optional)</Label>
+                <Textarea
+                  id="connect-description"
+                  value={datasourceDescription}
+                  onChange={(event) => setDatasourceDescription(event.target.value)}
+                  placeholder="Add a description for this datasource"
+                  className="min-h-[80px]"
                 />
               </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-bronze-table">Bronze table *</Label>
-                <p className="text-hint text-muted-foreground">
-                  Enter a fully qualified table name in the format{" "}
-                  <span className="font-mono">catalog.schema.table</span>.
-                </p>
-                <Input
-                  id="connect-bronze-table"
-                  value={bronzeTable}
-                  onChange={(event) => setBronzeTable(event.target.value)}
-                  placeholder="lakewatch.default.slack_audit_logs"
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label>Processing schedule</Label>
-                <div className="flex items-center gap-2">
-                  <Select value={scheduleMode} onValueChange={setScheduleMode}>
-                    <SelectTrigger className="w-[172px]" aria-label="Schedule frequency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="at-least-every">At least every</SelectItem>
-                      <SelectItem value="at-most-every">At most every</SelectItem>
-                      <SelectItem value="exactly-every">Exactly every</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    aria-label="Schedule interval"
-                    inputMode="numeric"
-                    value={scheduleInterval}
-                    onChange={(event) => setScheduleInterval(event.target.value)}
-                    className="w-24"
-                  />
-                  <Select value={scheduleUnit} onValueChange={setScheduleUnit}>
-                    <SelectTrigger className="w-[150px]" aria-label="Schedule unit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minutes">Minutes</SelectItem>
-                      <SelectItem value="hours">Hours</SelectItem>
-                      <SelectItem value="days">Days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-hint text-muted-foreground">
-                  The datasource will be scheduled to run on this interval. Under certain
-                  circumstances it may run more frequently than this.
-                </p>
-              </div>
+              <WizardAnnotationsField />
 
               <div className="mt-auto flex items-center justify-between pt-2">
                 <Button
@@ -467,7 +628,7 @@ export function LakewatchLakeflowConnectWizardView({
                   Back
                 </Button>
                 <Button type="submit" variant="primary" size="sm">
-                  Finish
+                  Create datasource
                 </Button>
               </div>
             </div>
@@ -487,6 +648,83 @@ export function LakewatchLakeflowConnectWizardView({
       </div>
 
       {templatePanelOpen ? dataPreviewSection : null}
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (signingIn) return
+          setCreateOpen(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Create {label} connection</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-conn-name">Connection name *</Label>
+              <p className="text-hint text-muted-foreground">
+                A unique name for this new Unity Catalog connection.
+              </p>
+              <Input
+                id="new-conn-name"
+                value={newConnName}
+                onChange={(event) => setNewConnName(event.target.value)}
+                onFocus={() => setNewConnName((current) => current || sampleConnName)}
+                onClick={() => setNewConnName((current) => current || sampleConnName)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-client-id">Client ID *</Label>
+              <p className="text-hint text-muted-foreground">
+                The OAuth 2.0 Client ID from your {label} app credentials.
+              </p>
+              <Input
+                id="new-client-id"
+                value={newClientId}
+                onChange={(event) => setNewClientId(event.target.value)}
+                onFocus={() => setNewClientId((current) => current || sampleClientId)}
+                onClick={() => setNewClientId((current) => current || sampleClientId)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-client-secret">Client secret *</Label>
+              <p className="text-hint text-muted-foreground">
+                The OAuth 2.0 Client Secret from your {label} app credentials.
+              </p>
+              <Input
+                id="new-client-secret"
+                type="password"
+                value={newClientSecret}
+                onChange={(event) => setNewClientSecret(event.target.value)}
+                onFocus={() =>
+                  setNewClientSecret((current) => current || sampleClientSecret)
+                }
+                onClick={() =>
+                  setNewClientSecret((current) => current || sampleClientSecret)
+                }
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="w-full"
+              disabled={!createReady || signingIn}
+              onClick={handleCreateConnection}
+            >
+              {signingIn ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : null}
+              Sign in with {label} Audit Logs
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

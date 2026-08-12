@@ -21,7 +21,7 @@ const COMPUTE_OPTIONS = [
 
 const CATALOG_OPTIONS = ["group_7_demo", "staging", "production"]
 
-export function LakewatchCatalogSelector() {
+export function LakewatchCatalogSelector({ className }: { className?: string }) {
   const [catalog, setCatalog] = React.useState(CATALOG_OPTIONS[0])
 
   return (
@@ -30,7 +30,7 @@ export function LakewatchCatalogSelector() {
         <Button
           variant="default"
           size="sm"
-          className="min-w-[213px] justify-between gap-2 font-normal"
+          className={cn("min-w-[213px] justify-between gap-2 font-normal", className)}
           aria-label={`Catalog: ${catalog}`}
         >
           <span className="flex items-center gap-2">
@@ -69,10 +69,13 @@ export function LakewatchWarehouseSelector() {
         <Button
           variant="default"
           size="sm"
-          className="gap-2 px-2.5"
+          className="min-w-[213px] justify-between gap-2 font-normal"
           aria-label={`Compute: ${warehouse}`}
         >
-          <span className="size-2 rounded-full bg-[var(--success)]" aria-hidden />
+          <span className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-[var(--success)]" aria-hidden />
+            <span className="text-foreground">{warehouse}</span>
+          </span>
           <ChevronDownIcon size={16} className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -98,7 +101,6 @@ export function LakewatchWarehouseSelector() {
 export function LakewatchDataControls({ className }: { className?: string }) {
   return (
     <div className={cn("flex shrink-0 items-center gap-2", className)}>
-      <LakewatchCatalogSelector />
       <LakewatchWarehouseSelector />
     </div>
   )
