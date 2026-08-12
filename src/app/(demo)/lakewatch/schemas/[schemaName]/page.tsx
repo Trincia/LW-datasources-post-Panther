@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { LakewatchAppShell } from "@/components/lakewatch"
 import { LakewatchSchemaDetailView } from "@/components/lakewatch/schemas/LakewatchSchemaDetailView"
 
@@ -11,7 +13,9 @@ export default function LakewatchSchemaDetailPage() {
       userInitial="J"
       mainClassName="relative flex flex-col overflow-hidden"
     >
-      <LakewatchSchemaDetailView />
+      <Suspense fallback={null}>
+        <LakewatchSchemaDetailView />
+      </Suspense>
     </LakewatchAppShell>
   )
 }

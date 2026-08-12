@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -624,7 +623,6 @@ function CloneTemplatePanel({
   const [templateId, setTemplateId] = React.useState("")
   const [referenceUrl, setReferenceUrl] = React.useState("")
   const [description, setDescription] = React.useState("")
-  const [fieldDiscovery, setFieldDiscovery] = React.useState(true)
   const [parser, setParser] = React.useState("json")
   const [yaml, setYaml] = React.useState("")
   const [owner, setOwner] = React.useState("team-security@company.com")
@@ -637,7 +635,6 @@ function CloneTemplatePanel({
       setTemplateId(`${base.name}_copy`)
       setReferenceUrl("s3://security-logs-prod/")
       setDescription(base.description)
-      setFieldDiscovery(true)
       setParser("json")
       setYaml("")
       setOwner("team-security@company.com")
@@ -730,23 +727,6 @@ function CloneTemplatePanel({
                 onChange={(event) => setDescription(event.target.value)}
                 className="min-h-16 resize-none"
               />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="clone-field-discovery"
-                  size="sm"
-                  checked={fieldDiscovery}
-                  onCheckedChange={setFieldDiscovery}
-                />
-                <Label htmlFor="clone-field-discovery" className="font-normal">
-                  Field discovery
-                </Label>
-              </div>
-              <p className="text-hint text-muted-foreground">
-                Keep fields that aren&apos;t in the schema so you can still query and detect on them.
-              </p>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -1252,9 +1232,11 @@ export function IntegrationTemplatePanel({
 export function IntegrationTemplatesField({
   controller,
   pendingNames = [],
+  hideHeader = false,
 }: {
   controller: IntegrationTemplatesController
   pendingNames?: string[]
+  hideHeader?: boolean
 }) {
   const { family, templates, selectedIds, detailsId, templateById, toggle, toggleGroup, openDetails } =
     controller
@@ -1306,12 +1288,14 @@ export function IntegrationTemplatesField({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <Label>Ingestion templates (optional)</Label>
-        <p className="text-hint text-muted-foreground">
-          Select built-in or custom ingestion templates to structure and validate incoming event data.
-        </p>
-      </div>
+      {hideHeader ? null : (
+        <div>
+          <Label>Ingestion templates (optional)</Label>
+          <p className="text-hint text-muted-foreground">
+            Select built-in or custom ingestion templates to structure and validate incoming event data.
+          </p>
+        </div>
+      )}
 
       <div ref={containerRef} className="relative flex flex-col gap-1">
         <Label htmlFor="template-search" className="font-semibold">

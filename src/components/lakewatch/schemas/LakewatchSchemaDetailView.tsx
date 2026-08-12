@@ -2,18 +2,28 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { SquareArrowOutUpRight } from "lucide-react"
 
 import {
   LinkIcon,
   PencilIcon,
 } from "@/components/icons"
+import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
+import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
   readCustomSchemas,
@@ -200,7 +210,6 @@ function buildSchemaCode(schemaName: string, details: SchemaDetails) {
     `schema: ${schemaName}`,
     `description: ${details.description}`,
     `referenceURL: ${details.docsUrl}`,
-    `fieldDiscoveryEnabled: ${details.fieldDiscovery === "Enabled"}`,
     "fields:",
     "  - name: event",
     "    required: true",
@@ -297,8 +306,12 @@ export function LakewatchSchemaDetailView({
 }) {
   const params = useParams<{ schemaName: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const schemaName = decodeURIComponent(params.schemaName ?? "AlphaSOC.Alert")
   const formMode = cloneMode || editMode
+  // Opened from a datasource's Ingestion templates tab: show it read-only with
+  // the sample data preview docked at the bottom, and no clone/edit actions.
+  const fromDatasource = !formMode && searchParams.get("from") === "datasource"
   const [isCustom, setIsCustom] = React.useState(false)
 
   React.useEffect(() => {
@@ -314,7 +327,6 @@ export function LakewatchSchemaDetailView({
       datasourceCount: 0,
       fields: DEFAULT_FIELDS,
     } satisfies SchemaDetails)
-  const [showDiscoveredFields, setShowDiscoveredFields] = React.useState(true)
   const [schemaYaml, setSchemaYaml] = React.useState(() =>
     buildSchemaCode(schemaName, details)
       .filter((line) => !line.includes("@generated"))
@@ -323,12 +335,11 @@ export function LakewatchSchemaDetailView({
   const [cloneName, setCloneName] = React.useState(() =>
     editMode ? schemaName : `Custom.${schemaName.replace(/[^a-zA-Z0-9]/g, "")}Copy`,
   )
+  const versions = React.useMemo(() => buildVersions(schemaName), [schemaName])
+  const [selectedVersion, setSelectedVersion] = React.useState(versions[0].version)
   const [editingCloneName, setEditingCloneName] = React.useState(false)
   const [cloneDescription, setCloneDescription] = React.useState(details.description)
   const [cloneReferenceUrl, setCloneReferenceUrl] = React.useState(details.docsUrl)
-  const [cloneFieldDiscovery, setCloneFieldDiscovery] = React.useState(
-    details.fieldDiscovery === "Enabled",
-  )
 
   const handleSaveClone = () => {
     const name = cloneName.trim()
@@ -338,15 +349,16 @@ export function LakewatchSchemaDetailView({
       name,
       description: cloneDescription,
       managedBy: "User",
-      fieldDiscovery: cloneFieldDiscovery ? "Enabled" : "Disabled",
+      fieldDiscovery: "Enabled",
       datasourceCount: 0,
     })
     router.push(`/lakewatch/schemas?created=${encodeURIComponent(name)}`)
   }
 
   return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-10 pb-12 pt-8">
-      <div className="flex items-center justify-between gap-6">
+      <div className="flex items-start justify-between gap-6">
         {formMode ? (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             {editingCloneName ? (
@@ -377,9 +389,23 @@ export function LakewatchSchemaDetailView({
           </div>
         ) : (
           <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="truncate text-2xl font-semibold leading-10 text-foreground">
-              {schemaName}
-            </h1>
+            <div className="flex items-center gap-6">
+              <h1 className="truncate text-2xl font-semibold leading-10 text-foreground">
+                {schemaName}
+              </h1>
+              <Select value={selectedVersion} onValueChange={setSelectedVersion}>
+                <SelectTrigger className="w-[92px]" aria-label="Version">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((item) => (
+                    <SelectItem key={item.version} value={item.version}>
+                      {item.version}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {isCustom ? (
               <Badge variant="brown" className="text-hint uppercase">
                 Custom
@@ -399,11 +425,6 @@ export function LakewatchSchemaDetailView({
         <div className="flex shrink-0 items-center gap-2">
           {formMode ? (
             <>
-              {cloneMode ? (
-                <Button type="button" variant="default" size="sm">
-                  Upload Sample Logs
-                </Button>
-              ) : null}
               <Button variant="default" size="sm" asChild>
                 <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}`}>
                   Cancel
@@ -413,7 +434,7 @@ export function LakewatchSchemaDetailView({
                 Save
               </Button>
             </>
-          ) : (
+          ) : fromDatasource ? null : (
             <>
               {isCustom ? (
                 <Button variant="default" size="sm" asChild>
@@ -422,9 +443,15 @@ export function LakewatchSchemaDetailView({
                   </Link>
                 </Button>
               ) : null}
+              <LakewatchWarehouseSelector />
               <Button variant="primary" size="sm" asChild>
-                <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/clone`}>
-                  Clone
+                <Link
+                  href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View template
+                  <SquareArrowOutUpRight className="h-4 w-4" />
                 </Link>
               </Button>
             </>
@@ -453,26 +480,6 @@ export function LakewatchSchemaDetailView({
               onChange={(event) => setCloneReferenceUrl(event.target.value)}
             />
           </div>
-          <div className="rounded-md bg-muted p-4">
-            <div className="flex items-center gap-3">
-              <Label htmlFor="clone-field-discovery">Field Discovery</Label>
-              <Switch
-                id="clone-field-discovery"
-                size="sm"
-                checked={cloneFieldDiscovery}
-                onCheckedChange={setCloneFieldDiscovery}
-              />
-            </div>
-            <p className="mt-2 text-hint leading-4 text-muted-foreground">
-              By enabling this feature, Panther will not drop any fields from an event that
-              aren&apos;t included in the schema. This allows you to query all the fields, and
-              also lets detections access them. To find out more about AFD you can{" "}
-              <Link href="#" className="text-primary hover:underline">
-                read our documentation
-              </Link>
-              .
-            </p>
-          </div>
         </Card>
       ) : (
         <Card className="gap-5">
@@ -490,13 +497,6 @@ export function LakewatchSchemaDetailView({
           </div>
           <div className="w-60 border-t border-border" />
           <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-            <MetadataItem label="Field Discovery">
-              <Badge
-                variant={details.fieldDiscovery === "Enabled" ? "lime" : "default_tag"}
-              >
-                {details.fieldDiscovery}
-              </Badge>
-            </MetadataItem>
             <MetadataItem label="Created">
               <span className="font-mono font-medium">2024-12-13 21:11 UTC</span>
             </MetadataItem>
@@ -514,29 +514,22 @@ export function LakewatchSchemaDetailView({
       )}
 
       <Card>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Show Discovered Fields</span>
-            <Switch
-              size="sm"
-              checked={showDiscoveredFields}
-              onCheckedChange={setShowDiscoveredFields}
-              aria-label="Show discovered fields"
-            />
-          </div>
-          {isCustom ? (
+        <div className="flex items-center justify-end gap-4">
+          {isCustom && !fromDatasource ? (
             <span className="text-hint text-muted-foreground">Editable YAML</span>
           ) : (
             <span className="text-hint text-muted-foreground">Read only</span>
           )}
         </div>
         <div className="w-60 border-t border-border" />
-        {isCustom ? (
+        {isCustom && !fromDatasource ? (
           <EditableSchemaYaml value={schemaYaml} onChange={setSchemaYaml} />
         ) : (
           <SchemaCodeView schemaName={schemaName} details={details} />
         )}
       </Card>
+    </div>
+      {fromDatasource ? <SchemaPreviewPanel /> : null}
     </div>
   )
 }

@@ -19,10 +19,10 @@ const COMPUTE_OPTIONS = [
   "Shared Warehouse",
 ]
 
-const CATALOG_OPTIONS = ["group_7_demo", "staging", "production"]
+const CATALOG_OPTIONS = ["sec_sandbox", "sec_dev", "sec_stag"]
 
 export function LakewatchCatalogSelector({ className }: { className?: string }) {
-  const [catalog, setCatalog] = React.useState(CATALOG_OPTIONS[0])
+  const [catalog, setCatalog] = React.useState("sec_dev")
 
   return (
     <DropdownMenu>

@@ -781,8 +781,10 @@ function DatasourceSchemasTab() {
               <TableCell className="text-foreground">{row.schema}</TableCell>
               <TableCell className="text-right">
                 <Button variant="default" size="sm" asChild>
-                  <Link href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}`}>
-                    View data
+                  <Link
+                    href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
+                  >
+                    View
                   </Link>
                 </Button>
               </TableCell>
@@ -1316,7 +1318,7 @@ export function LakewatchDatasourceDetailView() {
       <Tabs defaultValue="overview" className="mt-5">
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="schemas">Ingestion template</TabsTrigger>
+          <TabsTrigger value="schemas">Ingestion templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">

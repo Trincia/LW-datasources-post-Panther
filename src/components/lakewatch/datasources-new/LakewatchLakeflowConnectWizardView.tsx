@@ -3,7 +3,16 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Check, LoaderCircle, Plus, X } from "lucide-react"
+import {
+  Check,
+  Filter,
+  LoaderCircle,
+  MoreVertical,
+  Pencil,
+  Plus,
+  SquareArrowOutUpRight,
+  X,
+} from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
@@ -28,12 +37,19 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Dialog,
   DialogBody,
@@ -45,11 +61,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "@/components/ui/popover"
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -59,7 +70,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Ingest", "Name & Ingestion templates", "Additional details"] as const
+const CONNECT_STEPS = ["Connection", "Name & Ingestion templates", "Additional details"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -171,122 +182,46 @@ function StepPanelHeader({
   )
 }
 
-function ConnectionTypeahead({
-  connections,
-  value,
-  onValueChange,
-}: {
-  connections: string[]
-  value: string
-  onValueChange: (value: string) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [query, setQuery] = React.useState("")
-  const [menuWidth, setMenuWidth] = React.useState<number>()
-  const containerRef = React.useRef<HTMLDivElement>(null)
+type ConnectionRow = {
+  name: string
+  owner: string
+  createdAt: string
+}
 
-  const options = React.useMemo(() => {
-    const all = value && !connections.includes(value) ? [value, ...connections] : connections
-    return Array.from(new Set(all))
-  }, [connections, value])
-
-  const filtered = options.filter((item) => {
-    if (!query.trim()) return true
-    return item.toLowerCase().includes(query.trim().toLowerCase())
-  })
-
-  const updateMenuWidth = () => {
-    setMenuWidth(containerRef.current?.offsetWidth)
-  }
-
-  React.useEffect(() => {
-    updateMenuWidth()
-    window.addEventListener("resize", updateMenuWidth)
-    return () => window.removeEventListener("resize", updateMenuWidth)
-  }, [])
-
+/** Formats the current time as "YYYY-MM-DD HH:MM:SS" for new connection rows. */
+function formatNow(): string {
+  const now = new Date()
+  const pad = (value: number) => value.toString().padStart(2, "0")
   return (
-    <div ref={containerRef} className="relative w-full">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor asChild>
-          <div className="relative w-full">
-            <Input
-              id="connect-connection"
-              role="combobox"
-              aria-controls="connect-connection-options"
-              aria-expanded={open}
-              aria-autocomplete="list"
-              value={open ? query : value}
-              placeholder="Select a connection"
-              autoComplete="off"
-              onChange={(event) => {
-                setQuery(event.target.value)
-                onValueChange(event.target.value)
-                setOpen(true)
-              }}
-              onFocus={() => {
-                setQuery("")
-                updateMenuWidth()
-                setOpen(true)
-              }}
-              onClick={() => {
-                updateMenuWidth()
-                setOpen(true)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setOpen(false)
-                if (event.key === "ArrowDown") {
-                  updateMenuWidth()
-                  setOpen(true)
-                }
-              }}
-              className="pr-9"
-            />
-            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          </div>
-        </PopoverAnchor>
-        <PopoverContent
-          align="start"
-          sideOffset={4}
-          className="p-0"
-          style={menuWidth ? { width: menuWidth } : undefined}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          onInteractOutside={(event) => {
-            if (containerRef.current?.contains(event.target as Node)) {
-              event.preventDefault()
-            }
-          }}
-        >
-          <Command shouldFilter={false}>
-            <CommandList id="connect-connection-options" className="max-h-[264px]">
-              <CommandEmpty>No connections found</CommandEmpty>
-              <CommandGroup>
-                {filtered.map((item) => (
-                  <CommandItem
-                    key={item}
-                    value={item}
-                    onSelect={() => {
-                      onValueChange(item)
-                      setQuery("")
-                      setOpen(false)
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "h-4 w-4",
-                        value === item ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <span>{item}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
   )
+}
+
+/** Builds a deterministic set of source-specific connections for the prototype. */
+function buildConnectionRows(source: string): ConnectionRow[] {
+  const owners = [
+    "michael.andersen@databricks.com",
+    "sarah.dev@databricks.com",
+    "security-platform@databricks.com",
+    "james.lee@databricks.com",
+    "priya.nair@databricks.com",
+    "ci-deploy-bot@databricks.com",
+  ]
+  const dates = [
+    "2026-03-11 11:46:44",
+    "2026-02-28 09:12:03",
+    "2026-01-22 16:03:57",
+    "2025-12-15 08:41:20",
+    "2025-11-30 14:22:10",
+    "2025-10-05 10:18:36",
+  ]
+  const suffixes = ["prod", "security", "staging", "audit-logs", "sandbox", "backfill"]
+  return suffixes.map((suffix, index) => ({
+    name: `${source}-${suffix}`,
+    owner: owners[index],
+    createdAt: dates[index],
+  }))
 }
 
 /** Figma 144:27282 / 155:31119 — Lakeflow Connect two-step ingest wizard. */
@@ -297,11 +232,15 @@ export function LakewatchLakeflowConnectWizardView({
 }) {
   const router = useRouter()
   const label = CONNECT_SOURCES[source]
-  const connections = [`${source}-connection`, `${source}-connection-2`]
+  const [connectionRows, setConnectionRows] = React.useState<ConnectionRow[]>(() =>
+    buildConnectionRows(source)
+  )
 
   const [activeStep, setActiveStep] = React.useState(1)
-  const [connection, setConnection] = React.useState("")
+  const [connection, setConnection] = React.useState(connectionRows[0]?.name ?? "")
+  const [connectionFilter, setConnectionFilter] = React.useState("")
   const [createOpen, setCreateOpen] = React.useState(false)
+  const [editingConnection, setEditingConnection] = React.useState<string | null>(null)
   const [newConnName, setNewConnName] = React.useState("")
   const [newClientId, setNewClientId] = React.useState("")
   const [newClientSecret, setNewClientSecret] = React.useState("")
@@ -349,7 +288,17 @@ export function LakewatchLakeflowConnectWizardView({
   )
 
   const openCreateConnection = () => {
+    setEditingConnection(null)
     setNewConnName("")
+    setNewClientId("")
+    setNewClientSecret("")
+    setSigningIn(false)
+    setCreateOpen(true)
+  }
+
+  const openEditConnection = (row: ConnectionRow) => {
+    setEditingConnection(row.name)
+    setNewConnName(row.name)
     setNewClientId("")
     setNewClientSecret("")
     setSigningIn(false)
@@ -360,12 +309,39 @@ export function LakewatchLakeflowConnectWizardView({
     if (!createReady || signingIn) return
     setSigningIn(true)
     window.setTimeout(() => {
-      setConnection(newConnName.trim())
+      const name = newConnName.trim()
+      if (editingConnection) {
+        setConnectionRows((rows) =>
+          rows.map((row) =>
+            row.name === editingConnection ? { ...row, name } : row
+          )
+        )
+        if (connection === editingConnection) setConnection(name)
+      } else {
+        setConnectionRows((rows) => {
+          const next: ConnectionRow = {
+            name,
+            owner: "beau.trincia@databricks.com",
+            createdAt: formatNow(),
+          }
+          return [next, ...rows.filter((row) => row.name !== name)]
+        })
+        setConnection(name)
+      }
       setSigningIn(false)
       setCreateOpen(false)
-      setActiveStep(2)
+      setEditingConnection(null)
     }, 1400)
   }
+
+  const filteredConnectionRows = connectionRows.filter((row) => {
+    const query = connectionFilter.trim().toLowerCase()
+    if (!query) return true
+    return (
+      row.name.toLowerCase().includes(query) ||
+      row.owner.toLowerCase().includes(query)
+    )
+  })
 
   const dataPreviewSection = previewVisible ? (
     <section
@@ -478,19 +454,27 @@ export function LakewatchLakeflowConnectWizardView({
           >
             <StepPanelHeader
               step={1}
-              title={`Ingest datasource from ${label}`}
+              title={`Connection from ${label}`}
               description={description}
             />
 
             <div className="flex min-h-[240px] flex-col px-8 py-6">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-connection">Connection</Label>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Connection to the source
+                </p>
+
                 <div className="flex items-center gap-2">
-                  <ConnectionTypeahead
-                    connections={connections}
-                    value={connection}
-                    onValueChange={setConnection}
-                  />
+                  <div className="relative flex-1">
+                    <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      aria-label="Filter connections"
+                      value={connectionFilter}
+                      onChange={(event) => setConnectionFilter(event.target.value)}
+                      placeholder="Type to filter"
+                      className="pl-9"
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="default"
@@ -502,6 +486,118 @@ export function LakewatchLakeflowConnectWizardView({
                     Create connection
                   </Button>
                 </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Connection</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Created at</TableHead>
+                      <TableHead className="w-24 text-right" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredConnectionRows.length === 0 ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell
+                          colSpan={4}
+                          className="py-8 text-center text-muted-foreground"
+                        >
+                          No connections match “{connectionFilter}”.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredConnectionRows.map((row) => {
+                        const selected = connection === row.name
+                        return (
+                          <TableRow
+                            key={row.name}
+                            data-state={selected ? "selected" : undefined}
+                            className="cursor-pointer"
+                            onClick={() => setConnection(row.name)}
+                          >
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className={cn(
+                                    "flex size-4 shrink-0 items-center justify-center rounded-full border",
+                                    selected
+                                      ? "border-primary bg-primary"
+                                      : "border-border bg-muted-foreground/20"
+                                  )}
+                                >
+                                  {selected ? (
+                                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                  ) : null}
+                                </span>
+                                <span className="inline-flex items-center gap-1 font-semibold text-primary">
+                                  {row.name}
+                                  <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-foreground">
+                              {row.owner}
+                            </TableCell>
+                            <TableCell className="text-foreground">
+                              {row.createdAt}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label={`Edit ${row.name}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    openEditConnection(row)
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      aria-label={`More actions for ${row.name}`}
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        openEditConnection(row)
+                                      }}
+                                    >
+                                      Edit connection
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      Duplicate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      Delete connection
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
               </div>
 
               <div className="mt-auto flex items-center justify-between pt-8">
@@ -571,7 +667,7 @@ export function LakewatchLakeflowConnectWizardView({
               </div>
 
               <div className="mt-4">
-                <IntegrationTemplatesField controller={templateController} />
+                <IntegrationTemplatesField controller={templateController} hideHeader />
               </div>
             </div>
 
@@ -658,7 +754,9 @@ export function LakewatchLakeflowConnectWizardView({
       >
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>Create {label} connection</DialogTitle>
+            <DialogTitle>
+              {editingConnection ? "Edit" : "Create"} {label} connection
+            </DialogTitle>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">

@@ -1901,7 +1901,7 @@ export function LakewatchAwsS3WizardView({
                       htmlFor="sqs-preview-location"
                       className="shrink-0 whitespace-nowrap text-hint font-normal text-foreground"
                     >
-                      Preview location (optional)
+                      Preview location
                     </Label>
                     <Input
                       id="sqs-preview-location"

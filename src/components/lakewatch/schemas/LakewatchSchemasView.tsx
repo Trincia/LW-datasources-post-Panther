@@ -19,13 +19,6 @@ import {
   SegmentedItem,
 } from "@/components/ui/segmented-control"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +30,7 @@ import {
   readCustomSchemas,
   type StoredSchemaRow,
 } from "@/components/lakewatch/schemas/schemaStorage"
+import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 
 type SchemaRow = StoredSchemaRow
 
@@ -112,58 +106,9 @@ function SortableHeader({
   )
 }
 
-type TemplateVersion = { version: string; created: string }
-
-const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
-
-function hashString(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
-  }
-  return hash
-}
-
-function formatDateTime(date: Date): string {
-  const month = MONTH_LABELS[date.getMonth()]
-  const day = date.getDate()
-  const year = date.getFullYear()
-  const minutes = date.getMinutes().toString().padStart(2, "0")
-  const ampm = date.getHours() >= 12 ? "PM" : "AM"
-  const hour12 = date.getHours() % 12 || 12
-  return `${month} ${day}, ${year}, ${hour12}:${minutes} ${ampm}`
-}
-
-/**
- * Deterministically builds a version history for a template row (newest first)
- * so each row shows a stable set of versions and matching creation timestamps.
- */
-function buildVersions(name: string): TemplateVersion[] {
-  const seed = hashString(name)
-  const count = 3 + (seed % 3)
-  const base = new Date(2026, 7, 6, 9, 0)
-  const versions: TemplateVersion[] = []
-  for (let i = 0; i < count; i += 1) {
-    const versionNumber = count - i
-    const daysBack = i * (4 + (seed % 6)) + (seed % 4)
-    const hour = 8 + ((seed >> (i + 1)) % 9)
-    const minute = (seed * (i + 3)) % 60
-    const date = new Date(base)
-    date.setDate(date.getDate() - daysBack)
-    date.setHours(hour, minute)
-    versions.push({ version: `v${versionNumber}`, created: formatDateTime(date) })
-  }
-  return versions
-}
-
 function TemplateRow({ schema }: { schema: SchemaRow }) {
   const versions = React.useMemo(() => buildVersions(schema.name), [schema.name])
-  const [selectedVersion, setSelectedVersion] = React.useState(versions[0].version)
-  const created =
-    versions.find((item) => item.version === selectedVersion)?.created ?? versions[0].created
+  const created = versions[0].created
 
   return (
     <TableRow className="h-14">
@@ -182,26 +127,8 @@ function TemplateRow({ schema }: { schema: SchemaRow }) {
           <Badge variant="brown">Custom</Badge>
         )}
       </TableCell>
-      <TableCell>
-        <Select value={selectedVersion} onValueChange={setSelectedVersion}>
-          <SelectTrigger className="w-[92px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {versions.map((item) => (
-              <SelectItem key={item.version} value={item.version}>
-                {item.version}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </TableCell>
       <TableCell className="text-foreground">{created}</TableCell>
       <TableCell>{schema.managedBy === "Databricks" ? "Databricks" : "You"}</TableCell>
-      <TableCell>
-        {schema.datasourceCount}{" "}
-        {schema.datasourceCount === 1 ? "Datasource" : "Datasources"}
-      </TableCell>
     </TableRow>
   )
 }
@@ -285,14 +212,12 @@ export function LakewatchSchemasView() {
         <Table className="min-w-[980px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortableHeader className="w-[22%]">Ingestion template Name</SortableHeader>
-              <SortableHeader className="w-[12%]">Type</SortableHeader>
-              <SortableHeader className="w-[12%]">Version</SortableHeader>
-              <SortableHeader className="w-[20%]">Created time</SortableHeader>
-              <TableHead className="h-10 w-[14%] bg-muted/70 font-normal text-muted-foreground">
+              <SortableHeader className="w-[32%]">Ingestion template Name</SortableHeader>
+              <SortableHeader className="w-[16%]">Type</SortableHeader>
+              <SortableHeader className="w-[30%]">Latest version date/time</SortableHeader>
+              <TableHead className="h-10 w-[22%] bg-muted/70 font-normal text-muted-foreground">
                 Creator
               </TableHead>
-              <SortableHeader className="w-[20%]">Used by</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
