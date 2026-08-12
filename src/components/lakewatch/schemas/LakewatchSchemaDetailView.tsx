@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { SquareArrowOutUpRight } from "lucide-react"
+import { ChevronRight, Copy, Plus } from "lucide-react"
 
 import {
   LinkIcon,
@@ -18,6 +18,10 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  SegmentedControl,
+  SegmentedItem,
+} from "@/components/ui/segmented-control"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import {
   readCustomSchemas,
   saveCustomSchema,
@@ -39,6 +44,14 @@ type SchemaField = {
   name: string
   description: string
   tags: FieldTag[]
+  /** Field data type shown as a badge in the UI view (e.g. "object", "string", "array: string"). */
+  type?: string
+  /** Whether the field is required (shows a red asterisk in the UI view). */
+  required?: boolean
+  /** Number of nested fields for object types (shows a "N Nested Fields" badge). */
+  nestedCount?: number
+  /** Nested field definitions, revealed when an object field is expanded. */
+  children?: SchemaField[]
 }
 
 type SchemaDetails = {
@@ -53,6 +66,8 @@ const DEFAULT_FIELDS: SchemaField[] = [
   {
     name: "eventType",
     description: "The normalized type of event represented by this record.",
+    type: "string",
+    required: true,
     tags: [
       { label: "Tag", variant: "coral" },
       { label: "Tag", variant: "indigo" },
@@ -61,11 +76,13 @@ const DEFAULT_FIELDS: SchemaField[] = [
   {
     name: "actor",
     description: "The actor responsible for the event.",
+    type: "string",
     tags: [{ label: "Tag", variant: "teal" }],
   },
   {
     name: "source",
     description: "The source system that generated the event.",
+    type: "string",
     tags: [{ label: "Tag", variant: "lime" }],
   },
 ]
@@ -78,8 +95,153 @@ const SCHEMA_DETAILS: Record<string, SchemaDetails> = {
     datasourceCount: 1,
     fields: [
       {
+        name: "event",
+        description: "One of the Event schemas.",
+        type: "object",
+        required: true,
+        nestedCount: 33,
+        tags: [],
+        children: [
+          {
+            name: "timestamp",
+            description: "Time the event was observed.",
+            type: "timestamp",
+            required: true,
+            tags: [],
+          },
+          {
+            name: "srcIp",
+            description: "Source IP address associated with the event.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "srcPort",
+            description: "Source port associated with the event.",
+            type: "int",
+            tags: [],
+          },
+          {
+            name: "dstIp",
+            description: "Destination IP address associated with the event.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "dstPort",
+            description: "Destination port associated with the event.",
+            type: "int",
+            tags: [],
+          },
+          {
+            name: "protocol",
+            description: "Network protocol for the event.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "action",
+            description: "Action taken for the event (e.g. 'allow', 'block').",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "http",
+            description: "HTTP request context, present for http events.",
+            type: "object",
+            nestedCount: 6,
+            tags: [],
+            children: [
+              {
+                name: "method",
+                description: "HTTP request method.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "url",
+                description: "Requested URL.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "statusCode",
+                description: "HTTP response status code.",
+                type: "int",
+                tags: [],
+              },
+              {
+                name: "userAgent",
+                description: "User agent supplied by the client.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "referrer",
+                description: "Referrer header value.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "contentLength",
+                description: "Size of the response body in bytes.",
+                type: "long",
+                tags: [],
+              },
+            ],
+          },
+          {
+            name: "geo",
+            description: "Geolocation derived from the source IP.",
+            type: "object",
+            nestedCount: 4,
+            tags: [],
+            children: [
+              {
+                name: "country",
+                description: "Country associated with the source IP.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "city",
+                description: "City associated with the source IP.",
+                type: "string",
+                tags: [],
+              },
+              {
+                name: "latitude",
+                description: "Latitude coordinate.",
+                type: "double",
+                tags: [],
+              },
+              {
+                name: "longitude",
+                description: "Longitude coordinate.",
+                type: "double",
+                tags: [],
+              },
+            ],
+          },
+          {
+            name: "bytesIn",
+            description: "Bytes received during the event.",
+            type: "long",
+            tags: [],
+          },
+          {
+            name: "bytesOut",
+            description: "Bytes sent during the event.",
+            type: "long",
+            tags: [],
+          },
+        ],
+      },
+      {
         name: "eventType",
         description: "EventType describes type of event object ('dns', 'ip', 'http', 'tls').",
+        type: "string",
+        required: true,
         tags: [
           { label: "Tag", variant: "coral" },
           { label: "Tag", variant: "indigo" },
@@ -88,6 +250,8 @@ const SCHEMA_DETAILS: Record<string, SchemaDetails> = {
       {
         name: "detections",
         description: "Associated detections.",
+        type: "json",
+        required: true,
         tags: [
           { label: "Tag", variant: "coral" },
           { label: "Tag", variant: "teal" },
@@ -96,15 +260,128 @@ const SCHEMA_DETAILS: Record<string, SchemaDetails> = {
       {
         name: "threats",
         description: "Threats associated with alert.",
+        type: "array: string",
+        tags: [{ label: "array", variant: "default_tag" }],
+      },
+      {
+        name: "severity",
+        description: "Normalized severity of the alert ('low', 'medium', 'high', 'critical').",
+        type: "string",
+        tags: [{ label: "Tag", variant: "coral" }],
+      },
+      {
+        name: "confidence",
+        description: "Confidence score assigned to the alert (0–100).",
+        type: "int",
+        tags: [],
+      },
+      {
+        name: "labels",
+        description: "Analyst-applied labels for triage and routing.",
+        type: "array: string",
         tags: [{ label: "array", variant: "default_tag" }],
       },
       {
         name: "wisdom",
         description: "Wisdom context of alert.",
+        type: "object",
+        nestedCount: 3,
         tags: [
           { label: "Tag", variant: "lime" },
           { label: "Tag", variant: "indigo" },
         ],
+        children: [
+          {
+            name: "reputation",
+            description: "Reputation score for the associated indicator.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "category",
+            description: "Threat category assigned by Wisdom.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "confidence",
+            description: "Confidence level for the Wisdom assessment.",
+            type: "string",
+            tags: [],
+          },
+        ],
+      },
+      {
+        name: "metadata",
+        description: "Ingestion metadata added by Lakewatch.",
+        type: "object",
+        nestedCount: 5,
+        tags: [],
+        children: [
+          {
+            name: "ingestTime",
+            description: "Time the record was ingested by Lakewatch.",
+            type: "timestamp",
+            tags: [],
+          },
+          {
+            name: "sourceFile",
+            description: "Object storage path the record was read from.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "pipelineId",
+            description: "Identifier of the ingestion pipeline run.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "schemaVersion",
+            description: "Version of the ingestion template applied.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "annotations",
+            description: "Key-value annotations applied to the datasource.",
+            type: "array: string",
+            tags: [],
+          },
+        ],
+      },
+      {
+        name: "remediation",
+        description: "Suggested remediation for the alert.",
+        type: "object",
+        nestedCount: 3,
+        tags: [],
+        children: [
+          {
+            name: "recommended",
+            description: "Recommended remediation action.",
+            type: "string",
+            tags: [],
+          },
+          {
+            name: "automated",
+            description: "Whether an automated response was triggered.",
+            type: "boolean",
+            tags: [],
+          },
+          {
+            name: "playbookUrl",
+            description: "Link to the response playbook.",
+            type: "string",
+            tags: [],
+          },
+        ],
+      },
+      {
+        name: "rawEvent",
+        description: "The original, unmodified event payload.",
+        type: "json",
+        tags: [],
       },
     ],
   },
@@ -254,6 +531,99 @@ function HighlightedYamlLine({ line }: { line: string }) {
   )
 }
 
+function FieldTypeBadge({ type }: { type: string }) {
+  // "array" types render as a solid charcoal pill; scalar/object types render
+  // as outline pills (teal for objects, blue for everything else).
+  if (type.startsWith("array")) {
+    return (
+      <Badge variant="charcoal" className="rounded-full px-2">
+        {type}
+      </Badge>
+    )
+  }
+  const color =
+    type === "object"
+      ? "border-[var(--tag-text-teal)] text-[var(--tag-text-teal)]"
+      : "border-primary text-primary"
+  return (
+    <Badge
+      variant="secondary"
+      className={cn("rounded-full border bg-transparent px-2", color)}
+    >
+      {type}
+    </Badge>
+  )
+}
+
+function SchemaFieldRow({ field, depth = 0 }: { field: SchemaField; depth?: number }) {
+  const [open, setOpen] = React.useState(false)
+  const expandable = (field.children?.length ?? 0) > 0
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="flex items-center gap-2"
+        style={{ paddingLeft: depth * 20 }}
+      >
+        {expandable ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-label={open ? `Collapse ${field.name}` : `Expand ${field.name}`}
+            className="flex size-4 shrink-0 items-center justify-center"
+          >
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform",
+                open && "rotate-90"
+              )}
+            />
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" aria-hidden />
+        )}
+        <span className="text-base font-normal text-foreground">{field.name}</span>
+        {field.required ? (
+          <span className="text-destructive" aria-label="Required">
+            *
+          </span>
+        ) : null}
+        {field.type ? <FieldTypeBadge type={field.type} /> : null}
+        {field.nestedCount ? (
+          <Badge variant="default" className="rounded-full px-2">
+            {field.nestedCount} Nested Fields
+          </Badge>
+        ) : null}
+      </div>
+      {field.description ? (
+        <p
+          className="text-sm italic text-muted-foreground"
+          style={{ paddingLeft: depth * 20 + 24 }}
+        >
+          {field.description}
+        </p>
+      ) : null}
+      {expandable && open ? (
+        <div className="flex flex-col gap-4">
+          {field.children!.map((child) => (
+            <SchemaFieldRow key={child.name} field={child} depth={depth + 1} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function SchemaFieldsView({ fields }: { fields: SchemaField[] }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {fields.map((field) => (
+        <SchemaFieldRow key={field.name} field={field} />
+      ))}
+    </div>
+  )
+}
+
 function SchemaCodeView({
   schemaName,
   details,
@@ -337,6 +707,11 @@ export function LakewatchSchemaDetailView({
   )
   const versions = React.useMemo(() => buildVersions(schemaName), [schemaName])
   const [selectedVersion, setSelectedVersion] = React.useState(versions[0].version)
+  const nextVersionLabel = React.useMemo(() => {
+    const latestNum = parseInt(versions[0].version.replace(/\D/g, ""), 10) || 0
+    return `v${latestNum + 1}`
+  }, [versions])
+  const [detailView, setDetailView] = React.useState<"ui" | "yaml">("ui")
   const [editingCloneName, setEditingCloneName] = React.useState(false)
   const [cloneDescription, setCloneDescription] = React.useState(details.description)
   const [cloneReferenceUrl, setCloneReferenceUrl] = React.useState(details.docsUrl)
@@ -386,6 +761,11 @@ export function LakewatchSchemaDetailView({
                 </Button>
               </>
             )}
+            {editMode ? (
+              <Badge variant="indigo" className="shrink-0 text-hint uppercase">
+                New version {nextVersionLabel}
+              </Badge>
+            ) : null}
           </div>
         ) : (
           <div className="flex min-w-0 flex-col gap-2">
@@ -394,32 +774,39 @@ export function LakewatchSchemaDetailView({
                 {schemaName}
               </h1>
               <Select value={selectedVersion} onValueChange={setSelectedVersion}>
-                <SelectTrigger className="w-[92px]" aria-label="Version">
+                <SelectTrigger className="w-auto" aria-label="Version">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {versions.map((item) => (
                     <SelectItem key={item.version} value={item.version}>
-                      {item.version}
+                      <span className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">
+                          {item.version}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {item.created}
+                        </span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {isCustom ? (
-              <Badge variant="brown" className="text-hint uppercase">
-                Custom
-              </Badge>
-            ) : (
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {isCustom ? (
+                <Badge variant="brown" className="text-hint uppercase">
+                  Custom
+                </Badge>
+              ) : (
                 <Badge variant="default_tag" className="text-hint uppercase">
                   Panther managed
                 </Badge>
-                <Badge variant="secondary" className="text-hint uppercase">
-                  Read only
-                </Badge>
-              </div>
-            )}
+              )}
+              <Badge variant="secondary" className="text-hint uppercase">
+                Read only
+              </Badge>
+            </div>
           </div>
         )}
         <div className="flex shrink-0 items-center gap-2">
@@ -439,21 +826,19 @@ export function LakewatchSchemaDetailView({
               {isCustom ? (
                 <Button variant="default" size="sm" asChild>
                   <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/edit`}>
-                    Clone & edit
+                    <Plus className="h-4 w-4" />
+                    Add new version
                   </Link>
                 </Button>
-              ) : null}
+              ) : (
+                <Button variant="default" size="sm" asChild>
+                  <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/clone`}>
+                    <Copy className="h-4 w-4 text-muted-foreground" />
+                    Clone
+                  </Link>
+                </Button>
+              )}
               <LakewatchWarehouseSelector />
-              <Button variant="primary" size="sm" asChild>
-                <Link
-                  href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View template
-                  <SquareArrowOutUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
             </>
           )}
         </div>
@@ -514,22 +899,33 @@ export function LakewatchSchemaDetailView({
       )}
 
       <Card>
-        <div className="flex items-center justify-end gap-4">
-          {isCustom && !fromDatasource ? (
-            <span className="text-hint text-muted-foreground">Editable YAML</span>
-          ) : (
-            <span className="text-hint text-muted-foreground">Read only</span>
-          )}
+        <div className="flex items-center justify-between gap-4">
+          <SegmentedControl
+            value={detailView}
+            onValueChange={(value) => setDetailView(value as "ui" | "yaml")}
+          >
+            <SegmentedItem value="ui">UI</SegmentedItem>
+            <SegmentedItem value="yaml">YAML</SegmentedItem>
+          </SegmentedControl>
+          {detailView === "yaml" ? (
+            <span className="text-hint text-muted-foreground">
+              {formMode ? "Editable YAML" : "Read only"}
+            </span>
+          ) : null}
         </div>
         <div className="w-60 border-t border-border" />
-        {isCustom && !fromDatasource ? (
+        {detailView === "ui" ? (
+          <SchemaFieldsView fields={details.fields} />
+        ) : formMode ? (
           <EditableSchemaYaml value={schemaYaml} onChange={setSchemaYaml} />
         ) : (
           <SchemaCodeView schemaName={schemaName} details={details} />
         )}
       </Card>
     </div>
-      {fromDatasource ? <SchemaPreviewPanel /> : null}
+      {fromDatasource ? (
+        <SchemaPreviewPanel preloaded schemaName={schemaName} />
+      ) : null}
     </div>
   )
 }

@@ -40,7 +40,10 @@ export function LakewatchCatalogSelector({ className }: { className?: string }) 
           <ChevronDownIcon size={16} className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[213px]">
+      <DropdownMenuContent
+        align="start"
+        className="w-[213px] border-[#083253] bg-[#02223d] text-white"
+      >
         <DropdownMenuRadioGroup value={catalog} onValueChange={setCatalog}>
           {CATALOG_OPTIONS.map((option) => (
             <DropdownMenuRadioItem key={option} value={option}>

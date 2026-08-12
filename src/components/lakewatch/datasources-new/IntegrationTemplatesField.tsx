@@ -1,7 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { ArrowRight, ChevronDown, ChevronRight, LoaderCircle, Search, X } from "lucide-react"
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  LoaderCircle,
+  Search,
+  SquareArrowOutUpRight,
+  X,
+} from "lucide-react"
+import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -459,6 +468,21 @@ function TemplateDetailsPanel({
                       </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="shrink-0 gap-1"
+                    asChild
+                  >
+                    <Link
+                      href={`/lakewatch/schemas/${encodeURIComponent(template.name)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View ingestion template
+                      <SquareArrowOutUpRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  </Button>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button

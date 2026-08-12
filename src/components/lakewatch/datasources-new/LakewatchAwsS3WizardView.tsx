@@ -1715,6 +1715,7 @@ export function LakewatchAwsS3WizardView({
   const [viewTableName, setViewTableName] = React.useState("")
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
   const [s3RunAs, setS3RunAs] = React.useState("beau.trincia@databricks.com")
+  const [sqsAuth, setSqsAuth] = React.useState("default")
   const [dataSampleLocation, setDataSampleLocation] = React.useState("")
   const [sampleVerification, setSampleVerification] =
     React.useState<VerificationState>("idle")
@@ -2112,6 +2113,52 @@ export function LakewatchAwsS3WizardView({
                       <AwsRegionTypeahead value={awsRegion} onValueChange={validateRegion} />
                       <VerificationIndicator state={regionVerification} label="AWS region" />
                     </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label>Authentication *</Label>
+                    <p className="text-hint text-muted-foreground">
+                      The credentials Lakewatch uses to read messages from the queue.
+                    </p>
+                    <RadioGroup
+                      value={sqsAuth}
+                      onValueChange={setSqsAuth}
+                      className="mt-1 gap-2"
+                    >
+                      <label
+                        htmlFor="sqs-auth-default"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <RadioGroupItem value="default" id="sqs-auth-default" />
+                        <span className="text-sm text-foreground">
+                          Default credentials
+                        </span>
+                      </label>
+                      <label
+                        htmlFor="sqs-auth-secret-scope"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <RadioGroupItem
+                          value="secret-scope"
+                          id="sqs-auth-secret-scope"
+                        />
+                        <span className="text-sm text-foreground">
+                          Workspace secret scope
+                        </span>
+                      </label>
+                      <label
+                        htmlFor="sqs-auth-service-credential"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <RadioGroupItem
+                          value="service-credential"
+                          id="sqs-auth-service-credential"
+                        />
+                        <span className="text-sm text-foreground">
+                          Service credential
+                        </span>
+                      </label>
+                    </RadioGroup>
                   </div>
                 </div>
 

@@ -20,6 +20,7 @@ import {
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
+import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -753,13 +754,19 @@ function DatasourceSchemasTab() {
   return (
     <section>
       <h2 className="text-lg font-semibold leading-6 text-foreground">
-        Ingestion template
+        Ingestion templates
       </h2>
       <Table className="mt-3">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="font-semibold text-foreground">
               Ingestion template name
+            </TableHead>
+            <TableHead className="w-[220px] font-semibold text-foreground">
+              Current version
+            </TableHead>
+            <TableHead className="w-[360px] font-semibold text-foreground">
+              Latest version
             </TableHead>
             <TableHead className="w-[120px]" />
           </TableRow>
@@ -768,6 +775,8 @@ function DatasourceSchemasTab() {
           {pendingSchemas.map((schema) => (
             <TableRow key={schema}>
               <TableCell className="text-foreground">{schema}</TableCell>
+              <TableCell className="text-muted-foreground">—</TableCell>
+              <TableCell className="text-muted-foreground">—</TableCell>
               <TableCell className="text-right">
                 <Badge variant="secondary" className="gap-1">
                   <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -776,20 +785,47 @@ function DatasourceSchemasTab() {
               </TableCell>
             </TableRow>
           ))}
-          {DATASOURCE_SCHEMAS.map((row) => (
-            <TableRow key={row.schema}>
-              <TableCell className="text-foreground">{row.schema}</TableCell>
-              <TableCell className="text-right">
-                <Button variant="default" size="sm" asChild>
-                  <Link
-                    href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
-                  >
-                    View
-                  </Link>
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {DATASOURCE_SCHEMAS.map((row) => {
+            const versions = buildVersions(row.schema)
+            const latest = versions[0]
+            const upToDate =
+              row.schema === "AWS.ALB" || row.schema === "AWS.CloudTrail"
+            const hasUpdate = !upToDate && versions.length > 1
+            const used = hasUpdate ? versions[1] : latest
+            return (
+              <TableRow key={row.schema}>
+                <TableCell className="text-foreground">{row.schema}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className="text-foreground">{used.version}</span>
+                    <Badge variant="secondary" className="font-normal text-hint">
+                      {used.created}
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className="text-foreground">{latest.version}</span>
+                    <Badge variant="secondary" className="font-normal text-hint">
+                      {latest.created}
+                    </Badge>
+                    {hasUpdate ? (
+                      <Badge variant="indigo">Update available</Badge>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="default" size="sm" asChild>
+                    <Link
+                      href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
+                    >
+                      View
+                    </Link>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </section>
@@ -1318,7 +1354,6 @@ export function LakewatchDatasourceDetailView() {
       <Tabs defaultValue="overview" className="mt-5">
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="schemas">Ingestion templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -1388,14 +1423,13 @@ export function LakewatchDatasourceDetailView() {
               </div>
 
               <div className="grid min-w-0 gap-4">
-                <DataProcessedChart />
                 <EventsChart />
               </div>
             </div>
           </section>
-        </TabsContent>
 
-        <TabsContent value="schemas" className="pt-4">
+          <div className="my-6 h-px bg-border" />
+
           <DatasourceSchemasTab />
         </TabsContent>
       </Tabs>
