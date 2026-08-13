@@ -2278,12 +2278,19 @@ export function LakewatchAwsS3WizardView({
             </form>
           ) : isSimpleWizard ? (
             <form
-              className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col gap-6 self-start justify-self-center overflow-y-auto lg:pt-20"
+              className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col self-start justify-self-center overflow-hidden rounded-md border border-input"
               onSubmit={(event) => {
                 event.preventDefault()
                 setActiveStep(2)
               }}
             >
+              <StepPanelHeader
+                step={1}
+                title="Source"
+                description="Configure the source location Lakewatch should use to access your data"
+              />
+
+              <div className="flex min-h-0 flex-col gap-6 overflow-y-auto px-8 pt-6 pb-4">
               <WizardDatasourceNameField
                 catalog={catalog}
                 onCatalogChange={setCatalog}
@@ -2360,8 +2367,9 @@ export function LakewatchAwsS3WizardView({
               />
 
               <WizardComputeModeField />
+              </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex shrink-0 items-center justify-between px-4 py-3">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/lakewatch/datasources/new">Cancel</Link>
                 </Button>
