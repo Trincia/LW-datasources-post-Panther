@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Connection", "Name & Ingestion templates"] as const
+const CONNECT_STEPS = ["Connection", "Parse"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -426,8 +426,8 @@ export function LakewatchLakeflowConnectWizardView({
           templatePanelOpen
             ? "mt-4 w-full"
             : compact
-              ? "mx-auto mt-6 w-full max-w-[679px]"
-              : "mx-auto mt-6 w-full items-start gap-8 max-w-[1168px] lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
+              ? "mx-auto mt-6 w-full max-w-[920px] pb-4"
+              : "mt-6 w-full items-start gap-8 pb-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-x-0"
         )}
       >
         {!stepperCollapsed ? (
@@ -438,7 +438,7 @@ export function LakewatchLakeflowConnectWizardView({
 
         {activeStep === 1 ? (
           <form
-            className="flex w-full flex-col overflow-hidden rounded-md border border-border"
+            className="flex min-h-0 max-h-full w-full max-w-[920px] flex-col self-start justify-self-center overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
               setActiveStep(2)
@@ -450,7 +450,7 @@ export function LakewatchLakeflowConnectWizardView({
               description={description}
             />
 
-            <div className="flex min-h-[240px] flex-col gap-6 px-8 py-6">
+            <div className="flex min-h-0 flex-col gap-6 overflow-y-auto px-8 py-6">
               <WizardDatasourceNameField
                 catalog={catalog}
                 onCatalogChange={setCatalog}
@@ -604,28 +604,30 @@ export function LakewatchLakeflowConnectWizardView({
               <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
 
               <WizardComputeModeField />
+            </div>
 
-              <div className="mt-auto flex items-center justify-between pt-8">
-                <Button
-                  asChild
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="px-0 font-normal text-primary hover:bg-transparent hover:text-primary"
-                >
-                  <Link href={cancelHref}>Cancel</Link>
-                </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  Continue
-                </Button>
-              </div>
+            <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
+              <Button
+                asChild
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-0 font-normal text-primary hover:bg-transparent hover:text-primary"
+              >
+                <Link href={cancelHref}>Cancel</Link>
+              </Button>
+              <Button type="submit" variant="primary" size="sm">
+                Continue
+              </Button>
             </div>
           </form>
         ) : (
           <form
             className={cn(
               "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
-              templatePanelOpen ? "lg:my-6 lg:ml-5 lg:mr-6" : "w-full h-full"
+              templatePanelOpen
+                ? "lg:my-6 lg:ml-5 lg:mr-6"
+                : "w-full max-h-full max-w-[920px] self-start justify-self-center"
             )}
             onSubmit={(event) => {
               event.preventDefault()
@@ -634,11 +636,11 @@ export function LakewatchLakeflowConnectWizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Ingestion templates"
-              description={`Select the ingestion templates Lakewatch should use to classify data from ${label}.`}
+              title="Parse"
+              description={`Select the parsers Lakewatch should use to classify data from ${label}.`}
             />
 
-            <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
+            <div className="flex min-h-0 flex-col overflow-y-auto px-8 py-6">
               <IntegrationTemplatesField controller={templateController} hideHeader />
             </div>
 

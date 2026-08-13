@@ -338,7 +338,7 @@ const SCHEMA_DETAILS: Record<string, SchemaDetails> = {
           },
           {
             name: "schemaVersion",
-            description: "Version of the ingestion template applied.",
+            description: "Version of the parser applied.",
             type: "string",
             tags: [],
           },
@@ -679,7 +679,7 @@ export function LakewatchSchemaDetailView({
   const searchParams = useSearchParams()
   const schemaName = decodeURIComponent(params.schemaName ?? "AlphaSOC.Alert")
   const formMode = cloneMode || editMode
-  // Opened from a datasource's Ingestion templates tab: show it read-only with
+  // Opened from a datasource's Parsers tab: show it read-only with
   // the sample data preview docked at the bottom, and no clone/edit actions.
   const fromDatasource = !formMode && searchParams.get("from") === "datasource"
   const [isCustom, setIsCustom] = React.useState(false)
@@ -691,7 +691,7 @@ export function LakewatchSchemaDetailView({
   const details =
     SCHEMA_DETAILS[schemaName] ??
     ({
-      description: `${schemaName} schema`,
+      description: `${schemaName} parser`,
       docsUrl: "https://docs.databricks.com/",
       fieldDiscovery: "Enabled",
       datasourceCount: 0,
@@ -742,7 +742,7 @@ export function LakewatchSchemaDetailView({
                 onChange={(event) => setCloneName(event.target.value)}
                 onBlur={() => setEditingCloneName(false)}
                 autoFocus
-                aria-label={editMode ? "Ingestion template name" : "Cloned schema name"}
+                aria-label={editMode ? "Parser name" : "Cloned parser name"}
                 className="max-w-sm"
               />
             ) : (
@@ -754,7 +754,7 @@ export function LakewatchSchemaDetailView({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  aria-label={editMode ? "Edit ingestion template name" : "Edit cloned schema name"}
+                  aria-label={editMode ? "Edit parser name" : "Edit cloned parser name"}
                   onClick={() => setEditingCloneName(true)}
                 >
                   <PencilIcon size={14} className="text-muted-foreground" />

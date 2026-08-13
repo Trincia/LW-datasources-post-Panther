@@ -348,7 +348,7 @@ export function SchemaPreviewPanel({
           </h3>
           <p className="whitespace-nowrap text-[15px] leading-[22px] text-muted-foreground">
             Choose a data source for your sample. The preview will show how your
-            ingestion template transforms the data.
+            parser transforms the data.
           </p>
         </div>
 
@@ -634,7 +634,7 @@ export function SchemaPreviewPanel({
           <Info className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-hint text-muted-foreground">
             Sample data is used only to generate the preview and is not saved as
-            part of the ingestion template.
+            part of the parser.
           </p>
         </div>
       </div>

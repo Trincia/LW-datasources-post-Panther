@@ -7,7 +7,7 @@ export interface SchemasNavIconProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
- * Lakewatch ingestion templates navigation icon from Figma node 2748:65470.
+ * Lakewatch parsers navigation icon from Figma node 2748:65470.
  * Rebuilt as an inline SVG so every stroke inherits the surrounding DuBois
  * semantic text color (muted by default, primary when active).
  */

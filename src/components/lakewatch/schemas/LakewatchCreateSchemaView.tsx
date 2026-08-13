@@ -228,7 +228,7 @@ export function LakewatchCreateSchemaView() {
 
     saveCustomSchema({
       name,
-      description: description.trim() || `${name} schema`,
+      description: description.trim() || `${name} parser`,
       managedBy: "User",
       fieldDiscovery: "Enabled",
       datasourceCount: 0,
@@ -248,16 +248,16 @@ export function LakewatchCreateSchemaView() {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link href="/lakewatch/schemas">Ingestion template</Link>
+                  <Link href="/lakewatch/schemas">Parser</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>Create new ingestion template</BreadcrumbPage>
+                <BreadcrumbPage>Create new parser</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Create new ingestion template</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Create new parser</h1>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Button variant="default" size="sm" asChild>
@@ -314,7 +314,7 @@ export function LakewatchCreateSchemaView() {
             <Label htmlFor="schema-description">Description</Label>
             <Textarea
               id="schema-description"
-              placeholder="Ingestion template description"
+              placeholder="Parser description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               onFocus={() => {
@@ -330,7 +330,7 @@ export function LakewatchCreateSchemaView() {
         <section className="flex flex-col gap-2">
           <CodeEditor
             label="Fields & Indicators"
-            description="Define and edit the fields and indicators of your ingestion template."
+            description="Define and edit the fields and indicators of your parser."
             value={schemaDefinition}
             onChange={setSchemaDefinition}
             placeholder={SCHEMA_EMPTY_STATE}

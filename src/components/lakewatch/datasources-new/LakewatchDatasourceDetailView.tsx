@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { Check, Loader2, Lock, MoreHorizontal, Pencil } from "lucide-react"
+import { Activity, Check, Loader2, Lock, MoreHorizontal, Pencil } from "lucide-react"
 
 import {
   CalendarRangeIcon,
@@ -55,6 +55,14 @@ import {
   SegmentedControl,
   SegmentedItem,
 } from "@/components/ui/segmented-control"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -64,7 +72,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
 const SOURCE_STATUSES = [
@@ -150,7 +157,7 @@ function buildSeriesPaths(values: readonly number[], max: number = CHART_MAX) {
 const EVENTS_MAX = 500
 const EVENTS_SERIES = {
   label: "Processed Events",
-  color: "#2EB5A6",
+  color: "#8acaff",
   values: [410, 414, 411, 417, 415, 413, 419, 416, 422, 420, 417, 405, 35],
 }
 
@@ -518,31 +525,6 @@ function EventsChart() {
   )
 }
 
-function DateRangeControls() {
-  return (
-    <div className="flex items-center gap-2">
-      <Select defaultValue="auto">
-        <SelectTrigger className="w-[80px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">Auto</SelectItem>
-          <SelectItem value="hour">Hourly</SelectItem>
-          <SelectItem value="day">Daily</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        variant="default"
-        size="sm"
-        className="min-w-[320px] justify-between font-normal"
-      >
-        <span>07/21/26 4:00 - 07/28/2026 04:59</span>
-        <CalendarRangeIcon size={16} className="text-muted-foreground" />
-      </Button>
-    </div>
-  )
-}
-
 const CLASSIFICATION_SERIES = [
   {
     label: "Classified",
@@ -674,7 +656,6 @@ function DatasourceHealthTab() {
           <h2 className="text-lg font-semibold leading-6 text-foreground">
             Event classification
           </h2>
-          <DateRangeControls />
         </div>
         <EventClassificationChart />
       </section>
@@ -749,13 +730,13 @@ function DatasourceSchemasTab() {
   return (
     <section>
       <h2 className="text-lg font-semibold leading-6 text-foreground">
-        Ingestion templates
+        Parsers
       </h2>
       <Table className="mt-3">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="font-semibold text-foreground">
-              Ingestion template name
+              Parser name
             </TableHead>
             <TableHead className="w-[220px] font-semibold text-foreground">
               Current version
@@ -1349,12 +1330,7 @@ export function LakewatchDatasourceDetailView() {
         <DetailHeaderControls />
       </div>
 
-      <Tabs defaultValue="overview" className="mt-5">
-        <TabsList variant="line">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="pt-4">
+      <div className="mt-5">
           <ProcessingScheduleToolbar />
 
           <div className="mt-5 flex max-w-[679px] flex-col gap-5">
@@ -1448,7 +1424,26 @@ export function LakewatchDatasourceDetailView() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold leading-6 text-foreground">Source status</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold leading-6 text-foreground">Source status</h2>
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-1.5">
+                      <Activity className="h-4 w-4" aria-hidden />
+                      Health monitoring
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="sm:max-w-md">
+                    <SheetHeader>
+                      <SheetTitle>Health monitoring</SheetTitle>
+                      <SheetDescription>
+                        Configure health checks and alerting for this datasource.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-y-auto px-6 pb-6" />
+                  </SheetContent>
+                </Sheet>
+              </div>
               <dl className="mt-3 flex flex-col gap-2 text-sm">
                 {SOURCE_STATUSES.map(([label, date]) => (
                   <div
@@ -1474,7 +1469,6 @@ export function LakewatchDatasourceDetailView() {
           <section>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold leading-6 text-foreground">Overview stats</h2>
-              <DateRangeControls />
             </div>
 
             <div className="mt-3 grid items-start gap-4 lg:grid-cols-[214px_minmax(0,1fr)]">
@@ -1498,8 +1492,7 @@ export function LakewatchDatasourceDetailView() {
           <div className="my-6 h-px bg-border" />
 
           <DatasourceSchemasTab />
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   )
 }

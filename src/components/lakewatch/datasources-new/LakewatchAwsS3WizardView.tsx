@@ -88,8 +88,8 @@ import {
 import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
-  "Source location",
-  "Name & Ingestion templates",
+  "Source",
+  "Parse",
 ] as const
 
 export type LakewatchDatasourceWizardKind =
@@ -101,7 +101,7 @@ export type LakewatchDatasourceWizardKind =
   | "azure-blob-storage"
 
 function getSimpleWizardSteps(_kind: LakewatchDatasourceWizardKind) {
-  return ["Configure source", "Name & Ingestion templates"] as const
+  return ["Source", "Parse"] as const
 }
 
 const SIMPLE_WIZARD_CONFIG: Record<
@@ -155,7 +155,6 @@ const DETECTED_SCHEMAS = [
 
 type UnwrapMode =
   | "none"
-  | "auto"
   | "lines"
   | "json"
   | "json-array"
@@ -1060,9 +1059,37 @@ export function WizardProcessingScheduleField() {
   )
 }
 
-export function WizardComputeModeField() {
+export function WizardComputeModeField({ bare = false }: { bare?: boolean } = {}) {
   const [open, setOpen] = React.useState(false)
   const [mode, setMode] = React.useState("standard")
+
+  const radios = (
+    <RadioGroup value={mode} onValueChange={setMode} className="gap-2">
+      <label
+        htmlFor="compute-mode-standard"
+        className="flex cursor-pointer items-center gap-2"
+      >
+        <RadioGroupItem value="standard" id="compute-mode-standard" />
+        <span className="text-sm text-foreground">Standard</span>
+      </label>
+      <label
+        htmlFor="compute-mode-performance"
+        className="flex cursor-pointer items-center gap-2"
+      >
+        <RadioGroupItem value="performance" id="compute-mode-performance" />
+        <span className="text-sm text-foreground">Performance optimized</span>
+      </label>
+    </RadioGroup>
+  )
+
+  if (bare) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Label>Compute mode</Label>
+        {radios}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -1079,24 +1106,7 @@ export function WizardComputeModeField() {
           className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
         />
       </Button>
-      {open ? (
-        <RadioGroup value={mode} onValueChange={setMode} className="gap-2">
-          <label
-            htmlFor="compute-mode-standard"
-            className="flex cursor-pointer items-center gap-2"
-          >
-            <RadioGroupItem value="standard" id="compute-mode-standard" />
-            <span className="text-sm text-foreground">Standard</span>
-          </label>
-          <label
-            htmlFor="compute-mode-performance"
-            className="flex cursor-pointer items-center gap-2"
-          >
-            <RadioGroupItem value="performance" id="compute-mode-performance" />
-            <span className="text-sm text-foreground">Performance optimized</span>
-          </label>
-        </RadioGroup>
-      ) : null}
+      {open ? radios : null}
     </div>
   )
 }
@@ -1594,7 +1604,7 @@ function SchemaSplitPreview({
                   variant="ghost"
                   size="sm"
                   className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
-                  aria-label="Select ingestion template"
+                  aria-label="Select parser"
                 >
                   <span className="max-w-[140px] truncate text-sm">{schema}</span>
                   <ChevronDownIcon className="h-4 w-4" />
@@ -1779,7 +1789,7 @@ export function LakewatchAwsS3WizardView({
   const [awsRegion, setAwsRegion] = React.useState("")
   const [regionVerification, setRegionVerification] =
     React.useState<VerificationState>("idle")
-  const [timeRangeOpen, setTimeRangeOpen] = React.useState(false)
+  const [advancedOpen, setAdvancedOpen] = React.useState(false)
   const [managedNotifications, setManagedNotifications] = React.useState(false)
   const [unwrapping, setUnwrapping] = React.useState<UnwrapMode>("none")
   const [topLevelField, setTopLevelField] = React.useState("")
@@ -2125,10 +2135,10 @@ export function LakewatchAwsS3WizardView({
         className={cn(
           "grid grid-cols-1 min-h-0 flex-1",
           templatePanelOpen
-            ? "mt-4 w-full"
+            ? "mt-4 w-full [grid-template-rows:minmax(0,1fr)]"
             : compact
-              ? "mx-auto mt-6 w-full max-w-[679px]"
-              : "mx-auto mt-6 w-full items-start gap-8 max-w-[1168px] lg:grid-cols-[220px_minmax(0,679px)] lg:gap-20 xl:gap-40"
+              ? "mx-auto mt-6 w-full max-w-[920px] pb-4 [grid-template-rows:minmax(0,1fr)]"
+              : "mt-6 w-full items-start gap-8 pb-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-x-0 lg:[grid-template-rows:minmax(0,1fr)]"
         )}
       >
         {!stepperCollapsed ? (
@@ -2143,7 +2153,7 @@ export function LakewatchAwsS3WizardView({
         {activeStep === 1 ? (
           isSqs ? (
             <form
-              className="flex max-h-full w-full min-h-0 flex-col self-start overflow-hidden rounded-md border border-input"
+              className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col self-start justify-self-center overflow-hidden rounded-md border border-input"
               onSubmit={(event) => {
                 event.preventDefault()
                 setActiveStep(2)
@@ -2151,12 +2161,12 @@ export function LakewatchAwsS3WizardView({
             >
               <StepPanelHeader
                 step={1}
-                title="Source location"
+                title="Source"
                 description="Configure the SQS queue and region Lakewatch should use to consume messages"
               />
 
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+              <div className="flex min-h-0 flex-col">
+                <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
                   <WizardDatasourceNameField
                     catalog={catalog}
                     onCatalogChange={setCatalog}
@@ -2268,7 +2278,7 @@ export function LakewatchAwsS3WizardView({
             </form>
           ) : isSimpleWizard ? (
             <form
-              className="flex w-full flex-col gap-6 lg:pt-20"
+              className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col gap-6 self-start justify-self-center overflow-y-auto lg:pt-20"
               onSubmit={(event) => {
                 event.preventDefault()
                 setActiveStep(2)
@@ -2362,7 +2372,7 @@ export function LakewatchAwsS3WizardView({
             </form>
           ) : (
           <form
-            className="flex max-h-full w-full min-h-0 flex-col self-start overflow-hidden rounded-md border border-input"
+            className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col self-start justify-self-center overflow-hidden rounded-md border border-input"
             onSubmit={(event) => {
               event.preventDefault()
               setActiveStep(2)
@@ -2370,12 +2380,12 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={1}
-              title="Source location"
+              title="Source"
               description="Configure the S3 location and credentials Lakewatch should use to access your data"
             />
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+            <div className="flex min-h-0 flex-col">
+              <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
               <WizardDatasourceNameField
                 catalog={catalog}
                 onCatalogChange={setCatalog}
@@ -2410,26 +2420,6 @@ export function LakewatchAwsS3WizardView({
 
               <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
 
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto self-start gap-1 p-0 !px-0"
-                  aria-expanded={timeRangeOpen}
-                  onClick={() => setTimeRangeOpen((current) => !current)}
-                >
-                  Time range (optional)
-                  <ChevronDownIcon
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      timeRangeOpen && "rotate-180"
-                    )}
-                  />
-                </Button>
-                {timeRangeOpen ? <WizardDataTimeRangeField /> : null}
-              </div>
-
               <RunAsControl
                 value={s3RunAs}
                 onValueChange={setS3RunAs}
@@ -2437,24 +2427,48 @@ export function LakewatchAwsS3WizardView({
               />
 
               <div className="flex flex-col gap-2">
-                <div>
-                  <Label htmlFor="managed-file-notifications">
-                    Use managed file notifications
-                  </Label>
-                  <p className="text-hint text-muted-foreground">
-                    When enabled, uses managed file events configured on the external location for
-                    file notification instead of directory listing.
-                  </p>
-                </div>
-                <Switch
-                  id="managed-file-notifications"
+                <Button
+                  type="button"
+                  variant="link"
                   size="sm"
-                  checked={managedNotifications}
-                  onCheckedChange={setManagedNotifications}
-                />
-              </div>
+                  className="h-auto self-start gap-1 p-0 !px-0"
+                  aria-expanded={advancedOpen}
+                  onClick={() => setAdvancedOpen((current) => !current)}
+                >
+                  Advanced options (optional)
+                  <ChevronDownIcon
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      advancedOpen && "rotate-180"
+                    )}
+                  />
+                </Button>
+                {advancedOpen ? (
+                  <div className="flex flex-col gap-5 border-l border-border pl-4">
+                    <WizardDataTimeRangeField />
 
-              <WizardComputeModeField />
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <Label htmlFor="managed-file-notifications">
+                          Use managed file notifications
+                        </Label>
+                        <p className="text-hint text-muted-foreground">
+                          When enabled, uses managed file events configured on the external location for
+                          file notification instead of directory listing.
+                        </p>
+                      </div>
+                      <Switch
+                        id="managed-file-notifications"
+                        size="sm"
+                        checked={managedNotifications}
+                        onCheckedChange={setManagedNotifications}
+                      />
+                    </div>
+
+                    <WizardComputeModeField bare />
+                  </div>
+                ) : null}
+              </div>
               </div>
 
               <div className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -2474,7 +2488,7 @@ export function LakewatchAwsS3WizardView({
               "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
               templatePanelOpen
                 ? "h-full lg:my-6 lg:ml-5 lg:mr-6"
-                : "max-h-full w-full self-start"
+                : "max-h-full w-full max-w-[920px] self-start justify-self-center"
             )}
             onSubmit={(event) => {
               event.preventDefault()
@@ -2489,11 +2503,11 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Ingestion templates"
-              description="Select the ingestion templates Lakewatch should use to classify your logs"
+              title="Parse"
+              description="Select the parsers Lakewatch should use to classify your logs"
             />
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6">
+            <div className="flex min-h-0 flex-col overflow-y-auto px-8 py-6">
               {!isExistingTable ? (
                 <div
                   ref={prepareEventsRef}
@@ -2505,7 +2519,7 @@ export function LakewatchAwsS3WizardView({
                       Choose how Lakewatch turns each source record into one or more logical events.
                     </p>
                   </div>
-                  <div className="grid grid-cols-[160px_minmax(0,1fr)] items-center gap-3">
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
                     <Label htmlFor="unwrapping-method" className="font-normal">
                       Unwrapping
                     </Label>
@@ -2526,12 +2540,6 @@ export function LakewatchAwsS3WizardView({
                             description="Use each source record as one event."
                           >
                             No unwrapping
-                          </SelectItem>
-                          <SelectItem
-                            value="auto"
-                            description="Lakewatch detects the framing automatically."
-                          >
-                            Auto
                           </SelectItem>
                         <SelectItem value="lines" description="Events are line delimited.">
                           Lines

@@ -143,7 +143,7 @@ export function LakewatchSchemasView() {
 
     const url = new URL(window.location.href)
     if (url.searchParams.get("created")) {
-      toast.success("New ingestion template successfully added")
+      toast.success("New parser successfully added")
       url.searchParams.delete("created")
       window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
     }
@@ -169,7 +169,7 @@ export function LakewatchSchemasView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-center justify-between gap-4">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Ingestion templates</h1>
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Parsers</h1>
         <div className="flex shrink-0 items-center gap-3">
           <LakewatchDataControls />
           <Button variant="primary" size="sm" asChild>
@@ -191,8 +191,8 @@ export function LakewatchSchemasView() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter ingestion templates"
-            aria-label="Filter ingestion templates"
+            placeholder="Filter parsers"
+            aria-label="Filter parsers"
             className="pl-9"
           />
         </div>
@@ -212,7 +212,7 @@ export function LakewatchSchemasView() {
         <Table className="min-w-[980px] table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortableHeader className="w-[32%]">Ingestion template Name</SortableHeader>
+              <SortableHeader className="w-[32%]">Parser Name</SortableHeader>
               <SortableHeader className="w-[16%]">Type</SortableHeader>
               <SortableHeader className="w-[30%]">Latest version date/time</SortableHeader>
               <TableHead className="h-10 w-[22%] bg-muted/70 font-normal text-muted-foreground">

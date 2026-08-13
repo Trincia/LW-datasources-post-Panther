@@ -275,7 +275,7 @@ const FAMILY_EVENT_FIELDS: TemplateField[] = [
 ]
 
 /**
- * Builds the built-in ingestion templates for a specific source family (e.g.
+ * Builds the built-in parsers for a specific source family (e.g.
  * "Slack"), so the Lakeflow Connect wizard only surfaces templates relevant to
  * the connector the user picked.
  */
@@ -479,7 +479,7 @@ function TemplateDetailsPanel({
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      View ingestion template
+                      View parser
                       <SquareArrowOutUpRight className="h-4 w-4 text-muted-foreground" />
                     </Link>
                   </Button>
@@ -699,7 +699,7 @@ function CloneTemplatePanel({
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-input px-6 py-5">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-foreground">
-            Clone ingestion template
+            Clone parser
           </h2>
           <p className="text-hint text-muted-foreground">
             Create a new custom template based on this template. The original remains unchanged.
@@ -1047,7 +1047,7 @@ function TemplateSearchDropdown({
       <div className="max-h-[320px] overflow-y-auto py-1">
         {groupNames.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No ingestion templates found
+            No parsers found
           </p>
         ) : (
           groupNames.map((groupName) => {
@@ -1314,16 +1314,16 @@ export function IntegrationTemplatesField({
     <div className="flex flex-col gap-3">
       {hideHeader ? null : (
         <div>
-          <Label>Ingestion templates (optional)</Label>
+          <Label>Parsers (optional)</Label>
           <p className="text-hint text-muted-foreground">
-            Select built-in or custom ingestion templates to structure and validate incoming event data.
+            Select built-in or custom parsers to structure and validate incoming event data.
           </p>
         </div>
       )}
 
       <div ref={containerRef} className="relative flex flex-col gap-1">
         <Label htmlFor="template-search" className="font-semibold">
-          Search ingestion templates
+          Search parsers
         </Label>
         <div className="relative">
           <Search
@@ -1358,10 +1358,10 @@ export function IntegrationTemplatesField({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
-              Selected ingestion templates
+              Selected parsers
             </p>
             <span className="text-hint text-muted-foreground">
-              {selectedTemplates.length} ingestion templates active
+              {selectedTemplates.length} parsers active
             </span>
           </div>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -1382,10 +1382,10 @@ export function IntegrationTemplatesField({
       ) : (
         <div className="flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-muted/40 px-6 py-10 text-center">
           <p className="text-sm font-semibold text-foreground">
-            No ingestion templates selected yet
+            No parsers selected yet
           </p>
           <p className="text-hint text-muted-foreground">
-            Use the search above to browse built-in and custom ingestion templates.
+            Use the search above to browse built-in and custom parsers.
           </p>
         </div>
       )}
@@ -1402,7 +1402,7 @@ export function IntegrationTemplatesField({
             target="_blank"
             rel="noopener noreferrer"
           >
-            Create new custom ingestion template
+            Create new custom parser
             <SquareArrowOutUpRight className="h-4 w-4" aria-hidden />
           </Link>
         </Button>
@@ -1420,7 +1420,7 @@ export function IntegrationTemplatesField({
               onCheckedChange={(value) => setSkipTemplates(value === true)}
             />
             <span className="text-sm text-foreground">
-              Skip ingestion templates for now
+              Skip parsers for now
             </span>
           </label>
 
@@ -1428,7 +1428,7 @@ export function IntegrationTemplatesField({
             <div className="flex flex-col gap-2">
               <p className="text-hint text-muted-foreground">
                 It is recommended that you write this datasource to a raw table you
-                define if there are no ingestion templates. Lakewatch uses ingestion
+                define if there are no parsers. Lakewatch uses ingestion
                 metadata for recovery and processing.
               </p>
               <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
