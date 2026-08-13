@@ -22,9 +22,9 @@ import {
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import {
-  WizardAnnotationsField,
   WizardComputeModeField,
-  WizardProcessingScheduleField,
+  WizardDatasourceNameField,
+  WizardFormatField,
 } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -60,17 +60,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Connection", "Name & Ingestion templates", "Additional details"] as const
+const CONNECT_STEPS = ["Connection", "Name & Ingestion templates"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -248,7 +240,7 @@ export function LakewatchLakeflowConnectWizardView({
   const [datasourceName, setDatasourceName] = React.useState("")
   const [catalog, setCatalog] = React.useState("lakewatch")
   const [schema, setSchema] = React.useState("default")
-  const [datasourceDescription, setDatasourceDescription] = React.useState("")
+  const [dataFormat, setDataFormat] = React.useState("")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const templateController = useIntegrationTemplates(label)
@@ -458,7 +450,16 @@ export function LakewatchLakeflowConnectWizardView({
               description={description}
             />
 
-            <div className="flex min-h-[240px] flex-col px-8 py-6">
+            <div className="flex min-h-[240px] flex-col gap-6 px-8 py-6">
+              <WizardDatasourceNameField
+                catalog={catalog}
+                onCatalogChange={setCatalog}
+                schema={schema}
+                onSchemaChange={setSchema}
+                name={datasourceName}
+                onNameChange={setDatasourceName}
+              />
+
               <div className="flex flex-col gap-3">
                 <p className="text-sm font-semibold text-foreground">
                   Connection to the source
@@ -600,6 +601,10 @@ export function LakewatchLakeflowConnectWizardView({
                 </Table>
               </div>
 
+              <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
+
+              <WizardComputeModeField />
+
               <div className="mt-auto flex items-center justify-between pt-8">
                 <Button
                   asChild
@@ -616,7 +621,7 @@ export function LakewatchLakeflowConnectWizardView({
               </div>
             </div>
           </form>
-        ) : activeStep === 2 ? (
+        ) : (
           <form
             className={cn(
               "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
@@ -624,51 +629,17 @@ export function LakewatchLakeflowConnectWizardView({
             )}
             onSubmit={(event) => {
               event.preventDefault()
-              setActiveStep(3)
+              handleFinish()
             }}
           >
             <StepPanelHeader
               step={2}
-              title="Name & Ingestion templates"
-              description={`Name your datasource and select the ingestion templates Lakewatch should use to classify data from ${label}.`}
+              title="Ingestion templates"
+              description={`Select the ingestion templates Lakewatch should use to classify data from ${label}.`}
             />
 
             <div className="flex min-h-[370px] flex-1 flex-col overflow-y-auto px-8 py-6 lg:min-h-0">
-              <div className="mb-5 flex flex-col">
-                <Label className="mb-2">Datasource name *</Label>
-                <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
-                  <Select value={catalog} onValueChange={setCatalog} disabled>
-                    <SelectTrigger className="w-full" aria-label="Catalog">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lakewatch">lakewatch</SelectItem>
-                      <SelectItem value="main">main</SelectItem>
-                      <SelectItem value="security">security</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={schema} onValueChange={setSchema}>
-                    <SelectTrigger className="w-full" aria-label="Schema">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">default</SelectItem>
-                      <SelectItem value="bronze">bronze</SelectItem>
-                      <SelectItem value="production">production</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    aria-label="Datasource name"
-                    value={datasourceName}
-                    onChange={(event) => setDatasourceName(event.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <IntegrationTemplatesField controller={templateController} hideHeader />
-              </div>
+              <IntegrationTemplatesField controller={templateController} hideHeader />
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
@@ -681,52 +652,8 @@ export function LakewatchLakeflowConnectWizardView({
                 Back
               </Button>
               <Button type="submit" variant="primary" size="sm">
-                Continue
+                Create datasource
               </Button>
-            </div>
-          </form>
-        ) : (
-          <form
-            className="flex w-full flex-col overflow-hidden rounded-md border border-border"
-            onSubmit={(event) => {
-              event.preventDefault()
-              handleFinish()
-            }}
-          >
-            <StepPanelHeader
-              step={3}
-              title="Additional details"
-              description="Configure how often Lakewatch runs this datasource and add optional metadata"
-            />
-
-            <div className="flex min-h-[370px] flex-col gap-5 px-8 py-6">
-              <WizardProcessingScheduleField />
-              <WizardComputeModeField />
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="connect-description">Description (optional)</Label>
-                <Textarea
-                  id="connect-description"
-                  value={datasourceDescription}
-                  onChange={(event) => setDatasourceDescription(event.target.value)}
-                  placeholder="Add a description for this datasource"
-                  className="min-h-[80px]"
-                />
-              </div>
-              <WizardAnnotationsField />
-
-              <div className="mt-auto flex items-center justify-between pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveStep(2)}
-                >
-                  Back
-                </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  Create datasource
-                </Button>
-              </div>
             </div>
           </form>
         )}

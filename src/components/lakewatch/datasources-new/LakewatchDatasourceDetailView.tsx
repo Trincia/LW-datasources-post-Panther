@@ -41,6 +41,9 @@ import {
 } from "@/components/ui/dialog"
 import { Empty } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { WizardAnnotationsField } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 import {
   Select,
   SelectContent,
@@ -498,14 +501,6 @@ function EventsChart() {
               </div>
             ))}
           </div>
-
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/lakewatch/charts/datasource-range-slider.svg"
-            alt=""
-            className="mt-3 h-2 w-full"
-            aria-hidden
-          />
 
           <div className="ml-[72px] mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex items-center gap-2 text-hint text-foreground">
@@ -1321,6 +1316,9 @@ export function LakewatchDatasourceDetailView() {
   const params = useParams<{ sourceId: string }>()
   const sourceName = decodeURIComponent(params.sourceId ?? "lakewatch-account-us-west-2")
   const logoKind = DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"
+  const [description, setDescription] = React.useState("")
+  const [editingDescription, setEditingDescription] = React.useState(false)
+  const [draftDescription, setDraftDescription] = React.useState("")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
@@ -1358,6 +1356,75 @@ export function LakewatchDatasourceDetailView() {
 
         <TabsContent value="overview" className="pt-4">
           <ProcessingScheduleToolbar />
+
+          <div className="mt-5 flex max-w-[679px] flex-col gap-5">
+            {editingDescription ? (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="datasource-overview-description">Description</Label>
+                <Textarea
+                  id="datasource-overview-description"
+                  value={draftDescription}
+                  onChange={(event) => setDraftDescription(event.target.value)}
+                  placeholder="Add a description for this datasource"
+                  autoFocus
+                  rows={3}
+                  className="min-h-[80px]"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setDescription(draftDescription)
+                      setEditingDescription(false)
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => setEditingDescription(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold leading-5 text-foreground">
+                    Description
+                  </p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto gap-1 p-0 !px-0"
+                    onClick={() => {
+                      setDraftDescription(description)
+                      setEditingDescription(true)
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
+                {description ? (
+                  <p className="whitespace-pre-wrap text-sm text-foreground">
+                    {description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Add a description for this datasource
+                  </p>
+                )}
+              </div>
+            )}
+            <WizardAnnotationsField />
+          </div>
 
           <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] lg:gap-8">
             <section>

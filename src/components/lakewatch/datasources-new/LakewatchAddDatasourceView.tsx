@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { SearchIcon, TableIcon } from "@/components/icons"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   Breadcrumb,
@@ -20,6 +21,7 @@ type SourceCard = {
   title: string
   description: string
   meta?: string
+  badge?: string
   href?: string
   wide?: boolean
   icon: React.ReactNode
@@ -55,7 +57,7 @@ const UNITY_CATALOG_SOURCES: SourceCard[] = [
   },
   {
     id: "uc-volume",
-    title: "UC Volume",
+    title: "Existing UC Volume",
     description: "Onboard UC Volume Storage as a datasource in Lakewatch.",
     href: "/lakewatch/datasources/new/uc-volume",
     categories: ["Cloud", "Custom datasources", "Data platform"],
@@ -82,6 +84,7 @@ const OBJECT_STORAGE_SOURCES: SourceCard[] = [
   {
     id: "sqs",
     title: "AWS SQS Queue",
+    badge: "Recommended for large S3 volumes",
     description: "Onboard AWS SQS Queue as a datasource in Lakewatch",
     href: "/lakewatch/datasources/new/aws-sqs",
     categories: ["AWS", "Cloud", "Custom datasources"],
@@ -504,6 +507,11 @@ function SourceCardTile({ card }: { card: SourceCard }) {
       <div className="flex items-center gap-3">
         {card.icon}
         <h3 className="truncate text-lg font-semibold leading-6 text-foreground">{card.title}</h3>
+        {card.badge ? (
+          <Badge variant="indigo" className="shrink-0">
+            {card.badge}
+          </Badge>
+        ) : null}
       </div>
       <p className="text-sm leading-5 text-muted-foreground">{card.description}</p>
       {card.meta ? (

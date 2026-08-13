@@ -153,7 +153,7 @@ function SchemaTagsField() {
         type="button"
         variant="link"
         size="sm"
-        className="h-auto self-start gap-1 p-0"
+        className="h-auto self-start gap-1 p-0 !px-0"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >

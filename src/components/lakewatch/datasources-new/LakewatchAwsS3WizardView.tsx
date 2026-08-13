@@ -48,7 +48,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
@@ -78,7 +77,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -92,7 +90,6 @@ import { cn } from "@/lib/utils"
 const WIZARD_STEPS = [
   "Source location",
   "Name & Ingestion templates",
-  "Additional details",
 ] as const
 
 export type LakewatchDatasourceWizardKind =
@@ -104,11 +101,7 @@ export type LakewatchDatasourceWizardKind =
   | "azure-blob-storage"
 
 function getSimpleWizardSteps(_kind: LakewatchDatasourceWizardKind) {
-  return [
-    "Configure source",
-    "Name & Ingestion templates",
-    "Additional details",
-  ] as const
+  return ["Configure source", "Name & Ingestion templates"] as const
 }
 
 const SIMPLE_WIZARD_CONFIG: Record<
@@ -160,7 +153,14 @@ const DETECTED_SCHEMAS = [
   "AWS.CloudTrail",
 ] as const
 
-type EventPrepMode = "record" | "unwrap"
+type UnwrapMode =
+  | "none"
+  | "auto"
+  | "lines"
+  | "json"
+  | "json-array"
+  | "cloudwatch"
+  | "xml"
 
 type PreviewSchema = (typeof DETECTED_SCHEMAS)[number]
 
@@ -281,7 +281,9 @@ const UNWRAP_SOURCE_RECORDS: UnwrapSourceRecord[] = Array.from({ length: 10 }, (
   }
 })
 
-const UNWRAP_COPYABLE_FIELDS = ["accountId", "region", "bucket", "requestId"] as const
+// Fixed set of source fields propagated onto each logical event in the unwrap
+// preview. (No longer user-configurable in the Unwrapping UI.)
+const UNWRAP_COPY_FIELDS = ["accountId", "region"] as const
 
 function buildLogicalEvents(
   record: UnwrapSourceRecord,
@@ -392,6 +394,124 @@ const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
 
 function formatAwsRegion(region: (typeof AWS_REGIONS)[number]) {
   return `${region.label} — ${region.id}`
+}
+
+const DATA_FORMATS = [
+  {
+    value: "json",
+    label: "JSON",
+    description: "JavaScript Object Notation, a lightweight data interchange format",
+  },
+  {
+    value: "jsonl",
+    label: "JSONL",
+    description: "JSON Lines, every line is a separate JSON object",
+  },
+  {
+    value: "parquet",
+    label: "Parquet",
+    description: "A columnar storage format optimized for analytics",
+  },
+  {
+    value: "csv",
+    label: "CSV",
+    description: "Character-Separated Values, a simple tabular data format",
+  },
+  {
+    value: "xml",
+    label: "XML",
+    description: "Extensible Markup Language, a markup language for structuring data",
+  },
+  {
+    value: "text",
+    label: "Text",
+    description: "A plain text format where every line is a separate record",
+  },
+  {
+    value: "wholetext",
+    label: "WholeText",
+    description: "A plain text format where the entire file is a single record",
+  },
+] as const
+
+export function WizardDatasourceNameField({
+  catalog,
+  onCatalogChange,
+  schema,
+  onSchemaChange,
+  name,
+  onNameChange,
+}: {
+  catalog: string
+  onCatalogChange: (value: string) => void
+  schema: string
+  onSchemaChange: (value: string) => void
+  name: string
+  onNameChange: (value: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Datasource name *</Label>
+      <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
+        <Select value={catalog} onValueChange={onCatalogChange} disabled>
+          <SelectTrigger className="w-full" aria-label="Catalog">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="lakewatch">lakewatch</SelectItem>
+            <SelectItem value="main">main</SelectItem>
+            <SelectItem value="security">security</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={schema} onValueChange={onSchemaChange}>
+          <SelectTrigger className="w-full" aria-label="Schema">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">default</SelectItem>
+            <SelectItem value="bronze">bronze</SelectItem>
+            <SelectItem value="production">production</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          aria-label="Datasource name"
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          required
+        />
+      </div>
+    </div>
+  )
+}
+
+export function WizardFormatField({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="data-format">Format</Label>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger id="data-format" className="w-full" aria-label="Format">
+          <SelectValue placeholder="Select a format" />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          {DATA_FORMATS.map((format) => (
+            <SelectItem
+              key={format.value}
+              value={format.value}
+              description={format.description}
+            >
+              {format.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }
 
 function VerificationIndicator({
@@ -950,7 +1070,7 @@ export function WizardComputeModeField() {
         type="button"
         variant="link"
         size="sm"
-        className="h-auto self-start gap-1 p-0"
+        className="h-auto self-start gap-1 p-0 !px-0"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
@@ -1007,7 +1127,7 @@ export function WizardAnnotationsField() {
         type="button"
         variant="link"
         size="sm"
-        className="h-auto self-start gap-1 p-0"
+        className="h-auto self-start gap-1 p-0 !px-0"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
@@ -1533,73 +1653,6 @@ function SchemaSplitPreview({
   )
 }
 
-function CopyFieldsEditor({
-  value,
-  onChange,
-}: {
-  value: string[]
-  onChange: (value: string[]) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const remaining = UNWRAP_COPYABLE_FIELDS.filter((field) => !value.includes(field))
-
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {value.map((field) => (
-        <Badge key={field} variant="default_tag" className="pr-0.5">
-          {field}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="size-4 shrink-0 rounded-sm text-current hover:bg-transparent hover:text-foreground"
-            aria-label={`Remove ${field}`}
-            onClick={() => onChange(value.filter((item) => item !== field))}
-          >
-            <X className="size-3" aria-hidden />
-          </Button>
-        </Badge>
-      ))}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="xs"
-            className="gap-1"
-            disabled={remaining.length === 0}
-          >
-            <Plus className="size-3" aria-hidden />
-            Add
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[220px] p-0">
-          <Command>
-            <CommandInput placeholder="Add field to copy" />
-            <CommandList>
-              <CommandEmpty>No fields available</CommandEmpty>
-              <CommandGroup>
-                {remaining.map((field) => (
-                  <CommandItem
-                    key={field}
-                    value={field}
-                    onSelect={() => {
-                      onChange([...value, field])
-                      setOpen(false)
-                    }}
-                  >
-                    {field}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
 const UNWRAP_PREVIEW_RECORDS = UNWRAP_SOURCE_RECORDS.slice(0, 5)
 const UNWRAP_PREVIEW_TOTAL_EVENTS = UNWRAP_PREVIEW_RECORDS.reduce(
   (total, record) => total + record.Records.length,
@@ -1607,20 +1660,23 @@ const UNWRAP_PREVIEW_TOTAL_EVENTS = UNWRAP_PREVIEW_RECORDS.reduce(
 )
 
 function EventUnwrapPreview({
-  eventArrayPath,
-  copyFields,
+  topLevelField,
+  instant = false,
 }: {
-  eventArrayPath: string
-  copyFields: string[]
+  topLevelField?: string
+  instant?: boolean
 }) {
+  const copyFields = [...UNWRAP_COPY_FIELDS]
+  const eventArrayPath = topLevelField?.trim() || "Records"
   const [recordIndex, setRecordIndex] = React.useState(0)
-  const [loading, setLoading] = React.useState(true)
+  const [loading, setLoading] = React.useState(!instant)
 
   React.useEffect(() => {
+    if (instant) return
     setLoading(true)
     const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
-  }, [])
+  }, [instant])
 
   const safeRecordIndex = Math.min(recordIndex, UNWRAP_PREVIEW_RECORDS.length - 1)
   const record = UNWRAP_PREVIEW_RECORDS[safeRecordIndex]
@@ -1716,6 +1772,7 @@ export function LakewatchAwsS3WizardView({
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
   const [s3RunAs, setS3RunAs] = React.useState("beau.trincia@databricks.com")
   const [sqsAuth, setSqsAuth] = React.useState("default")
+  const [dataFormat, setDataFormat] = React.useState("")
   const [dataSampleLocation, setDataSampleLocation] = React.useState("")
   const [sampleVerification, setSampleVerification] =
     React.useState<VerificationState>("idle")
@@ -1723,13 +1780,13 @@ export function LakewatchAwsS3WizardView({
   const [regionVerification, setRegionVerification] =
     React.useState<VerificationState>("idle")
   const [timeRangeOpen, setTimeRangeOpen] = React.useState(false)
-  const [description, setDescription] = React.useState("")
   const [managedNotifications, setManagedNotifications] = React.useState(false)
-  const [eventPrep, setEventPrep] = React.useState<EventPrepMode>("record")
-  const [unwrapMethod, setUnwrapMethod] = React.useState("json-array")
-  const [eventArrayPath, setEventArrayPath] = React.useState("Records")
-  const [copyFields, setCopyFields] = React.useState<string[]>(["accountId", "region"])
-  const [unwrapPreviewRequested, setUnwrapPreviewRequested] = React.useState(false)
+  const [unwrapping, setUnwrapping] = React.useState<UnwrapMode>("none")
+  const [topLevelField, setTopLevelField] = React.useState("")
+  const [jsonArrayApplied, setJsonArrayApplied] = React.useState(false)
+  const [unwrapLoading, setUnwrapLoading] = React.useState(false)
+  const [unwrapReady, setUnwrapReady] = React.useState(false)
+  const unwrapLoadingTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const templateController = useIntegrationTemplates()
@@ -1757,15 +1814,20 @@ export function LakewatchAwsS3WizardView({
   const previewLoading = sampleVerification === "validating"
   const schemasReady =
     templateController.selectedNames.length > 0 || pendingSchemas.length > 0
-  const showSplitPreview = activeStep === 2 && schemasReady
+  // "No unwrapping" keeps the raw preview. Every other option swaps in the
+  // side-by-side preview: non-JSON-Array options after a brief loading wheel
+  // (unwrapReady); JSON Array once its top-level field is applied.
+  const showUnwrapPreview =
+    activeStep === 2 &&
+    unwrapping !== "none" &&
+    (unwrapping === "json-array" ? jsonArrayApplied : unwrapReady)
+  const showSplitPreview = activeStep === 2 && schemasReady && !showUnwrapPreview
   const templatePanelOpen = activeStep === 2 && templateController.panelOpen
   // Collapse the vertical stepper into a compact "Step X / N" button whenever the
   // available width is tight (e.g. the Genie code panel is open) or the template
   // detail panel is shown, so the step form keeps enough room.
   const compact = contentWidth > 0 && contentWidth < 900
   const stepperCollapsed = templatePanelOpen || compact
-  const showUnwrapPreview =
-    activeStep === 1 && eventPrep === "unwrap" && unwrapPreviewRequested
   const isSqs = kind === "aws-sqs"
   const isS3 = kind === "aws-s3"
   const previewSamplePlaceholder = isSqs
@@ -1797,17 +1859,38 @@ export function LakewatchAwsS3WizardView({
     () => () => {
       if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
       if (regionVerificationTimer.current) clearTimeout(regionVerificationTimer.current)
+      if (unwrapLoadingTimer.current) clearTimeout(unwrapLoadingTimer.current)
     },
     []
   )
 
   React.useEffect(() => {
-    if (eventPrep === "unwrap") {
+    if (unwrapping !== "none") {
       prepareEventsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    } else {
-      setUnwrapPreviewRequested(false)
     }
-  }, [eventPrep])
+    // Selecting a different method invalidates a previously applied JSON Array field.
+    if (unwrapping !== "json-array") {
+      setJsonArrayApplied(false)
+    }
+
+    if (unwrapLoadingTimer.current) {
+      clearTimeout(unwrapLoadingTimer.current)
+      unwrapLoadingTimer.current = null
+    }
+    // Non-JSON-Array transforms show a short loading wheel, then the side-by-side.
+    if (unwrapping !== "none" && unwrapping !== "json-array") {
+      setUnwrapReady(false)
+      setUnwrapLoading(true)
+      unwrapLoadingTimer.current = setTimeout(() => {
+        setUnwrapLoading(false)
+        setUnwrapReady(true)
+        unwrapLoadingTimer.current = null
+      }, 1400)
+    } else {
+      setUnwrapLoading(false)
+      setUnwrapReady(false)
+    }
+  }, [unwrapping])
 
   const setSampleValueOnly = (value: string) => {
     setDataSampleLocation(value)
@@ -1853,7 +1936,7 @@ export function LakewatchAwsS3WizardView({
   const dataPreviewSection =
     previewVisible &&
     (activeStep === 1 ||
-      (activeStep === 2 && (previewReady || schemasReady))) ? (
+      (activeStep === 2 && (previewReady || schemasReady || showUnwrapPreview))) ? (
       <section
         aria-label="Data preview"
         className={cn(
@@ -1965,7 +2048,10 @@ export function LakewatchAwsS3WizardView({
             </div>
             {previewExpanded ? (
               showUnwrapPreview ? (
-                <EventUnwrapPreview eventArrayPath={eventArrayPath} copyFields={copyFields} />
+                <EventUnwrapPreview
+                  topLevelField={topLevelField}
+                  instant={unwrapping !== "json-array"}
+                />
               ) : previewReady ? (
                 <RawDataPreview region={previewRegion} />
               ) : previewLoading ? (
@@ -1974,12 +2060,7 @@ export function LakewatchAwsS3WizardView({
                   <p className="text-sm leading-5 text-foreground">Loading data preview</p>
                 </div>
               ) : (
-                <div
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-1 px-4 text-center",
-                    showHeaderPreviewLocation ? "h-[180px]" : "h-20"
-                  )}
-                >
+                <div className="flex flex-col items-center justify-center gap-1 px-4 py-6 text-center">
                   <TableIcon className="h-9 w-9 text-muted-foreground" />
                   <p className="text-sm leading-5 text-foreground">
                     {isSqs
@@ -2076,6 +2157,15 @@ export function LakewatchAwsS3WizardView({
 
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+                  <WizardDatasourceNameField
+                    catalog={catalog}
+                    onCatalogChange={setCatalog}
+                    schema={schema}
+                    onSchemaChange={setSchema}
+                    name={datasourceName}
+                    onNameChange={setDatasourceName}
+                  />
+
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="sqs-source-location">SQS Queue URL *</Label>
                     <p className="text-hint text-muted-foreground">
@@ -2160,6 +2250,10 @@ export function LakewatchAwsS3WizardView({
                       </label>
                     </RadioGroup>
                   </div>
+
+                  <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
+
+                  <WizardComputeModeField />
                 </div>
 
                 <div className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -2180,6 +2274,15 @@ export function LakewatchAwsS3WizardView({
                 setActiveStep(2)
               }}
             >
+              <WizardDatasourceNameField
+                catalog={catalog}
+                onCatalogChange={setCatalog}
+                schema={schema}
+                onSchemaChange={setSchema}
+                name={datasourceName}
+                onNameChange={setDatasourceName}
+              />
+
               <div className="flex flex-col gap-2">
                 <Label htmlFor="simple-source-location">Source location *</Label>
                 <p className="text-hint text-muted-foreground">
@@ -2238,11 +2341,15 @@ export function LakewatchAwsS3WizardView({
                 </div>
               ) : null}
 
+              <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
+
               <RunAsControl
                 value={s3RunAs}
                 onValueChange={setS3RunAs}
                 className="self-start"
               />
+
+              <WizardComputeModeField />
 
               <div className="flex items-center justify-between pt-2">
                 <Button variant="ghost" size="sm" asChild>
@@ -2269,6 +2376,15 @@ export function LakewatchAwsS3WizardView({
 
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-8 pt-6 pb-4">
+              <WizardDatasourceNameField
+                catalog={catalog}
+                onCatalogChange={setCatalog}
+                schema={schema}
+                onSchemaChange={setSchema}
+                name={datasourceName}
+                onNameChange={setDatasourceName}
+              />
+
               <div className="flex flex-col gap-2">
                 <Label>S3 source location *</Label>
                 <p className="text-hint text-muted-foreground">
@@ -2292,12 +2408,14 @@ export function LakewatchAwsS3WizardView({
                 </Select>
               </div>
 
+              <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
+
               <div className="flex flex-col gap-2">
                 <Button
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto self-start gap-1 p-0"
+                  className="h-auto self-start gap-1 p-0 !px-0"
                   aria-expanded={timeRangeOpen}
                   onClick={() => setTimeRangeOpen((current) => !current)}
                 >
@@ -2336,110 +2454,7 @@ export function LakewatchAwsS3WizardView({
                 />
               </div>
 
-              <div ref={prepareEventsRef} className="flex scroll-mt-6 flex-col gap-3">
-                <div>
-                  <Label>Prepare events (optional)</Label>
-                  <p className="text-hint text-muted-foreground">
-                    Choose how Lakewatch turns each source record into one or more logical events.
-                  </p>
-                </div>
-                <RadioGroup
-                  value={eventPrep}
-                  onValueChange={(value) => setEventPrep(value as EventPrepMode)}
-                  className="gap-2"
-                >
-                  <label
-                    htmlFor="event-prep-record"
-                    className="flex cursor-pointer items-center gap-2"
-                  >
-                    <RadioGroupItem value="record" id="event-prep-record" />
-                    <span className="text-sm text-foreground">
-                      Use each source record as one event
-                    </span>
-                  </label>
-                  <label
-                    htmlFor="event-prep-unwrap"
-                    className="flex cursor-pointer items-center gap-2"
-                  >
-                    <RadioGroupItem value="unwrap" id="event-prep-unwrap" />
-                    <span className="text-sm text-foreground">Unwrap source records</span>
-                  </label>
-                </RadioGroup>
-
-                {eventPrep === "unwrap" ? (
-                  <div className="ml-6 flex flex-col gap-4 border-l border-border pl-4">
-                    <div className="grid grid-cols-[160px_minmax(0,1fr)] items-center gap-3">
-                      <Label htmlFor="unwrap-method" className="font-normal">
-                        Unwrap method
-                      </Label>
-                      <Select value={unwrapMethod} onValueChange={setUnwrapMethod}>
-                        <SelectTrigger id="unwrap-method" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="lines" description="Events are line delimited.">
-                            Lines
-                          </SelectItem>
-                          <SelectItem value="json" description="Events are in JSON format.">
-                            JSON
-                          </SelectItem>
-                          <SelectItem
-                            value="json-array"
-                            description="Events are in JSON Array format."
-                          >
-                            JSON Array
-                          </SelectItem>
-                          <SelectItem
-                            value="cloudwatch"
-                            description="Events are delivered to S3 from CloudWatch Logs."
-                          >
-                            CloudWatch Logs
-                          </SelectItem>
-                          <SelectItem value="xml" description="Events are in XML format.">
-                            <span className="flex items-center gap-1.5">
-                              XML
-                              <Badge variant="secondary" className="h-4 px-1 text-[10px] leading-4">
-                                BETA
-                              </Badge>
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-[160px_minmax(0,1fr)] items-center gap-3">
-                      <Label htmlFor="event-array-path" className="font-normal">
-                        Event array path
-                      </Label>
-                      <Select value={eventArrayPath} onValueChange={setEventArrayPath}>
-                        <SelectTrigger id="event-array-path" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Records">Records</SelectItem>
-                          <SelectItem value="logEvents">logEvents</SelectItem>
-                          <SelectItem value="events">events</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-[160px_minmax(0,1fr)] items-start gap-3">
-                      <Label className="mt-1.5 font-normal">Copy to each event</Label>
-                      <CopyFieldsEditor value={copyFields} onChange={setCopyFields} />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
-                      className="self-end"
-                      onClick={() => {
-                        setPreviewVisible(true)
-                        setUnwrapPreviewRequested(true)
-                      }}
-                    >
-                      Preview unwrap
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
+              <WizardComputeModeField />
               </div>
 
               <div className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -2453,86 +2468,14 @@ export function LakewatchAwsS3WizardView({
             </div>
           </form>
           )
-        ) : activeStep === 2 ? (
+        ) : (
           <form
             className={cn(
               "flex min-h-0 flex-col overflow-hidden rounded-md border border-border",
-              templatePanelOpen ? "h-full lg:my-6 lg:ml-5 lg:mr-6" : "w-full self-start"
+              templatePanelOpen
+                ? "h-full lg:my-6 lg:ml-5 lg:mr-6"
+                : "max-h-full w-full self-start"
             )}
-            onSubmit={(event) => {
-              event.preventDefault()
-              setActiveStep(3)
-            }}
-          >
-            <StepPanelHeader
-              step={2}
-              title="Name & Ingestion templates"
-              description="Name your datasource and specify the ingestion templates Lakewatch should use to classify your logs"
-            />
-
-            <div
-              className={cn(
-                "flex flex-col px-8 py-6",
-                templatePanelOpen ? "min-h-0 flex-1 overflow-y-auto" : undefined
-              )}
-            >
-              <div className="mb-5 flex flex-col">
-                <Label className="mb-2">Datasource name *</Label>
-                <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
-                  <Select value={catalog} onValueChange={setCatalog} disabled>
-                    <SelectTrigger className="w-full" aria-label="Catalog">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lakewatch">lakewatch</SelectItem>
-                      <SelectItem value="main">main</SelectItem>
-                      <SelectItem value="security">security</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={schema} onValueChange={setSchema}>
-                    <SelectTrigger className="w-full" aria-label="Schema">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">default</SelectItem>
-                      <SelectItem value="bronze">bronze</SelectItem>
-                      <SelectItem value="production">production</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    aria-label="Datasource name"
-                    value={datasourceName}
-                    onChange={(event) => setDatasourceName(event.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <IntegrationTemplatesField
-                  controller={templateController}
-                  pendingNames={pendingSchemas}
-                />
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveStep(1)}
-              >
-                Back
-              </Button>
-              <Button type="submit" variant="primary" size="sm">
-                Continue
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <form
-            className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-md border border-border"
             onSubmit={(event) => {
               event.preventDefault()
               const name = datasourceName.trim() || "lakewatch-account-us-west-2"
@@ -2545,25 +2488,133 @@ export function LakewatchAwsS3WizardView({
             }}
           >
             <StepPanelHeader
-              step={3}
-              title="Additional details"
-              description="Configure how often Lakewatch runs this datasource and add optional metadata"
+              step={2}
+              title="Ingestion templates"
+              description="Select the ingestion templates Lakewatch should use to classify your logs"
             />
 
-            <div className="flex min-h-[370px] flex-1 flex-col gap-5 overflow-y-auto px-8 py-6 lg:min-h-0">
-              <WizardProcessingScheduleField />
-              <WizardComputeModeField />
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="datasource-description">Description (optional)</Label>
-                <Textarea
-                  id="datasource-description"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="Add a description for this datasource"
-                  className="min-h-[80px]"
-                />
-              </div>
-              <WizardAnnotationsField />
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6">
+              {!isExistingTable ? (
+                <div
+                  ref={prepareEventsRef}
+                  className="mb-6 flex scroll-mt-6 flex-col gap-3"
+                >
+                  <div>
+                    <Label>Unwrapping (optional)</Label>
+                    <p className="text-hint text-muted-foreground">
+                      Choose how Lakewatch turns each source record into one or more logical events.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-[160px_minmax(0,1fr)] items-center gap-3">
+                    <Label htmlFor="unwrapping-method" className="font-normal">
+                      Unwrapping
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={unwrapping}
+                        onValueChange={(value) => {
+                          setUnwrapping(value as UnwrapMode)
+                          setPreviewVisible(true)
+                        }}
+                      >
+                        <SelectTrigger id="unwrapping-method" className="min-w-0 flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem
+                            value="none"
+                            description="Use each source record as one event."
+                          >
+                            No unwrapping
+                          </SelectItem>
+                          <SelectItem
+                            value="auto"
+                            description="Lakewatch detects the framing automatically."
+                          >
+                            Auto
+                          </SelectItem>
+                        <SelectItem value="lines" description="Events are line delimited.">
+                          Lines
+                        </SelectItem>
+                        <SelectItem value="json" description="Events are in JSON format.">
+                          JSON
+                        </SelectItem>
+                        <SelectItem
+                          value="json-array"
+                          description="Events are in JSON Array format."
+                        >
+                          JSON Array
+                        </SelectItem>
+                        <SelectItem
+                          value="cloudwatch"
+                          description="Events are delivered to S3 from CloudWatch Logs."
+                        >
+                          CloudWatch Logs
+                        </SelectItem>
+                        <SelectItem value="xml" description="Events are in XML format.">
+                          <span className="flex items-center gap-1.5">
+                            XML
+                            <Badge
+                              variant="secondary"
+                              className="h-4 px-1 text-[10px] leading-4"
+                            >
+                              BETA
+                            </Badge>
+                          </span>
+                        </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {unwrapLoading ? (
+                        <LoaderCircle
+                          className="h-4 w-4 shrink-0 animate-spin text-muted-foreground"
+                          aria-label="Building unwrap preview"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {unwrapping === "json-array" ? (
+                    <div className="grid grid-cols-[160px_minmax(0,1fr)] items-start gap-3">
+                      <Label htmlFor="top-level-field" className="mt-1.5 font-normal">
+                        Top-level event field
+                      </Label>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-start gap-2">
+                          <Input
+                            id="top-level-field"
+                            value={topLevelField}
+                            onChange={(event) => {
+                              setTopLevelField(event.target.value)
+                              setJsonArrayApplied(false)
+                            }}
+                            placeholder="e.g. Records"
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                              setPreviewVisible(true)
+                              setJsonArrayApplied(true)
+                            }}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                        <p className="text-hint text-muted-foreground">
+                          Lakewatch extracts the elements of this array as individual events.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <IntegrationTemplatesField
+                controller={templateController}
+                pendingNames={pendingSchemas}
+              />
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
@@ -2571,7 +2622,7 @@ export function LakewatchAwsS3WizardView({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setActiveStep(2)}
+                onClick={() => setActiveStep(1)}
               >
                 Back
               </Button>
