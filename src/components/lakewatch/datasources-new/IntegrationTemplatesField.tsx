@@ -1355,10 +1355,15 @@ export function IntegrationTemplatesField({
   controller,
   pendingNames = [],
   hideHeader = false,
+  hideCreateCustom = false,
+  createCustomHref = "/lakewatch/schemas/new",
 }: {
   controller: IntegrationTemplatesController
   pendingNames?: string[]
   hideHeader?: boolean
+  hideCreateCustom?: boolean
+  /** Destination for the "Create new custom parser" link (may carry query state). */
+  createCustomHref?: string
 }) {
   const { family, templates, selectedIds, detailsId, templateById, toggle, toggleGroup, openDetails } =
     controller
@@ -1488,23 +1493,25 @@ export function IntegrationTemplatesField({
         </div>
       )}
 
-      <div>
-        <Button
-          asChild
-          variant="link"
-          size="sm"
-          className="h-auto gap-1.5 self-start p-0"
-        >
-          <Link
-            href="/lakewatch/schemas/new"
-            target="_blank"
-            rel="noopener noreferrer"
+      {hideCreateCustom ? null : (
+        <div>
+          <Button
+            asChild
+            variant="link"
+            size="sm"
+            className="h-auto gap-1.5 self-start p-0"
           >
-            Create new custom parser
-            <SquareArrowOutUpRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </Button>
-      </div>
+            <Link
+              href={createCustomHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Create new custom parser
+              <SquareArrowOutUpRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {!hasSelection ? (
         <div className="flex flex-col gap-3">

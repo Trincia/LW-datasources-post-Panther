@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Columns3,
   Loader2,
   Lock,
   Minus,
@@ -120,6 +121,16 @@ const DATASOURCE_SCHEMAS = [
     schema: "AWS.CloudTrail",
   },
 ] as const
+
+const DESTINATION_TABLES: Record<string, string[]> = {
+  "AWS.VPCFlow": [
+    "lakewatch.default.aws_vpcflow",
+    "lakewatch.network.vpcflow_enriched",
+  ],
+  "AWS.ALB": ["lakewatch.default.aws_alb"],
+  "AWS.S3ServerAccess": ["lakewatch.default.aws_s3serveraccess"],
+  "AWS.CloudTrail": ["lakewatch.default.aws_cloudtrail"],
+}
 
 const DATASOURCE_LOGOS: Record<string, LakewatchDatasourceLogoKind> = {
   fluentbit: "fluentbit",
@@ -986,6 +997,9 @@ function DatasourceSchemasTab() {
             <TableHead className="font-semibold text-foreground">
               Parser name
             </TableHead>
+            <TableHead className="w-[300px] font-semibold text-foreground">
+              Destination table
+            </TableHead>
             <TableHead className="w-[220px] font-semibold text-foreground">
               Current version
             </TableHead>
@@ -999,6 +1013,7 @@ function DatasourceSchemasTab() {
           {pendingSchemas.map((schema) => (
             <TableRow key={schema}>
               <TableCell className="text-foreground">{schema}</TableCell>
+              <TableCell className="text-muted-foreground">—</TableCell>
               <TableCell className="text-muted-foreground">—</TableCell>
               <TableCell className="text-muted-foreground">—</TableCell>
               <TableCell className="text-right">
@@ -1019,6 +1034,22 @@ function DatasourceSchemasTab() {
             return (
               <TableRow key={row.schema}>
                 <TableCell className="text-foreground">{row.schema}</TableCell>
+                <TableCell className="text-foreground">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    {(DESTINATION_TABLES[row.schema] ?? []).map((table) => (
+                      <Button
+                        key={table}
+                        variant="link"
+                        className="h-auto max-w-full justify-start truncate p-0 text-sm font-normal text-primary"
+                        asChild
+                      >
+                        <Link href="#" title={table}>
+                          {table}
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <span className="text-foreground">{used.version}</span>
@@ -1561,6 +1592,127 @@ function DatasourceNormalizationsTab({ sourceName }: { sourceName: string }) {
   )
 }
 
+const SYSTEM_CASES = [
+  {
+    id: "sys-995",
+    title: "Ingestion pipeline failure",
+    events: 1,
+    resourceType: "Datasource",
+    state: "Open",
+    severity: "Medium",
+    created: "8/11/2026, 3:42 PM",
+  },
+  {
+    id: "sys-992",
+    title: "Ingestion pipeline failure",
+    events: 4,
+    resourceType: "Datasource",
+    state: "Open",
+    severity: "Medium",
+    created: "8/10/2026, 9:15 AM",
+  },
+] as const
+
+function DatasourceSystemCasesTab({
+  datasourceName,
+}: {
+  datasourceName: string
+}) {
+  const [search, setSearch] = React.useState(datasourceName)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-[220px]">
+          <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search cases"
+            className="h-8 pl-8 pr-8"
+          />
+          {search ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Clear search"
+              className="absolute right-1 top-1/2 -translate-y-1/2"
+              onClick={() => setSearch("")}
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-9">
+              <Checkbox aria-label="Select all cases" />
+            </TableHead>
+            <TableHead className="font-semibold text-foreground">Title</TableHead>
+            <TableHead className="font-semibold text-foreground">Case ID</TableHead>
+            <TableHead className="font-semibold text-foreground">Event count</TableHead>
+            <TableHead className="font-semibold text-foreground">Resource type</TableHead>
+            <TableHead className="font-semibold text-foreground">Resource name</TableHead>
+            <TableHead className="font-semibold text-foreground">Assignee</TableHead>
+            <TableHead className="font-semibold text-foreground">State</TableHead>
+            <TableHead className="font-semibold text-foreground">Severity</TableHead>
+            <TableHead className="font-semibold text-foreground">
+              <span className="inline-flex items-center gap-1">
+                Created
+                <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              </span>
+            </TableHead>
+            <TableHead className="w-9 text-right">
+              <Columns3 className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden />
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {SYSTEM_CASES.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell>
+                <Checkbox aria-label={`Select case ${row.id}`} />
+              </TableCell>
+              <TableCell>
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-sm font-normal text-primary"
+                  asChild
+                >
+                  <Link href="#">{row.title}</Link>
+                </Button>
+              </TableCell>
+              <TableCell className="text-foreground">{row.id}</TableCell>
+              <TableCell>
+                <span className="inline-flex min-w-6 items-center justify-center rounded bg-muted px-1.5 py-0.5 text-hint text-foreground">
+                  {row.events}
+                </span>
+              </TableCell>
+              <TableCell className="text-foreground">{row.resourceType}</TableCell>
+              <TableCell className="text-foreground">{datasourceName}</TableCell>
+              <TableCell className="text-muted-foreground">Unassigned</TableCell>
+              <TableCell>
+                <Badge variant="coral">{row.state}</Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant="lemon">{row.severity}</Badge>
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-foreground">
+                {row.created}
+              </TableCell>
+              <TableCell />
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 function DetailHeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
@@ -1625,7 +1777,12 @@ export function LakewatchDatasourceDetailView() {
         </div>
       </div>
 
-      <div className="mt-5">
+      <Tabs defaultValue="overview" className="mt-5">
+        <TabsList variant="line">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="system-cases">System cases</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="mt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
             <Button
@@ -1936,7 +2093,11 @@ export function LakewatchDatasourceDetailView() {
           <div className="my-6 h-px bg-border" />
 
           <DatasourceSchemasTab />
-      </div>
+        </TabsContent>
+        <TabsContent value="system-cases" className="mt-4">
+          <DatasourceSystemCasesTab datasourceName={sourceName} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -31,6 +31,7 @@ import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import {
   ValidatedInput,
   ValidationIndicator,
+  useValidationState,
 } from "@/components/lakewatch/ValidatedInput"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -1209,6 +1210,94 @@ function RawDataPreviewSkeleton() {
   )
 }
 
+const EXISTING_TABLE_SOURCE_SAMPLE = "lakewatch.default.audit_logs_7830bcf"
+
+/** Derives a bronze view name (e.g. `bronze_audit_logs_view`) from a table path. */
+function deriveViewTableName(location: string) {
+  const table = location.split(".").pop() ?? location
+  const slug = table
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+  return slug ? `bronze_${slug}_view` : ""
+}
+
+const EXISTING_TABLE_PREVIEW_DATA: PreviewTableData = {
+  columns: ["event_time", "event_id", "user_identity", "action", "resource"],
+  rows: [
+    ["2025-10-05 10:18:36", "e-9f31a2c7", "beau.trincia@databricks.com", "GetObject", "audit-logs-7830bcf"],
+    ["2025-10-05 10:18:31", "e-5b7742de", "ci-deploy-bot@databricks.com", "PutObject", "audit-logs-7830bcf"],
+    ["2025-10-05 10:18:22", "e-1c9930aa", "svc-ingest@databricks.com", "ListBucket", "audit-logs-7830bcf"],
+    ["2025-10-05 10:18:04", "e-77aa21b9", "beau.trincia@databricks.com", "GetObject", "audit-logs-7830bcf"],
+    ["2025-10-05 10:17:59", "e-3ef00c12", "svc-reader@databricks.com", "GetObject", "audit-logs-7830bcf"],
+  ],
+}
+
+function ExistingTablePreviewPane({
+  tableName,
+  onClose,
+}: {
+  tableName: string
+  onClose: () => void
+}) {
+  const [loading, setLoading] = React.useState(true)
+  const trimmed = tableName.trim()
+  const hasTable = trimmed.length > 0
+
+  React.useEffect(() => {
+    if (!trimmed) return
+    setLoading(true)
+    const timer = setTimeout(() => setLoading(false), 1500)
+    return () => clearTimeout(timer)
+  }, [trimmed])
+
+  const rowCount = EXISTING_TABLE_PREVIEW_DATA.rows.length
+
+  return (
+    <>
+      <div className="flex h-8 items-center justify-between border-y border-input px-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="text-sm font-semibold text-foreground">Input</span>
+          <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          <TableIcon className="h-4 w-4 text-primary" />
+          <span className="min-w-0 truncate text-sm text-foreground">
+            {hasTable ? trimmed : "Data preview"}
+          </span>
+          {hasTable ? (
+            <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+              {rowCount} records
+            </span>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Close data preview"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </div>
+      {hasTable ? (
+        loading ? (
+          <PreviewTableSkeleton rows={5} />
+        ) : (
+          <PreviewDataTable data={EXISTING_TABLE_PREVIEW_DATA} className="min-w-full" />
+        )
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-1 px-4 py-6 text-center">
+          <TableIcon className="h-9 w-9 text-muted-foreground" />
+          <p className="text-sm leading-5 text-foreground">
+            Configure a table to see a preview
+          </p>
+        </div>
+      )}
+    </>
+  )
+}
+
 function PreviewDataTable({
   data,
   className,
@@ -1854,6 +1943,7 @@ export function LakewatchAwsS3WizardView({
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
   const [viewTableName, setViewTableName] = React.useState("")
+  const [primaryKeyColumns, setPrimaryKeyColumns] = React.useState<string[]>([""])
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
   const [s3RunAs, setS3RunAs] = React.useState("beau.trincia@databricks.com")
   const [sqsAuth, setSqsAuth] = React.useState("default")
@@ -1951,6 +2041,21 @@ export function LakewatchAwsS3WizardView({
   const previewRegion = isSqs && awsRegion.trim() ? awsRegion : "us-west-2"
   const isSimpleWizard = kind !== "aws-s3"
   const isExistingTable = kind === "existing-table"
+  const sourceLocationValidation = useValidationState(sourceLocation)
+  const viewTableAutofillRef = React.useRef("")
+  React.useEffect(() => {
+    if (!isExistingTable) return
+    const loc = sourceLocation.trim()
+    if (
+      sourceLocationValidation === "verified" &&
+      loc &&
+      viewTableAutofillRef.current !== loc &&
+      !viewTableName.trim()
+    ) {
+      viewTableAutofillRef.current = loc
+      setViewTableName(deriveViewTableName(loc))
+    }
+  }, [sourceLocationValidation, isExistingTable, sourceLocation, viewTableName])
   const simpleConfig = isSimpleWizard ? SIMPLE_WIZARD_CONFIG[kind] : null
   // Path-based sources surface the optional "Preview location" control in the
   // data preview header (existing-table uses an inline "View table name" instead).
@@ -2068,7 +2173,12 @@ export function LakewatchAwsS3WizardView({
           templatePanelOpen ? undefined : "-mx-5 -mb-5 mt-auto"
         )}
       >
-        {showSplitPreview ? (
+        {isExistingTable ? (
+          <ExistingTablePreviewPane
+            tableName={sourceLocation}
+            onClose={() => setPreviewVisible(false)}
+          />
+        ) : showSplitPreview ? (
           <SchemaSplitPreview
             region={previewRegion}
             templates={selectedTemplates}
@@ -2485,6 +2595,16 @@ export function LakewatchAwsS3WizardView({
                         id="simple-source-location"
                         value={sourceLocation}
                         onChange={(event) => setSourceLocation(event.target.value)}
+                        onFocus={() => {
+                          if (!sourceLocation) {
+                            setSourceLocation(EXISTING_TABLE_SOURCE_SAMPLE)
+                          }
+                        }}
+                        onClick={() => {
+                          if (!sourceLocation) {
+                            setSourceLocation(EXISTING_TABLE_SOURCE_SAMPLE)
+                          }
+                        }}
                         placeholder="Enter a table or browse"
                         className="rounded-r-none border-r-0"
                       />
@@ -2520,11 +2640,55 @@ export function LakewatchAwsS3WizardView({
                 )}
               </div>
 
+              <RunAsControl
+                value={s3RunAs}
+                onValueChange={setS3RunAs}
+                className="self-start"
+              />
+
+              {isExistingTable ? (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="primary-key-column-0">Primary-key columns</Label>
+                  <p className="text-hint text-muted-foreground">
+                    Columns that uniquely identify each row.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {primaryKeyColumns.map((column, index) => (
+                      <Input
+                        key={index}
+                        id={`primary-key-column-${index}`}
+                        value={column}
+                        onChange={(event) =>
+                          setPrimaryKeyColumns((current) =>
+                            current.map((value, i) =>
+                              i === index ? event.target.value : value
+                            )
+                          )
+                        }
+                        placeholder="Enter a column name"
+                      />
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Add primary-key column"
+                      className="self-start"
+                      onClick={() =>
+                        setPrimaryKeyColumns((current) => [...current, ""])
+                      }
+                    >
+                      <Plus className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               {isExistingTable ? (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="simple-secondary-location">View table name</Label>
                   <p className="text-hint text-muted-foreground">
-                    Name of the Lakewatch bronze view to expose this table through.
+                    Name of the Lakewatch view to expose this table through.
                   </p>
                   <Input
                     id="simple-secondary-location"
@@ -2534,13 +2698,12 @@ export function LakewatchAwsS3WizardView({
                 </div>
               ) : null}
 
-              <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
-
-              <RunAsControl
-                value={s3RunAs}
-                onValueChange={setS3RunAs}
-                className="self-start"
-              />
+              {isExistingTable ? null : (
+                <WizardFormatField
+                  value={dataFormat}
+                  onValueChange={setDataFormat}
+                />
+              )}
 
               <WizardComputeModeField />
               </div>
@@ -2818,6 +2981,11 @@ export function LakewatchAwsS3WizardView({
               <IntegrationTemplatesField
                 controller={templateController}
                 pendingNames={pendingSchemas}
+                createCustomHref={
+                  unwrapConfigured
+                    ? "/lakewatch/schemas/new?unwrapped=1"
+                    : "/lakewatch/schemas/new"
+                }
               />
             </div>
 

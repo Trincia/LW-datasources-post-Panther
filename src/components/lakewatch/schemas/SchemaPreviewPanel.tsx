@@ -3,19 +3,17 @@
 import * as React from "react"
 import {
   ArrowRight,
-  Clipboard,
   Database,
-  FileText,
   Info,
   LoaderCircle,
   Table2,
-  Upload,
 } from "lucide-react"
 
 import { CatalogIcon, CheckCircleIcon } from "@/components/icons"
 import { PreviewSkeleton } from "@/components/lakewatch/PreviewSkeleton"
 import { RunAsControl, RUN_AS_OPTIONS } from "@/components/lakewatch/RunAsControl"
 import { UnityCatalogExplorerModal } from "@/components/lakewatch/datasources-new/UnityCatalogExplorerModal"
+import { WizardFormatField } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,7 +28,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 
 const EXTERNAL_LOCATION_PLACEHOLDER = "s3://my-bucket/logs/"
 const EXTERNAL_LOCATION_SAMPLE =
@@ -131,6 +128,116 @@ function datasetForSchema(schemaName?: string): PreviewDataset {
   return CLOUDTRAIL_DATASET
 }
 
+type ParsedColumn = { name: string; type: string }
+
+/**
+ * Lightweight parser for the parser-definition YAML. Walks the top-level
+ * `fields:` block and returns the leaf columns (object types are flattened to
+ * dotted paths, e.g. `actor.email`). Good enough to drive the live preview.
+ */
+function parseSchemaColumns(yaml: string): ParsedColumn[] {
+  const lines = yaml.split("\n")
+  let start = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (/^fields:\s*$/.test(lines[i])) {
+      start = i + 1
+      break
+    }
+  }
+  if (start === -1) return []
+
+  const columns: ParsedColumn[] = []
+  const stack: { indent: number; prefix: string }[] = []
+  let pending: { indent: number; name: string } | null = null
+
+  const flush = (type: string) => {
+    if (!pending) return
+    if (type === "object") {
+      stack.push({ indent: pending.indent, prefix: `${pending.name}.` })
+    } else {
+      columns.push({ name: pending.name, type })
+    }
+    pending = null
+  }
+
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i]
+    // A non-indented, non-empty line marks the next top-level key (e.g. indicators:).
+    if (/^\S/.test(line) && line.trim() !== "") break
+    if (line.trim() === "") continue
+
+    const nameMatch = line.match(/^(\s*)-\s*name:\s*(.+?)\s*$/)
+    if (nameMatch) {
+      if (pending) flush("string")
+      const indent = nameMatch[1].length
+      while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop()
+      const prefix = stack.length ? stack[stack.length - 1].prefix : ""
+      pending = { indent, name: `${prefix}${nameMatch[2]}` }
+      continue
+    }
+
+    const typeMatch = line.match(/^\s*type:\s*(.+?)\s*$/)
+    if (typeMatch && pending) {
+      flush(typeMatch[1])
+    }
+  }
+  if (pending) flush("string")
+  return columns
+}
+
+const SAMPLE_VALUE_POOLS: Record<string, string[]> = {
+  timestamp: [
+    "2026-08-11 14:32:07",
+    "2026-08-11 14:33:19",
+    "2026-08-11 14:35:41",
+    "2026-08-11 14:37:02",
+    "2026-08-11 14:38:55",
+  ],
+  ip: ["52.94.133.11", "10.0.4.22", "203.0.113.42", "198.51.100.9", "52.94.133.99"],
+  email: [
+    "sarah.dev@acme.io",
+    "ci-deploy-bot@acme.io",
+    "admin.ops@acme.io",
+    "analytics.svc@acme.io",
+    "sarah.dev@acme.io",
+  ],
+  username: ["sarah.dev", "ci-deploy-bot", "admin.ops", "analytics.svc", "sarah.dev"],
+  event: ["login", "token_issued", "logout", "mfa_challenge", "login"],
+  outcome: ["success", "success", "success", "success", "failure"],
+  session: ["sess_a1b2c3", "sess_d4e5f6", "sess_g7h8i9", "sess_j0k1l2", "sess_m3n4o5"],
+  agent: [
+    "Mozilla/5.0 (Macintosh)",
+    "aws-cli/2.15.0",
+    "Mozilla/5.0 (Windows NT)",
+    "python-requests/2.31",
+    "Mozilla/5.0 (Macintosh)",
+  ],
+  generic: ["alpha-01", "bravo-02", "charlie-03", "delta-04", "echo-05"],
+}
+
+/** Produces a plausible cell value for a parsed column at a given row. */
+function sampleValueFor(column: ParsedColumn, rowIndex: number): string {
+  const key = column.name.toLowerCase()
+  const type = column.type.toLowerCase()
+  const pick = (pool: string[]) => pool[rowIndex % pool.length]
+
+  if (type === "timestamp" || key.includes("time") || key.includes("date"))
+    return pick(SAMPLE_VALUE_POOLS.timestamp)
+  if (type === "ip" || key.endsWith("ip") || key.includes("_ip"))
+    return pick(SAMPLE_VALUE_POOLS.ip)
+  if (type === "email" || key.includes("email"))
+    return pick(SAMPLE_VALUE_POOLS.email)
+  if (type === "username" || key.includes("user_id") || key.includes("actor"))
+    return pick(SAMPLE_VALUE_POOLS.username)
+  if (key.includes("event") || key.includes("action"))
+    return pick(SAMPLE_VALUE_POOLS.event)
+  if (key.includes("outcome") || key.includes("status") || key.includes("result"))
+    return pick(SAMPLE_VALUE_POOLS.outcome)
+  if (key.includes("session")) return pick(SAMPLE_VALUE_POOLS.session)
+  if (key.includes("agent")) return pick(SAMPLE_VALUE_POOLS.agent)
+  return pick(SAMPLE_VALUE_POOLS.generic)
+}
+
 const PREVIEW_SOURCES = [
   {
     icon: Database,
@@ -143,18 +250,6 @@ const PREVIEW_SOURCES = [
     title: "Select existing table",
     action: "Select from catalog",
     opensTableModal: true,
-  },
-  {
-    icon: Upload,
-    title: "Upload file",
-    action: "Upload file",
-    opensUploadModal: true,
-  },
-  {
-    icon: Clipboard,
-    title: "Paste sample",
-    action: "Paste sample payload",
-    opensPasteModal: true,
   },
 ] as const
 
@@ -207,15 +302,23 @@ function SamplePreviewSkeleton() {
   return <PreviewSkeleton className="h-[240px]" panes={2} rows={6} />
 }
 
-function SamplePreviewTables({ dataset }: { dataset: PreviewDataset }) {
+function SamplePreviewTables({
+  dataset,
+  unwrapped = false,
+}: {
+  dataset: PreviewDataset
+  unwrapped?: boolean
+}) {
   return (
     <div className="grid grid-cols-1 gap-px overflow-hidden bg-border/50 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col bg-background">
         <div className="flex h-9 items-center gap-2 border-b border-border/50 bg-muted px-4">
           <Database className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Raw data</span>
+          <span className="text-sm font-semibold text-foreground">
+            {unwrapped ? "Unwrapped events" : "Raw data"}
+          </span>
           <span className="text-hint text-muted-foreground">
-            {dataset.rawRecords.length} records
+            {dataset.rawRecords.length} {unwrapped ? "events" : "records"}
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -223,7 +326,7 @@ function SamplePreviewTables({ dataset }: { dataset: PreviewDataset }) {
             <thead>
               <tr className="border-b border-border/50">
                 <th className="px-4 py-2 text-hint font-semibold text-foreground">
-                  {dataset.rawColumn}
+                  {unwrapped ? "logical_event" : dataset.rawColumn}
                 </th>
               </tr>
             </thead>
@@ -294,34 +397,61 @@ function SamplePreviewTables({ dataset }: { dataset: PreviewDataset }) {
 export function SchemaPreviewPanel({
   preloaded = false,
   schemaName,
+  unwrapped = false,
+  schemaDefinition = "",
 }: {
   /** When true, the side-by-side preview is shown immediately (read-only, no empty state). */
   preloaded?: boolean
   /** Selects the sample dataset to show; falls back to a generic CloudTrail sample. */
   schemaName?: string
+  /**
+   * When true, the sample arrives pre-populated with unwrapped (logical) events
+   * — e.g. when opened from a wizard where unwrapping was already configured.
+   */
+  unwrapped?: boolean
+  /**
+   * The parser-definition YAML. When editing against unwrapped data, the output
+   * (transformed) pane reflects the fields defined here in real time.
+   */
+  schemaDefinition?: string
 } = {}) {
-  const dataset = datasetForSchema(schemaName)
+  const baseDataset = datasetForSchema(schemaName)
+  // When editing a parser against already-unwrapped data, the output columns are
+  // driven live by the fields declared in the YAML definition.
+  const dataset = React.useMemo<PreviewDataset>(() => {
+    if (!unwrapped) return baseDataset
+    const columns = parseSchemaColumns(schemaDefinition)
+    if (columns.length === 0) return baseDataset
+    return {
+      ...baseDataset,
+      transformedColumns: columns.map((column) => column.name),
+      transformedRows: baseDataset.rawRecords.map((_, rowIndex) =>
+        columns.map((column) => sampleValueFor(column, rowIndex))
+      ),
+    }
+  }, [unwrapped, schemaDefinition, baseDataset])
   const [runAs, setRunAs] = React.useState<string>(RUN_AS_OPTIONS[0].value)
   const [externalLocation, setExternalLocation] = React.useState("")
   const [tableLocation, setTableLocation] = React.useState("")
+  const [tableFormat, setTableFormat] = React.useState("")
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
-  const [uploadedFile, setUploadedFile] = React.useState("")
-  const [pasteSample, setPasteSample] = React.useState("")
-  const [appliedLabel, setAppliedLabel] = React.useState("")
-  const [sampleLoading, setSampleLoading] = React.useState(preloaded)
+  const [appliedLabel, setAppliedLabel] = React.useState(
+    unwrapped ? "Unwrapped events" : ""
+  )
+  const [sampleLoading, setSampleLoading] = React.useState(preloaded || unwrapped)
   const loadTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sweep a skeleton over the preview whenever the sample dataset loads or is
   // replaced (including the initial preloaded view).
   React.useEffect(() => {
-    if (!preloaded) return
+    if (!preloaded && !unwrapped) return
     setSampleLoading(true)
     if (loadTimer.current) clearTimeout(loadTimer.current)
     loadTimer.current = setTimeout(() => setSampleLoading(false), 1500)
     return () => {
       if (loadTimer.current) clearTimeout(loadTimer.current)
     }
-  }, [preloaded, schemaName])
+  }, [preloaded, unwrapped, schemaName])
 
   const applySample = (label: string) => {
     setAppliedLabel(label)
@@ -339,7 +469,7 @@ export function SchemaPreviewPanel({
   const hasSample = preloaded || appliedLabel !== ""
 
   const cardClass =
-    "flex flex-col gap-3 rounded-md border-[1.5px] border-border bg-background p-4 text-left transition-colors hover:border-primary/40"
+    "flex items-center gap-4 rounded-md border-[1.5px] border-border bg-background p-4 text-left transition-colors hover:border-primary/40"
 
   return (
     <div className="w-full shrink-0 overflow-hidden border-t border-border bg-background">
@@ -386,25 +516,21 @@ export function SchemaPreviewPanel({
           </p>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid w-full grid-cols-1 gap-4">
           {PREVIEW_SOURCES.map((source) => {
             const Icon = source.icon
             const cardInner = (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-md bg-muted p-2">
-                    <Icon className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-                    {source.title}
-                  </p>
+                <div className="flex items-center justify-center rounded-md bg-muted p-2">
+                  <Icon className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-primary">
-                    {source.action}
-                  </span>
+                <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+                  {source.title}
+                </p>
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary">
+                  {source.action}
                   <ArrowRight className="h-3 w-3 text-primary" />
-                </div>
+                </span>
               </>
             )
 
@@ -490,35 +616,41 @@ export function SchemaPreviewPanel({
                         sample from.
                       </DialogDescription>
                     </DialogHeader>
-                    <DialogBody className="flex flex-col gap-2">
-                      <Label htmlFor="existing-table">Table</Label>
-                      <p className="text-hint text-muted-foreground">
-                        Enter a fully qualified table name or browse the catalog.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-1">
-                          <Input
-                            id="existing-table"
-                            value={tableLocation}
-                            onChange={(event) =>
-                              setTableLocation(event.target.value)
-                            }
-                            placeholder="Enter a table or browse"
-                            className="rounded-r-none border-r-0"
-                          />
-                          <Button
-                            type="button"
-                            variant="default"
-                            size="icon-sm"
-                            className="rounded-l-none"
-                            aria-label="Browse Unity Catalog tables"
-                            onClick={() => setCatalogPickerOpen(true)}
-                          >
-                            <CatalogIcon size={16} className="text-muted-foreground" />
-                          </Button>
+                    <DialogBody className="flex flex-col gap-6">
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="existing-table">Table</Label>
+                        <p className="text-hint text-muted-foreground">
+                          Enter a fully qualified table name or browse the catalog.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-1">
+                            <Input
+                              id="existing-table"
+                              value={tableLocation}
+                              onChange={(event) =>
+                                setTableLocation(event.target.value)
+                              }
+                              placeholder="Enter a table or browse"
+                              className="rounded-r-none border-r-0"
+                            />
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="icon-sm"
+                              className="rounded-l-none"
+                              aria-label="Browse Unity Catalog tables"
+                              onClick={() => setCatalogPickerOpen(true)}
+                            >
+                              <CatalogIcon size={16} className="text-muted-foreground" />
+                            </Button>
+                          </div>
+                          <VerificationCheck value={tableLocation} />
                         </div>
-                        <VerificationCheck value={tableLocation} />
                       </div>
+                      <WizardFormatField
+                        value={tableFormat}
+                        onValueChange={setTableFormat}
+                      />
                     </DialogBody>
                     <DialogFooter>
                       <DialogClose asChild>
@@ -532,124 +664,6 @@ export function SchemaPreviewPanel({
                           size="sm"
                           disabled={!tableLocation.trim()}
                           onClick={() => applySample("Existing table")}
-                        >
-                          Apply
-                        </Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )
-            }
-
-            if ("opensUploadModal" in source) {
-              return (
-                <Dialog key={source.title}>
-                  <DialogTrigger asChild>
-                    <button type="button" className={cardClass}>
-                      {cardInner}
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upload file</DialogTitle>
-                      <DialogDescription>
-                        Upload a local CSV, JSON, Parquet, or XML sample to
-                        generate the preview.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogBody>
-                      <div className="flex flex-col items-center justify-center gap-4 rounded border border-dashed border-input bg-muted py-8">
-                        <div className="flex items-center rounded border border-border bg-background p-2.5">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <p className="flex items-center gap-2 text-sm text-foreground">
-                          {uploadedFile || "Choose a file or drag & drop it here"}
-                          {uploadedFile ? (
-                            <CheckCircleIcon
-                              className="h-4 w-4 text-[var(--success)]"
-                              ariaLabel="File selected"
-                            />
-                          ) : null}
-                        </p>
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          onClick={() => setUploadedFile("sample_events.json")}
-                        >
-                          Select file
-                        </Button>
-                      </div>
-                    </DialogBody>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="default" size="sm">
-                          Cancel
-                        </Button>
-                      </DialogClose>
-                      <DialogClose asChild>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={!uploadedFile}
-                          onClick={() => applySample("Uploaded file")}
-                        >
-                          Apply
-                        </Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )
-            }
-
-            if ("opensPasteModal" in source) {
-              return (
-                <Dialog key={source.title}>
-                  <DialogTrigger asChild>
-                    <button type="button" className={cardClass}>
-                      {cardInner}
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Paste sample</DialogTitle>
-                      <DialogDescription>
-                        Paste raw payloads, log lines, or delimited structures to
-                        generate the preview.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogBody className="flex flex-col gap-2">
-                      <Textarea
-                        id="paste-sample"
-                        value={pasteSample}
-                        onChange={(event) => setPasteSample(event.target.value)}
-                        placeholder="Paste sample data here"
-                        className="min-h-48 resize-none rounded-md border-border bg-muted p-4 font-mono text-xs leading-5 placeholder:text-muted-foreground"
-                      />
-                      {pasteSample.trim() ? (
-                        <p className="flex items-center gap-1.5 text-hint text-[var(--success)]">
-                          <CheckCircleIcon
-                            className="h-4 w-4"
-                            ariaLabel="Sample captured"
-                          />
-                          Sample captured
-                        </p>
-                      ) : null}
-                    </DialogBody>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="default" size="sm">
-                          Cancel
-                        </Button>
-                      </DialogClose>
-                      <DialogClose asChild>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={!pasteSample.trim()}
-                          onClick={() => applySample("Pasted sample")}
                         >
                           Apply
                         </Button>
@@ -675,7 +689,7 @@ export function SchemaPreviewPanel({
       ) : sampleLoading ? (
         <SamplePreviewSkeleton />
       ) : (
-        <SamplePreviewTables dataset={dataset} />
+        <SamplePreviewTables dataset={dataset} unwrapped={unwrapped} />
       )}
 
       <UnityCatalogExplorerModal

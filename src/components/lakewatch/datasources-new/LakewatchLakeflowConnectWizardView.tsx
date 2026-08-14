@@ -24,7 +24,6 @@ import {
 import {
   WizardComputeModeField,
   WizardDatasourceNameField,
-  WizardFormatField,
 } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -240,7 +239,6 @@ export function LakewatchLakeflowConnectWizardView({
   const [datasourceName, setDatasourceName] = React.useState("")
   const [catalog, setCatalog] = React.useState("lakewatch")
   const [schema, setSchema] = React.useState("default")
-  const [dataFormat, setDataFormat] = React.useState("")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const templateController = useIntegrationTemplates(label)
@@ -601,8 +599,6 @@ export function LakewatchLakeflowConnectWizardView({
                 </Table>
               </div>
 
-              <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
-
               <WizardComputeModeField />
             </div>
 
@@ -641,7 +637,11 @@ export function LakewatchLakeflowConnectWizardView({
             />
 
             <div className="flex min-h-0 flex-col overflow-y-auto px-8 py-6">
-              <IntegrationTemplatesField controller={templateController} hideHeader />
+              <IntegrationTemplatesField
+                controller={templateController}
+                hideHeader
+                hideCreateCustom
+              />
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">

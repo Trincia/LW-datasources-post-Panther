@@ -2,12 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import {
-  ChevronDown,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -127,99 +122,17 @@ function CodeEditor({
   )
 }
 
-function SchemaTagsField() {
-  const [open, setOpen] = React.useState(false)
-  const [rows, setRows] = React.useState<{ key: string; value: string }[]>([
-    { key: "", value: "" },
-  ])
-
-  const updateRow = (index: number, field: "key" | "value", value: string) => {
-    setRows((current) =>
-      current.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
-    )
-  }
-
-  const addRow = () => {
-    setRows((current) => [...current, { key: "", value: "" }])
-  }
-
-  const removeRow = (index: number) => {
-    setRows((current) => current.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Button
-        type="button"
-        variant="link"
-        size="sm"
-        className="h-auto self-start gap-1 p-0 !px-0"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        Tags (optional)
-        <ChevronDown
-          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
-        />
-      </Button>
-      {open ? (
-        <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-            <span className="text-hint text-muted-foreground">Key</span>
-            <span className="text-hint text-muted-foreground">Value</span>
-            <span className="w-8" aria-hidden />
-          </div>
-          {rows.map((row, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-[1fr_1fr_auto] items-center gap-2"
-            >
-              <Input
-                aria-label={`Tag key ${index + 1}`}
-                value={row.key}
-                onChange={(event) => updateRow(index, "key", event.target.value)}
-                placeholder="Key"
-              />
-              <Input
-                aria-label={`Tag value ${index + 1}`}
-                value={row.value}
-                onChange={(event) => updateRow(index, "value", event.target.value)}
-                placeholder="Value"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove tag ${index + 1}`}
-                onClick={() => removeRow(index)}
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Add tag"
-            className="self-start"
-            onClick={addRow}
-          >
-            <Plus className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 export function LakewatchCreateSchemaView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // When opened from a wizard where the source data was already unwrapped, the
+  // sample preview arrives pre-populated with the unwrapped (logical) events.
+  const arrivedUnwrapped = searchParams.get("unwrapped") === "1"
   const [schemaId, setSchemaId] = React.useState("")
   const [destSchema, setDestSchema] = React.useState("default")
   const [description, setDescription] = React.useState("")
   const [schemaDefinition, setSchemaDefinition] = React.useState("")
-  const [previewOpen, setPreviewOpen] = React.useState(false)
+  const [previewOpen, setPreviewOpen] = React.useState(arrivedUnwrapped)
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -323,8 +236,6 @@ export function LakewatchCreateSchemaView() {
               className="min-h-16 resize-none"
             />
           </div>
-
-          <SchemaTagsField />
         </section>
 
         <section className="flex flex-col gap-2">
@@ -355,7 +266,12 @@ export function LakewatchCreateSchemaView() {
       </div>
     </form>
 
-      {previewOpen ? <SchemaPreviewPanel /> : null}
+      {previewOpen ? (
+        <SchemaPreviewPanel
+          unwrapped={arrivedUnwrapped}
+          schemaDefinition={schemaDefinition}
+        />
+      ) : null}
     </div>
   )
 }
