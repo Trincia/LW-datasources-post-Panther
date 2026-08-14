@@ -18,11 +18,14 @@ import {
 import { useRouter } from "next/navigation"
 
 import {
+  CatalogIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DatasourceNavIcon,
   FolderIcon,
+  SchemaIcon,
   TableIcon,
 } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
@@ -377,16 +380,18 @@ export function WizardDatasourceNameField({
       <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
         <Select value={catalog} onValueChange={onCatalogChange} disabled>
           <SelectTrigger className="w-full" aria-label="Catalog">
+            <CatalogIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="lakewatch">lakewatch</SelectItem>
-            <SelectItem value="main">main</SelectItem>
-            <SelectItem value="security">security</SelectItem>
+            <SelectItem value="sec_sandbox">sec_sandbox</SelectItem>
+            <SelectItem value="sec_dev">sec_dev</SelectItem>
+            <SelectItem value="sec_stag">sec_stag</SelectItem>
           </SelectContent>
         </Select>
         <Select value={schema} onValueChange={onSchemaChange}>
           <SelectTrigger className="w-full" aria-label="Schema">
+            <SchemaIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -395,12 +400,20 @@ export function WizardDatasourceNameField({
             <SelectItem value="production">production</SelectItem>
           </SelectContent>
         </Select>
-        <Input
-          aria-label="Datasource name"
-          value={name}
-          onChange={(event) => onNameChange(event.target.value)}
-          required
-        />
+        <div className="relative">
+          <DatasourceNavIcon
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            aria-label="Datasource name"
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            required
+            className="pl-9"
+          />
+        </div>
       </div>
     </div>
   )
@@ -1971,7 +1984,7 @@ export function LakewatchAwsS3WizardView({
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const templateController = useIntegrationTemplates()
   const pendingSchemas: string[] = []
-  const [catalog, setCatalog] = React.useState("lakewatch")
+  const [catalog, setCatalog] = React.useState("sec_dev")
   const [schema, setSchema] = React.useState("default")
   const [datasourceName, setDatasourceName] = React.useState("lakewatch-account-us-west-2")
   const sampleVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)

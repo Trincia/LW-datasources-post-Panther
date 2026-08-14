@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   MoreVertical,
   Pencil,
+  Plus,
   Trash2,
   User,
   Users,
@@ -123,10 +124,7 @@ const DATASOURCE_SCHEMAS = [
 ] as const
 
 const DESTINATION_TABLES: Record<string, string[]> = {
-  "AWS.VPCFlow": [
-    "lakewatch.default.aws_vpcflow",
-    "lakewatch.network.vpcflow_enriched",
-  ],
+  "AWS.VPCFlow": ["lakewatch.default.aws_vpcflow"],
   "AWS.ALB": ["lakewatch.default.aws_alb"],
   "AWS.S3ServerAccess": ["lakewatch.default.aws_s3serveraccess"],
   "AWS.CloudTrail": ["lakewatch.default.aws_cloudtrail"],
@@ -988,9 +986,17 @@ function DatasourceSchemasTab() {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold leading-6 text-foreground">
-        Parsers
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold leading-6 text-foreground">
+          Parsers
+        </h2>
+        <Button variant="default" size="sm" className="gap-1.5" asChild>
+          <Link href="/lakewatch/schemas/new">
+            <Plus className="h-4 w-4" />
+            Add parser
+          </Link>
+        </Button>
+      </div>
       <Table className="mt-3">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -1780,23 +1786,16 @@ export function LakewatchDatasourceDetailView() {
       <Tabs defaultValue="overview" className="mt-5">
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="system-cases">System cases</TabsTrigger>
+          <TabsTrigger value="system-cases">
+            System alerts
+            <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold leading-none text-white">
+              2
+            </span>
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 text-primary hover:text-blue-700"
-              onClick={() => setAdvancedOpen(true)}
-            >
-              Advanced options
-            </Button>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-8">
-          <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-8">
+          <div className="flex flex-col gap-5 lg:col-span-2">
             {editingDescription ? (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="datasource-overview-description">Description</Label>
@@ -1806,8 +1805,8 @@ export function LakewatchDatasourceDetailView() {
                   onChange={(event) => setDraftDescription(event.target.value)}
                   placeholder="Add a description for this datasource"
                   autoFocus
-                  rows={3}
-                  className="min-h-[80px]"
+                  rows={5}
+                  className="min-h-[140px]"
                 />
                 <div className="flex items-center gap-2">
                   <Button
@@ -1868,6 +1867,19 @@ export function LakewatchDatasourceDetailView() {
                 )}
               </div>
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-primary hover:text-blue-700"
+                onClick={() => setAdvancedOpen(true)}
+              >
+                Advanced options
+              </Button>
+            </div>
+
             <Sheet open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <SheetContent side="right" className="sm:max-w-md">
                 <SheetHeader>
@@ -2011,32 +2023,6 @@ export function LakewatchDatasourceDetailView() {
               </SheetContent>
             </Sheet>
           </div>
-
-            <section>
-              <h2 className="text-base font-semibold leading-6 text-foreground">Basic info</h2>
-              <dl className="mt-3 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 text-sm">
-                <dt className="text-foreground">Source ID</dt>
-                <dd className="min-w-0 truncate text-primary" title="422e7cbe-3ec2-4c68-9fcf-f04ef87f8170">
-                  422e7cbe-3ec2-4c68-9fcf-f04ef87f8170
-                </dd>
-                <dt className="text-foreground">AWS account ID</dt>
-                <dd className="min-w-0 truncate text-primary" title="296062572198">
-                  296062572198
-                </dd>
-                <dt className="text-foreground">Destination table</dt>
-                <dd className="min-w-0">
-                  <Button
-                    variant="link"
-                    className="h-auto max-w-full justify-start truncate p-0 text-sm font-normal text-primary"
-                    asChild
-                  >
-                    <Link href="#" title="lakewatch.default.audit_logs_7830bcf">
-                      lakewatch.default.audit_logs_7830bcf
-                    </Link>
-                  </Button>
-                </dd>
-              </dl>
-            </section>
 
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3">

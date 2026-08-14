@@ -523,7 +523,7 @@ function TemplateDetailsPanel({
   onClose: () => void
   className?: string
 }) {
-  const [destCatalog, setDestCatalog] = React.useState("lakewatch")
+  const [destCatalog, setDestCatalog] = React.useState("sec_dev")
   const [destSchema, setDestSchema] = React.useState("default")
   const [tableName, setTableName] = React.useState(() => toTableName(template.name))
   const [selectedVersion, setSelectedVersion] = React.useState(template.version)
@@ -611,9 +611,9 @@ function TemplateDetailsPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="lakewatch">lakewatch</SelectItem>
-                      <SelectItem value="main">main</SelectItem>
-                      <SelectItem value="security">security</SelectItem>
+                      <SelectItem value="sec_sandbox">sec_sandbox</SelectItem>
+                      <SelectItem value="sec_dev">sec_dev</SelectItem>
+                      <SelectItem value="sec_stag">sec_stag</SelectItem>
                     </SelectContent>
                   </Select>
                   <span className="text-muted-foreground">.</span>
@@ -1417,7 +1417,7 @@ export function IntegrationTemplatesField({
     <div className="flex flex-col gap-3">
       {hideHeader ? null : (
         <div>
-          <Label>Parsers (optional)</Label>
+          <Label>Parsers</Label>
           <p className="text-hint text-muted-foreground">
             Select built-in or custom parsers to structure and validate incoming event data.
           </p>
@@ -1537,12 +1537,12 @@ export function IntegrationTemplatesField({
                 metadata for recovery and processing.
               </p>
               <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-2">
-                <Select value="lakewatch" disabled>
+                <Select value="sec_dev" disabled>
                   <SelectTrigger className="w-full" aria-label="Catalog">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lakewatch">lakewatch</SelectItem>
+                    <SelectItem value="sec_dev">sec_dev</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={rawSchema} onValueChange={setRawSchema}>

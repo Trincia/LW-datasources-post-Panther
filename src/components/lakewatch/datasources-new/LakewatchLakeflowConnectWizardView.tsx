@@ -237,7 +237,7 @@ export function LakewatchLakeflowConnectWizardView({
   const [newClientSecret, setNewClientSecret] = React.useState("")
   const [signingIn, setSigningIn] = React.useState(false)
   const [datasourceName, setDatasourceName] = React.useState("")
-  const [catalog, setCatalog] = React.useState("lakewatch")
+  const [catalog, setCatalog] = React.useState("sec_dev")
   const [schema, setSchema] = React.useState("default")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)

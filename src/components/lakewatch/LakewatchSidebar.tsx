@@ -142,18 +142,18 @@ export function LakewatchSidebar({
           <SectionLabel>Configure</SectionLabel>
         </div>
         <NavRow
-          href="/lakewatch/schemas"
-          icon={SchemasNavIcon}
-          active={activeItem === "schemas"}
-        >
-          Parsers
-        </NavRow>
-        <NavRow
           href="/lakewatch/datasources"
           icon={DatasourceNavIcon}
           active={activeItem === "datasources"}
         >
           Datasources
+        </NavRow>
+        <NavRow
+          href="/lakewatch/schemas"
+          icon={SchemasNavIcon}
+          active={activeItem === "schemas"}
+        >
+          Parsers
         </NavRow>
         <NavRow
           href="/lakewatch/detection"
@@ -174,14 +174,14 @@ export function LakewatchSidebar({
           icon={FileDocumentIcon}
           active={activeItem === "security-cases"}
         >
-          Security cases
+          Security alerts
         </NavRow>
         <NavRow
           href="/lakewatch/system-cases"
           icon={WarningIcon}
           active={activeItem === "system-cases"}
         >
-          System cases
+          System alerts
         </NavRow>
         <NavRow href="/lakewatch/observables" icon={VisibleIcon} active={activeItem === "observables"}>
           Observables

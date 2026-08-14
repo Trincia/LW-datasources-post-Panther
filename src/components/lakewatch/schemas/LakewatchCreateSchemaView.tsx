@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 
+import { CatalogIcon, SchemaIcon, SchemasNavIcon } from "@/components/icons"
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { saveCustomSchema } from "@/components/lakewatch/schemas/schemaStorage"
@@ -190,17 +191,19 @@ export function LakewatchCreateSchemaView() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="schema-id">Name</Label>
             <div className="flex items-center gap-1">
-              <Select value="lakewatch" disabled>
+              <Select value="sec_dev" disabled>
                 <SelectTrigger className="w-full" aria-label="Catalog">
+                  <CatalogIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lakewatch">lakewatch</SelectItem>
+                  <SelectItem value="sec_dev">sec_dev</SelectItem>
                 </SelectContent>
               </Select>
               <span className="text-muted-foreground">.</span>
               <Select value={destSchema} onValueChange={setDestSchema}>
                 <SelectTrigger className="w-full" aria-label="Schema">
+                  <SchemaIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,16 +213,24 @@ export function LakewatchCreateSchemaView() {
                 </SelectContent>
               </Select>
               <span className="text-muted-foreground">.</span>
-              <Input
-                id="schema-id"
-                aria-label="Name"
-                placeholder={SAMPLE_SCHEMA_ID}
-                value={schemaId}
-                onChange={(event) => setSchemaId(event.target.value)}
-                onFocus={() => {
-                  if (!schemaId) setSchemaId(SAMPLE_SCHEMA_ID)
-                }}
-              />
+              <div className="relative min-w-0 flex-1">
+                <SchemasNavIcon
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  id="schema-id"
+                  aria-label="Name"
+                  placeholder={SAMPLE_SCHEMA_ID}
+                  value={schemaId}
+                  onChange={(event) => setSchemaId(event.target.value)}
+                  onFocus={() => {
+                    if (!schemaId) setSchemaId(SAMPLE_SCHEMA_ID)
+                  }}
+                  className="pl-9"
+                />
+              </div>
             </div>
           </div>
 
