@@ -1786,12 +1786,20 @@ export function LakewatchDatasourceDetailView() {
 
   // When arriving from a Lakeflow Connect (API connector) add flow, the source
   // type and parsers are driven by the chosen connector rather than the S3
-  // defaults below.
-  const connectorKey = searchParams.get("connector")
-  const connectorFamily =
-    connectorKey && connectorKey in CONNECT_SOURCES
-      ? CONNECT_SOURCES[connectorKey as keyof typeof CONNECT_SOURCES]
-      : null
+  // defaults below. If the query param is missing (e.g. on refresh or when
+  // navigating from the list), infer the connector from the datasource name.
+  const paramConnectorKey = searchParams.get("connector")
+  const connectorKey =
+    paramConnectorKey && paramConnectorKey in CONNECT_SOURCES
+      ? paramConnectorKey
+      : (Object.keys(CONNECT_SOURCES)
+          .sort((a, b) => b.length - a.length)
+          .find(
+            (key) => sourceName === key || sourceName.startsWith(`${key}-`)
+          ) ?? null)
+  const connectorFamily = connectorKey
+    ? CONNECT_SOURCES[connectorKey as keyof typeof CONNECT_SOURCES]
+    : null
   const connectionName =
     searchParams.get("connection")?.trim() ||
     (connectorKey ? `${connectorKey}-connection` : "")
