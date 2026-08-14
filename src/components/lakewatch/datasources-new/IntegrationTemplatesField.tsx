@@ -14,6 +14,7 @@ import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -22,8 +23,13 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ValidatedInput } from "@/components/lakewatch/ValidatedInput"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  SegmentedControl,
+  SegmentedItem,
+} from "@/components/ui/segmented-control"
 import {
   Select,
   SelectContent,
@@ -31,7 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
@@ -344,62 +349,157 @@ function TemplateKindBadge({ kind }: { kind: TemplateKind }) {
   )
 }
 
-function FieldTreeNode({ field, depth }: { field: TemplateField; depth: number }) {
-  const hasChildren = Boolean(field.fields && field.fields.length > 0)
-  const [open, setOpen] = React.useState(depth === 0)
-  const isObject = field.type === "object"
+/** Syntax-highlights a single YAML line for the read-only parser code block. */
+function HighlightedYamlLine({ line }: { line: string }) {
+  if (line.trimStart().startsWith("#")) {
+    return <span className="italic text-blue-400">{line}</span>
+  }
+
+  const match = line.match(/^(\s*(?:-\s+)?)([\w]+):(.*)$/)
+  if (!match) return <>{line}</>
+
+  const [, prefix, key, rawValue] = match
+  const value = rawValue.trim()
+  const valueClass =
+    value === "true" || value === "false" ? "text-[var(--warning)]" : "text-coral-300"
 
   return (
-    <div>
-      <div
-        className="flex items-center gap-1.5 border-b border-input py-2"
-        style={{ paddingLeft: depth * 20 }}
-      >
-        {isObject ? (
-          <Button
+    <>
+      {prefix}
+      <span className="text-teal-300">{key}</span>
+      <span className="text-grey-350">:</span>
+      {value ? <span className={valueClass}> {value}</span> : null}
+    </>
+  )
+}
+
+function TemplateFieldTypeBadge({ type }: { type: string }) {
+  // "array" types render as a solid charcoal pill; scalar/object types render
+  // as outline pills (teal for objects, blue for everything else).
+  if (type.startsWith("array")) {
+    return (
+      <Badge variant="charcoal" className="rounded-full px-2">
+        {type}
+      </Badge>
+    )
+  }
+  const color =
+    type === "object"
+      ? "border-[var(--tag-text-teal)] text-[var(--tag-text-teal)]"
+      : "border-primary text-primary"
+  return (
+    <Badge
+      variant="secondary"
+      className={cn("rounded-full border bg-transparent px-2", color)}
+    >
+      {type}
+    </Badge>
+  )
+}
+
+function TemplateFieldRow({ field, depth = 0 }: { field: TemplateField; depth?: number }) {
+  const [open, setOpen] = React.useState(false)
+  const expandable = (field.fields?.length ?? 0) > 0
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2" style={{ paddingLeft: depth * 20 }}>
+        {expandable ? (
+          <button
             type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="size-4"
+            onClick={() => setOpen((value) => !value)}
             aria-label={open ? `Collapse ${field.name}` : `Expand ${field.name}`}
-            disabled={!hasChildren}
-            onClick={() => setOpen((current) => !current)}
+            className="flex size-4 shrink-0 items-center justify-center"
           >
-            {open ? (
-              <ChevronDown className="size-3.5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="size-3.5 text-muted-foreground" />
-            )}
-          </Button>
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform",
+                open && "rotate-90"
+              )}
+            />
+          </button>
         ) : (
-          <span className="inline-block size-4 shrink-0" aria-hidden />
+          <span className="w-4 shrink-0" aria-hidden />
         )}
-        <span className="text-sm font-semibold text-foreground">{field.name}</span>
-        <span className="text-sm text-muted-foreground">({field.type})</span>
+        <span className="text-base font-normal text-foreground">{field.name}</span>
+        {field.type ? <TemplateFieldTypeBadge type={field.type} /> : null}
+        {expandable ? (
+          <Badge variant="default" className="rounded-full px-2">
+            {field.fields!.length} Nested Fields
+          </Badge>
+        ) : null}
       </div>
-      {hasChildren && open
-        ? field.fields!.map((child) => (
-            <FieldTreeNode key={child.name} field={child} depth={depth + 1} />
-          ))
-        : null}
+      {field.timeFormats?.length ? (
+        <p
+          className="text-sm italic text-muted-foreground"
+          style={{ paddingLeft: depth * 20 + 24 }}
+        >
+          Time formats: {field.timeFormats.join(", ")}
+        </p>
+      ) : null}
+      {expandable && open ? (
+        <div className="flex flex-col gap-4">
+          {field.fields!.map((child) => (
+            <TemplateFieldRow key={child.name} field={child} depth={depth + 1} />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function TemplateMetaRow({ template }: { template: IntegrationTemplate }) {
+function TemplateFieldsView({ fields }: { fields: TemplateField[] }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-hint text-muted-foreground">
-        Created by {template.createdBy} · Modified {template.modified}
-      </p>
-      <p className="text-sm text-foreground">
-        Default output:{" "}
-        <span className="font-mono text-primary">{template.defaultOutput}</span>
-      </p>
-      <p className="text-sm text-foreground">
-        Linked datasource:{" "}
-        <span className="text-primary">{template.linkedDatasource}</span>
-      </p>
+    <div className="flex flex-col gap-4">
+      {fields.map((field) => (
+        <TemplateFieldRow key={field.name} field={field} />
+      ))}
+    </div>
+  )
+}
+
+function buildTemplateCode(template: IntegrationTemplate): string[] {
+  return [
+    "# Code generated by Panther; DO NOT EDIT. (@generated)",
+    `schema: ${template.name}`,
+    `description: ${template.description}`,
+    `referenceURL: ${template.defaultOutput}`,
+    "fields:",
+    ...fieldsToYaml(template.fields, 1).split("\n"),
+  ]
+}
+
+/** The read-only, line-numbered, syntax-highlighted YAML view of a parser. */
+function TemplateCodeView({ template }: { template: IntegrationTemplate }) {
+  const lines = React.useMemo(() => buildTemplateCode(template), [template])
+
+  return (
+    <div className="h-96 overflow-auto rounded border border-grey-700 bg-grey-800 py-1 font-mono text-hint leading-5 text-grey-050">
+      {lines.map((line, index) => (
+        <div key={`${index}-${line}`} className="flex min-w-max">
+          <span className="w-10 shrink-0 border-r border-grey-700 px-2 text-right text-grey-350">
+            {index + 1}
+          </span>
+          <code className="whitespace-pre px-4">
+            <HighlightedYamlLine line={line} />
+          </code>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TemplateMetadataItem({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 truncate text-sm text-foreground">{children}</dd>
     </div>
   )
 }
@@ -427,6 +527,7 @@ function TemplateDetailsPanel({
   const [destSchema, setDestSchema] = React.useState("default")
   const [tableName, setTableName] = React.useState(() => toTableName(template.name))
   const [selectedVersion, setSelectedVersion] = React.useState(template.version)
+  const [detailView, setDetailView] = React.useState<"ui" | "yaml">("ui")
 
   return (
     <div
@@ -562,57 +663,54 @@ function TemplateDetailsPanel({
                   </div>
                 )}
               </div>
-              <TemplateMetaRow template={template} />
+              <Card className="gap-5">
+                <p className="text-sm font-semibold text-foreground">
+                  {template.description}
+                </p>
+                <div className="w-60 border-t border-border" />
+                <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <TemplateMetadataItem label="Created by">
+                    {template.createdBy}
+                  </TemplateMetadataItem>
+                  <TemplateMetadataItem label="Modified">
+                    {template.modified}
+                  </TemplateMetadataItem>
+                  <TemplateMetadataItem label="Fields">
+                    {template.fieldCount}
+                  </TemplateMetadataItem>
+                  <TemplateMetadataItem label="Default output">
+                    <span className="font-mono text-primary">
+                      {template.defaultOutput}
+                    </span>
+                  </TemplateMetadataItem>
+                  <TemplateMetadataItem label="Linked datasource">
+                    <span className="text-primary">{template.linkedDatasource}</span>
+                  </TemplateMetadataItem>
+                </dl>
+              </Card>
 
-              <div className="overflow-hidden rounded-md border border-input">
-                <Tabs defaultValue="contract" className="gap-0">
-                  <TabsList
-                    variant="line"
-                    className="h-auto shrink-0 border-b border-input pt-2 data-[variant=line]:px-4"
+              <Card>
+                <div className="flex items-center justify-between gap-4">
+                  <SegmentedControl
+                    value={detailView}
+                    onValueChange={(value) => setDetailView(value as "ui" | "yaml")}
                   >
-                    <TabsTrigger value="contract">Contract</TabsTrigger>
-                    <TabsTrigger value="metadata">Metadata</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="contract" className="px-4 py-4">
-                    <h3 className="mb-2 text-lg font-semibold text-foreground">
-                      Template fields
-                    </h3>
-                    {template.editable ? (
-                      <pre className="overflow-auto whitespace-pre rounded border border-input bg-grey-800 p-3 font-mono text-hint leading-5 text-grey-050">
-                        {`fields:\n${fieldsToYaml(template.fields)}`}
-                      </pre>
-                    ) : (
-                      <div>
-                        {template.fields.map((field) => (
-                          <FieldTreeNode key={field.name} field={field} depth={0} />
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="metadata" className="px-4 py-4">
-                    <dl className="grid grid-cols-[160px_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
-                      <dt className="text-muted-foreground">Version</dt>
-                      <dd className="text-foreground">{template.version}</dd>
-                      <dt className="text-muted-foreground">Type</dt>
-                      <dd className="text-foreground">
-                        {template.kind === "built-in" ? "Built-in" : "Custom"}
-                      </dd>
-                      <dt className="text-muted-foreground">Fields</dt>
-                      <dd className="text-foreground">{template.fieldCount}</dd>
-                      <dt className="text-muted-foreground">Created by</dt>
-                      <dd className="text-foreground">{template.createdBy}</dd>
-                      <dt className="text-muted-foreground">Modified</dt>
-                      <dd className="text-foreground">{template.modified}</dd>
-                      <dt className="text-muted-foreground">Default output</dt>
-                      <dd className="font-mono text-primary">{template.defaultOutput}</dd>
-                      <dt className="text-muted-foreground">Linked datasource</dt>
-                      <dd className="text-primary">{template.linkedDatasource}</dd>
-                    </dl>
-                  </TabsContent>
-                </Tabs>
-              </div>
+                    <SegmentedItem value="ui">UI</SegmentedItem>
+                    <SegmentedItem value="yaml">YAML</SegmentedItem>
+                  </SegmentedControl>
+                  {detailView === "yaml" ? (
+                    <span className="text-hint text-muted-foreground">
+                      {template.editable ? "Editable YAML" : "Read only"}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="w-60 border-t border-border" />
+                {detailView === "ui" ? (
+                  <TemplateFieldsView fields={template.fields} />
+                ) : (
+                  <TemplateCodeView template={template} />
+                )}
+              </Card>
             </div>
 
             <div className="flex shrink-0 justify-end border-t border-input px-6 py-3">
@@ -733,7 +831,7 @@ function CloneTemplatePanel({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="clone-reference-url">Reference URL</Label>
-              <Input
+              <ValidatedInput
                 id="clone-reference-url"
                 value={referenceUrl}
                 onChange={(event) => setReferenceUrl(event.target.value)}

@@ -26,7 +26,12 @@ import {
   TableIcon,
 } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { PreviewSkeleton } from "@/components/lakewatch/PreviewSkeleton"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
+import {
+  ValidatedInput,
+  ValidationIndicator,
+} from "@/components/lakewatch/ValidatedInput"
 import { WizardStepMenu } from "@/components/lakewatch/datasources-new/WizardStepMenu"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -76,6 +81,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -89,7 +95,7 @@ import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
   "Source",
-  "Parse",
+  "Parsers",
 ] as const
 
 export type LakewatchDatasourceWizardKind =
@@ -101,7 +107,7 @@ export type LakewatchDatasourceWizardKind =
   | "azure-blob-storage"
 
 function getSimpleWizardSteps(_kind: LakewatchDatasourceWizardKind) {
-  return ["Source", "Parse"] as const
+  return ["Source", "Parsers"] as const
 }
 
 const SIMPLE_WIZARD_CONFIG: Record<
@@ -132,6 +138,8 @@ const SIMPLE_WIZARD_CONFIG: Record<
 const GCS_SOURCE_LOCATION_SAMPLE =
   "https://console.cloud.google.com/bigquery?p=YOUR_PROJECT_ID&d=YOUR_DATASET_ID&t=YOUR_TABLE_ID&page=table"
 
+const S3_SOURCE_LOCATION_SAMPLE = "s3://lakewatch-security-logs/"
+
 const AZURE_SOURCE_LOCATION_SAMPLE =
   "https://portal.azure.com/#blade/Microsoft_Azure_Storage/ContainerMenuBlade/overview/storageAccountId/%2Fsubscriptions%2F00000000-0000-0000-0000-000000000000%2FresourceGroups%2Flakewatch-rg%2Fproviders%2FMicrosoft.Storage%2FstorageAccounts%2Flakewatchlogs%2FblobServices%2Fdefault%2Fcontainers%2Fsecurity-logs"
 
@@ -146,13 +154,6 @@ function getCloudSourceLocationSample(kind: LakewatchDatasourceWizardKind) {
 
 type VerificationState = "idle" | "validating" | "verified"
 
-const DETECTED_SCHEMAS = [
-  "AWS.VPCFlow",
-  "AWS.ALB",
-  "AWS.S3ServerAccess",
-  "AWS.CloudTrail",
-] as const
-
 type UnwrapMode =
   | "none"
   | "lines"
@@ -160,8 +161,6 @@ type UnwrapMode =
   | "json-array"
   | "cloudwatch"
   | "xml"
-
-type PreviewSchema = (typeof DETECTED_SCHEMAS)[number]
 
 type PreviewTableData = {
   columns: readonly string[]
@@ -237,6 +236,24 @@ function getInputPreviewData(region: string): PreviewTableData {
   }
 }
 
+/**
+ * Flattened "unwrapped events" view of the source records — the result of the
+ * unwrapping step and the input a parser actually sees on step 2.
+ */
+function getUnwrappedInputData(): PreviewTableData {
+  const copyFields = [...UNWRAP_COPY_FIELDS]
+  const columns = ["eventName", "eventTime", "sourceIP", ...copyFields]
+  const rows: string[][] = []
+  for (const record of UNWRAP_PREVIEW_RECORDS) {
+    for (const event of buildLogicalEvents(record, copyFields)) {
+      rows.push(columns.map((column) => event[column] ?? ""))
+      if (rows.length >= 12) break
+    }
+    if (rows.length >= 12) break
+  }
+  return { columns, rows }
+}
+
 const UNWRAP_EVENT_NAMES = [
   "GetObject",
   "PutObject",
@@ -294,101 +311,6 @@ function buildLogicalEvents(
     if (typeof value === "string") copied[field] = value
   }
   return record.Records.map((event) => ({ ...event, ...copied }))
-}
-
-const SCHEMA_PREVIEW_DATA: Record<PreviewSchema, PreviewTableData> = {
-  "AWS.VPCFlow": {
-    columns: [
-      "version",
-      "accountId",
-      "interfaceId",
-      "srcAddr",
-      "dstAddr",
-      "srcPort",
-      "dstPort",
-      "protocol",
-      "packets",
-      "bytes",
-      "action",
-    ],
-    rows: [
-      ["2", "123456789012", "eni-0a91f3c2", "10.0.1.24", "52.216.144.43", "49822", "443", "6", "14", "7840", "ACCEPT"],
-      ["2", "123456789012", "eni-0a91f3c2", "10.0.2.17", "10.0.1.24", "54321", "443", "6", "9", "4218", "ACCEPT"],
-      ["2", "123456789012", "eni-0c74b8e1", "198.51.100.17", "10.0.3.8", "60114", "22", "6", "3", "180", "REJECT"],
-      ["2", "123456789012", "eni-0c74b8e1", "10.0.3.8", "8.8.8.8", "39124", "53", "17", "2", "164", "ACCEPT"],
-      ["2", "123456789012", "eni-05d18a77", "10.0.4.31", "10.0.5.12", "44210", "3306", "6", "28", "16244", "ACCEPT"],
-      ["2", "123456789012", "eni-05d18a77", "203.0.113.42", "10.0.4.31", "51890", "443", "6", "18", "10392", "ACCEPT"],
-    ],
-  },
-  "AWS.ALB": {
-    columns: [
-      "time",
-      "clientIp",
-      "clientPort",
-      "targetIp",
-      "targetPort",
-      "requestMethod",
-      "requestUrl",
-      "statusCode",
-      "receivedBytes",
-      "sentBytes",
-      "userAgent",
-    ],
-    rows: [
-      ["2024-03-15T14:23:41Z", "203.0.113.42", "51820", "10.0.2.17", "8080", "GET", "/api/v1/health", "200", "0", "124", "ELB-HealthChecker/2.0"],
-      ["2024-03-15T14:25:07Z", "198.51.100.17", "60114", "10.0.2.19", "8080", "POST", "/api/v1/events", "202", "1842", "86", "aws-sdk-java/2.25"],
-      ["2024-03-15T14:31:19Z", "192.0.2.88", "44210", "10.0.3.8", "8080", "GET", "/login", "302", "0", "245", "Mozilla/5.0"],
-      ["2024-03-15T15:02:44Z", "203.0.113.81", "39124", "10.0.3.9", "8080", "GET", "/assets/app.js", "200", "0", "48392", "Mozilla/5.0"],
-      ["2024-03-15T16:18:55Z", "198.51.100.64", "54321", "10.0.2.17", "8080", "PUT", "/api/v1/users/42", "200", "712", "364", "curl/8.5.0"],
-      ["2024-03-15T16:44:02Z", "192.0.2.31", "49822", "10.0.2.19", "8080", "GET", "/api/v1/reports", "403", "0", "96", "python-requests/2.31"],
-    ],
-  },
-  "AWS.S3ServerAccess": {
-    columns: [
-      "bucketOwner",
-      "bucket",
-      "requestTime",
-      "remoteIp",
-      "requester",
-      "requestId",
-      "operation",
-      "key",
-      "httpStatus",
-      "bytesSent",
-      "userAgent",
-    ],
-    rows: [
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:23:41 +0000", "203.0.113.42", "arn:aws:iam::123456789012:role/Ingest", "3E57427F", "REST.GET.OBJECT", "cloudtrail/2024/03/15/part-001.json.gz", "200", "18422", "aws-sdk-java"],
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:25:07 +0000", "198.51.100.17", "arn:aws:iam::123456789012:role/Ingest", "8A19B40C", "REST.PUT.OBJECT", "vpcflow/2024/03/15/part-014.log.gz", "200", "0", "aws-cli/2.15"],
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:14:31:19 +0000", "192.0.2.88", "arn:aws:iam::123456789012:user/auditor", "12C94EF1", "REST.HEAD.OBJECT", "alb/2024/03/15/access-009.log.gz", "200", "0", "Boto3/1.34"],
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:15:02:44 +0000", "203.0.113.81", "-", "5D0FA821", "REST.GET.BUCKET", "-", "403", "243", "Mozilla/5.0"],
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:16:18:55 +0000", "198.51.100.64", "arn:aws:iam::123456789012:role/Lifecycle", "9BF2A476", "REST.DELETE.OBJECT", "tmp/export-428.csv", "204", "0", "S3Console/0.4"],
-      ["79a59df9", "security-logs-prod", "15/Mar/2024:16:44:02 +0000", "192.0.2.31", "arn:aws:iam::123456789012:role/Ingest", "F1439CD8", "REST.GET.OBJECT", "cloudtrail/2024/03/15/part-002.json.gz", "206", "8192", "aws-sdk-go-v2"],
-    ],
-  },
-  "AWS.CloudTrail": {
-    columns: [
-      "eventTime",
-      "eventName",
-      "eventSource",
-      "userIdentityType",
-      "awsRegion",
-      "sourceIPAddress",
-      "userAgent",
-      "requestID",
-      "eventID",
-      "eventType",
-      "readOnly",
-    ],
-    rows: [
-      ["2024-03-15T14:23:41Z", "AssumeRole", "sts.amazonaws.com", "IAMUser", "us-east-1", "203.0.113.42", "aws-cli/2.15", "aa21c4d8", "dce958ed", "AwsApiCall", "true"],
-      ["2024-03-15T14:25:07Z", "GetObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "203.0.113.42", "Boto3/1.34", "bb32d5e9", "86774789", "AwsApiCall", "true"],
-      ["2024-03-15T14:31:19Z", "PutObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "198.51.100.17", "aws-sdk-java/2.25", "cc43e6fa", "f54af1b7", "AwsApiCall", "false"],
-      ["2024-03-15T15:02:44Z", "CreateUser", "iam.amazonaws.com", "IAMUser", "us-east-1", "198.51.100.17", "console.amazonaws.com", "dd54f70b", "1b2d48e0", "AwsApiCall", "false"],
-      ["2024-03-15T16:18:55Z", "ListBuckets", "s3.amazonaws.com", "Root", "us-east-1", "192.0.2.88", "Mozilla/5.0", "ee65081c", "82ce5b19", "AwsApiCall", "true"],
-      ["2024-03-15T16:44:02Z", "DeleteObject", "s3.amazonaws.com", "AssumedRole", "us-east-1", "192.0.2.88", "aws-sdk-go-v2", "ff76192d", "93df6c2a", "AwsApiCall", "false"],
-    ],
-  },
 }
 
 function formatAwsRegion(region: (typeof AWS_REGIONS)[number]) {
@@ -951,14 +873,14 @@ function WizardDataTimeRangeField() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-1">
-        <Label>Data time range</Label>
+        <Label>Ingestion window</Label>
         <p className="text-hint text-muted-foreground">
           Limit ingestion to files modified after a specific date, or ingest all available data.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Select value={mode} onValueChange={setMode}>
-          <SelectTrigger className="w-fit min-w-[110px]" aria-label="Data time range mode">
+          <SelectTrigger className="w-fit min-w-[110px]" aria-label="Ingestion window mode">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1111,8 +1033,8 @@ export function WizardComputeModeField({ bare = false }: { bare?: boolean } = {}
   )
 }
 
-export function WizardAnnotationsField() {
-  const [open, setOpen] = React.useState(false)
+export function WizardAnnotationsField({ bare = false }: { bare?: boolean } = {}) {
+  const [open, setOpen] = React.useState(bare)
   const [rows, setRows] = React.useState<{ key: string; value: string }[]>([
     { key: "", value: "" },
   ])
@@ -1133,19 +1055,21 @@ export function WizardAnnotationsField() {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button
-        type="button"
-        variant="link"
-        size="sm"
-        className="h-auto self-start gap-1 p-0 !px-0"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        Annotations (optional)
-        <ChevronDownIcon
-          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
-        />
-      </Button>
+      {bare ? null : (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto self-start gap-1 p-0 !px-0"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          Annotations (optional)
+          <ChevronDownIcon
+            className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+          />
+        </Button>
+      )}
       {open ? (
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -1197,30 +1121,87 @@ export function WizardAnnotationsField() {
   )
 }
 
-function RawDataPreview({ region }: { region: string }) {
+function RawDataPreview({
+  region,
+  sourceName,
+}: {
+  region: string
+  sourceName?: string
+}) {
   return (
-    <div className="overflow-hidden">
+    <div>
+      <section
+        aria-label="Source records"
+        className="min-w-0 overflow-hidden border-y border-input"
+      >
+        <div className="flex h-8 min-w-0 items-center gap-1 px-2">
+          <span className="text-sm font-semibold text-foreground">Input</span>
+          <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+          <TableIcon className="h-4 w-4 text-primary" />
+          <span className="min-w-0 truncate text-sm text-foreground">
+            {sourceName?.trim() || "Source records"}
+          </span>
+          <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
+            {RAW_PREVIEW_ROWS.length} records
+          </span>
+        </div>
+        <div className="flex h-6 items-center border-y border-input px-2">
+          <span className="text-sm font-semibold leading-5 text-foreground">data</span>
+        </div>
+        <div className="overflow-hidden">
+          {RAW_PREVIEW_ROWS.map((row, index) => (
+            <div
+              key={`${row.eventId}-${index}`}
+              className="flex h-6 min-w-0 items-center border-b border-input"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Expand preview row ${index + 1}`}
+                className="shrink-0"
+              >
+                <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
+              </Button>
+              <span className="min-w-0 flex-1 truncate pr-2 text-hint leading-4 text-foreground">
+                {buildRawPreviewCell(row, region)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="flex h-6 items-center gap-1.5 border-b border-input px-3 text-hint text-muted-foreground">
+        <span className="text-foreground">{RAW_PREVIEW_ROWS.length} records</span>
+        <span className="mx-1 text-muted-foreground">·</span>
+        <span className="text-muted-foreground">Raw events, unparsed</span>
+      </div>
+    </div>
+  )
+}
+
+const RAW_PREVIEW_SKELETON_WIDTHS = [
+  "w-[72%]",
+  "w-[54%]",
+  "w-[63%]",
+  "w-[46%]",
+  "w-[68%]",
+  "w-[50%]",
+]
+
+function RawDataPreviewSkeleton() {
+  return (
+    <div className="skeleton-sweep overflow-hidden" aria-hidden>
       <div className="flex h-6 items-center border-b border-input px-2">
-        <span className="text-sm font-semibold leading-5 text-foreground">data</span>
+        <Skeleton className="h-3 w-10" />
       </div>
       <div className="overflow-hidden">
-        {RAW_PREVIEW_ROWS.map((row, index) => (
+        {RAW_PREVIEW_SKELETON_WIDTHS.map((width, index) => (
           <div
-            key={`${row.eventId}-${index}`}
-            className="flex h-6 min-w-0 items-center border-b border-input"
+            key={index}
+            className="flex h-6 min-w-0 items-center gap-2 border-b border-input px-2"
           >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Expand preview row ${index + 1}`}
-              className="shrink-0"
-            >
-              <ChevronDownIcon className="h-4 w-4 -rotate-90 text-muted-foreground" />
-            </Button>
-            <span className="min-w-0 flex-1 truncate pr-2 text-hint leading-4 text-foreground">
-              {buildRawPreviewCell(row, region)}
-            </span>
+            <Skeleton className="size-3 shrink-0 rounded" />
+            <Skeleton className={cn("h-3", width)} />
           </div>
         ))}
       </div>
@@ -1299,6 +1280,44 @@ function PreviewDataTable({
   )
 }
 
+const PREVIEW_SKELETON_ROW_WIDTHS = [
+  "w-3/4",
+  "w-1/2",
+  "w-2/3",
+  "w-5/6",
+  "w-2/5",
+  "w-4/6",
+]
+
+/**
+ * Body-only table skeleton (no pane header) that occupies the same 144px table
+ * area as {@link PreviewDataTable}, so one pane can reload while the other — and
+ * both pane headers — stay put.
+ */
+function PreviewTableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div aria-hidden className="skeleton-sweep h-[144px] overflow-hidden">
+      <div className="flex h-6 items-center border-b border-input px-2">
+        <Skeleton className="h-3 w-16" />
+      </div>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div
+          key={rowIndex}
+          className="flex h-6 min-w-0 items-center gap-2 border-b border-input px-2"
+        >
+          <Skeleton className="size-3 shrink-0 rounded" />
+          <Skeleton
+            className={cn(
+              "h-3",
+              PREVIEW_SKELETON_ROW_WIDTHS[rowIndex % PREVIEW_SKELETON_ROW_WIDTHS.length]
+            )}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PreviewPanelActions() {
   return (
     <div className="ml-auto flex shrink-0 items-center">
@@ -1322,7 +1341,7 @@ function SchemaRowDrawer({
   onRowChange,
   onClose,
 }: {
-  schema: PreviewSchema
+  schema: string
   data: PreviewTableData
   rowIndex: number | null
   onRowChange: (rowIndex: number) => void
@@ -1503,22 +1522,54 @@ function buildTemplateOutputData(
 
 function SchemaSplitPreview({
   region,
-  activeTemplate,
+  templates,
+  unwrapConfigured,
 }: {
   region: string
-  activeTemplate?: ActiveTemplatePreview | null
+  templates: ActiveTemplatePreview[]
+  unwrapConfigured: boolean
 }) {
-  const [schemaIndex, setSchemaIndex] = React.useState(0)
+  const [inputMode, setInputMode] = React.useState<"unwrapped" | "raw">(
+    unwrapConfigured ? "unwrapped" : "raw"
+  )
+  const [outputIndex, setOutputIndex] = React.useState(0)
   const [selectedRowIndex, setSelectedRowIndex] = React.useState<number | null>(null)
-  const [loading, setLoading] = React.useState(true)
+  const [inputLoading, setInputLoading] = React.useState(true)
+  const [outputLoading, setOutputLoading] = React.useState(true)
   const [leftPct, setLeftPct] = React.useState(41)
   const splitRef = React.useRef<HTMLDivElement>(null)
   const draggingRef = React.useRef(false)
 
+  // Default the input to the unwrapped view once an unwrapping is applied.
   React.useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500)
+    setInputMode(unwrapConfigured ? "unwrapped" : "raw")
+  }, [unwrapConfigured])
+
+  const safeOutputIndex = Math.min(
+    outputIndex,
+    Math.max(0, templates.length - 1)
+  )
+  const currentOutput = templates[safeOutputIndex] ?? null
+
+  // Sweep a skeleton over the input pane on first load and whenever the input
+  // view is switched (raw ↔ unwrapped). The output re-derives from the input, so
+  // it reloads alongside an input change.
+  React.useEffect(() => {
+    setInputLoading(true)
+    setOutputLoading(true)
+    const timer = setTimeout(() => {
+      setInputLoading(false)
+      setOutputLoading(false)
+    }, 1500)
     return () => clearTimeout(timer)
-  }, [])
+  }, [inputMode])
+
+  // Changing the parser only reloads the output pane — the input stays put.
+  React.useEffect(() => {
+    setOutputLoading(true)
+    const timer = setTimeout(() => setOutputLoading(false), 1500)
+    return () => clearTimeout(timer)
+  }, [safeOutputIndex, currentOutput?.name])
 
   const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
     draggingRef.current = true
@@ -1543,25 +1594,13 @@ function SchemaSplitPreview({
     document.body.style.userSelect = ""
   }
 
-  const schema = DETECTED_SCHEMAS[schemaIndex]
-  const inputData = getInputPreviewData(region)
-  const schemaData = SCHEMA_PREVIEW_DATA[schema]
-  const outputData: PreviewTableData = activeTemplate
-    ? buildTemplateOutputData(activeTemplate, inputData.rows.length)
-    : {
-        columns: schemaData.columns,
-        rows: schemaData.rows.slice(0, inputData.rows.length),
-      }
-  const outputLabel = activeTemplate?.name ?? schema
-
-  if (loading) {
-    return (
-      <div className="flex h-[176px] flex-col items-center justify-center gap-2 border-y border-input">
-        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-        <p className="text-sm leading-5 text-foreground">Building schema preview</p>
-      </div>
-    )
-  }
+  const inputData =
+    inputMode === "unwrapped" ? getUnwrappedInputData() : getInputPreviewData(region)
+  const inputLabel = inputMode === "unwrapped" ? "Unwrapped events" : "Raw data"
+  const outputData: PreviewTableData = currentOutput
+    ? buildTemplateOutputData(currentOutput, inputData.rows.length)
+    : { columns: ["value"], rows: [] }
+  const outputLabel = currentOutput?.name ?? "Parser output"
 
   return (
     <>
@@ -1575,17 +1614,47 @@ function SchemaSplitPreview({
           <span className="text-sm font-semibold text-foreground">Input</span>
           <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
           <TableIcon className="h-4 w-4 text-primary" />
-          <span className="text-sm text-foreground">Raw data</span>
+          {unwrapConfigured ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
+                  aria-label="Select input view"
+                >
+                  <span className="max-w-[160px] truncate text-sm">{inputLabel}</span>
+                  <ChevronDownIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuRadioGroup
+                  value={inputMode}
+                  onValueChange={(value) =>
+                    setInputMode(value as "unwrapped" | "raw")
+                  }
+                >
+                  <DropdownMenuRadioItem value="unwrapped">
+                    Unwrapped events
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="raw">Raw data</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <span className="text-sm text-foreground">{inputLabel}</span>
+          )}
           <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
-            {inputData.rows.length} records, 1 column
+            {inputData.rows.length} records, {inputData.columns.length} column
+            {inputData.columns.length === 1 ? "" : "s"}
           </span>
-          <Button variant="default" size="xs" className="ml-2">
-            Side-by-side
-            <ChevronDownIcon className="h-4 w-4" />
-          </Button>
           <PreviewPanelActions />
         </div>
-        <PreviewDataTable data={inputData} className="min-w-[650px]" />
+        {inputLoading ? (
+          <PreviewTableSkeleton />
+        ) : (
+          <PreviewDataTable data={inputData} className="min-w-[650px]" />
+        )}
       </section>
 
       <section aria-label={`${outputLabel} output preview`} className="min-w-0">
@@ -1593,50 +1662,57 @@ function SchemaSplitPreview({
           <TableIcon className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold text-foreground">Output</span>
           <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-          {activeTemplate ? (
-            <span className="max-w-[220px] truncate text-sm font-semibold text-foreground">
-              {outputLabel}
-            </span>
-          ) : (
+          {templates.length > 1 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-6 gap-1 px-1.5 text-primary hover:text-blue-700"
-                  aria-label="Select parser"
+                  aria-label="Select parser output"
                 >
-                  <span className="max-w-[140px] truncate text-sm">{schema}</span>
+                  <span className="max-w-[200px] truncate text-sm">{outputLabel}</span>
                   <ChevronDownIcon className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuRadioGroup
-                  value={schema}
-                  onValueChange={(value) =>
-                    setSchemaIndex(DETECTED_SCHEMAS.indexOf(value as PreviewSchema))
-                  }
+                  value={outputLabel}
+                  onValueChange={(value) => {
+                    const index = templates.findIndex(
+                      (template) => template.name === value
+                    )
+                    if (index >= 0) setOutputIndex(index)
+                  }}
                 >
-                  {DETECTED_SCHEMAS.map((name) => (
-                    <DropdownMenuRadioItem key={name} value={name}>
-                      {name}
+                  {templates.map((template) => (
+                    <DropdownMenuRadioItem key={template.name} value={template.name}>
+                      {template.name}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : (
+            <span className="max-w-[220px] truncate text-sm font-semibold text-foreground">
+              {outputLabel}
+            </span>
           )}
           <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
             {outputData.rows.length} records, {outputData.columns.length} columns
           </span>
           <PreviewPanelActions />
         </div>
-        <PreviewDataTable
-          data={outputData}
-          className="min-w-[1120px]"
-          selectedRowIndex={selectedRowIndex}
-          onRowSelect={setSelectedRowIndex}
-        />
+        {outputLoading ? (
+          <PreviewTableSkeleton />
+        ) : (
+          <PreviewDataTable
+            data={outputData}
+            className="min-w-[1120px]"
+            selectedRowIndex={selectedRowIndex}
+            onRowSelect={setSelectedRowIndex}
+          />
+        )}
       </section>
 
       <div
@@ -1653,7 +1729,7 @@ function SchemaSplitPreview({
       </div>
     </div>
       <SchemaRowDrawer
-        schema={schema}
+        schema={outputLabel}
         data={outputData}
         rowIndex={selectedRowIndex}
         onRowChange={setSelectedRowIndex}
@@ -1671,9 +1747,11 @@ const UNWRAP_PREVIEW_TOTAL_EVENTS = UNWRAP_PREVIEW_RECORDS.reduce(
 
 function EventUnwrapPreview({
   topLevelField,
+  sourceName,
   instant = false,
 }: {
   topLevelField?: string
+  sourceName?: string
   instant?: boolean
 }) {
   const copyFields = [...UNWRAP_COPY_FIELDS]
@@ -1712,12 +1790,7 @@ function EventUnwrapPreview({
   }
 
   if (loading) {
-    return (
-      <div className="flex h-[176px] flex-col items-center justify-center gap-2 border-y border-input">
-        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-        <p className="text-sm leading-5 text-foreground">Building unwrap preview</p>
-      </div>
-    )
+    return <PreviewSkeleton className="h-[176px]" panes={2} rows={5} />
   }
 
   return (
@@ -1728,7 +1801,9 @@ function EventUnwrapPreview({
             <span className="text-sm font-semibold text-foreground">Input</span>
             <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
             <TableIcon className="h-4 w-4 text-primary" />
-            <span className="text-sm text-foreground">Source records</span>
+            <span className="min-w-0 truncate text-sm text-foreground">
+              {sourceName?.trim() || "Source records"}
+            </span>
             <span className="ml-2 whitespace-nowrap text-hint text-muted-foreground">
               {UNWRAP_PREVIEW_RECORDS.length} records
             </span>
@@ -1786,6 +1861,11 @@ export function LakewatchAwsS3WizardView({
   const [dataSampleLocation, setDataSampleLocation] = React.useState("")
   const [sampleVerification, setSampleVerification] =
     React.useState<VerificationState>("idle")
+  const [previewMode, setPreviewMode] = React.useState<"source" | "sample">("source")
+  const [previewConfigOpen, setPreviewConfigOpen] = React.useState(false)
+  const [draftPreviewMode, setDraftPreviewMode] =
+    React.useState<"source" | "sample">("source")
+  const [draftSample, setDraftSample] = React.useState("")
   const [awsRegion, setAwsRegion] = React.useState("")
   const [regionVerification, setRegionVerification] =
     React.useState<VerificationState>("idle")
@@ -1808,6 +1888,7 @@ export function LakewatchAwsS3WizardView({
   const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const prepareEventsRef = React.useRef<HTMLDivElement>(null)
   const contentRef = React.useRef<HTMLDivElement>(null)
+  const autoPreviewKeyRef = React.useRef<string | null>(null)
   const [contentWidth, setContentWidth] = React.useState(0)
 
   React.useEffect(() => {
@@ -1824,14 +1905,23 @@ export function LakewatchAwsS3WizardView({
   const previewLoading = sampleVerification === "validating"
   const schemasReady =
     templateController.selectedNames.length > 0 || pendingSchemas.length > 0
-  // "No unwrapping" keeps the raw preview. Every other option swaps in the
-  // side-by-side preview: non-JSON-Array options after a brief loading wheel
-  // (unwrapReady); JSON Array once its top-level field is applied.
-  const showUnwrapPreview =
-    activeStep === 2 &&
+  // "No unwrapping" keeps the raw preview. Every other option applies an
+  // unwrapping: non-JSON-Array options after a brief loading wheel (unwrapReady);
+  // JSON Array once its top-level field is applied.
+  const unwrapConfigured =
     unwrapping !== "none" &&
     (unwrapping === "json-array" ? jsonArrayApplied : unwrapReady)
-  const showSplitPreview = activeStep === 2 && schemasReady && !showUnwrapPreview
+  // The selected parsers, shaped for the split preview's output dropdown.
+  const selectedTemplates: ActiveTemplatePreview[] = templateController.selectedIds
+    .map((id) => templateController.templateById.get(id))
+    .filter((template): template is NonNullable<typeof template> => Boolean(template))
+    .map((template) => ({ name: template.name, fields: template.fields }))
+  // Once parsers are selected the split preview (unwrapped input → parsed
+  // output) takes over. Before that, applying an unwrapping shows the
+  // side-by-side unwrap preview.
+  const showSplitPreview = activeStep === 2 && schemasReady
+  const showUnwrapPreview =
+    activeStep === 2 && !schemasReady && unwrapConfigured
   const templatePanelOpen = activeStep === 2 && templateController.panelOpen
   // Collapse the vertical stepper into a compact "Step X / N" button whenever the
   // available width is tight (e.g. the Genie code panel is open) or the template
@@ -1865,6 +1955,19 @@ export function LakewatchAwsS3WizardView({
   // Path-based sources surface the optional "Preview location" control in the
   // data preview header (existing-table uses an inline "View table name" instead).
   const showHeaderPreviewLocation = isS3 || (isSimpleWizard && !isExistingTable)
+  const sourceLocationLabel = isS3 ? "S3 source location" : "Source location"
+  const activePreviewLocation =
+    previewMode === "sample" ? dataSampleLocation : sourceLocation
+  // The active location doubles as the preview name once a preview is loading/ready.
+  const previewHeaderName = showUnwrapPreview
+    ? "Data preview"
+    : showHeaderPreviewLocation
+      ? (previewReady || previewLoading) && activePreviewLocation.trim()
+        ? activePreviewLocation
+        : "Data preview"
+      : previewReady
+        ? "aws_sec_lake_raw"
+        : "Data preview"
   React.useEffect(
     () => () => {
       if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
@@ -1895,37 +1998,48 @@ export function LakewatchAwsS3WizardView({
         setUnwrapLoading(false)
         setUnwrapReady(true)
         unwrapLoadingTimer.current = null
-      }, 1400)
+      }, 1500)
     } else {
       setUnwrapLoading(false)
       setUnwrapReady(false)
     }
   }, [unwrapping])
 
-  const setSampleValueOnly = (value: string) => {
-    setDataSampleLocation(value)
-    if (sampleVerificationTimer.current) {
-      clearTimeout(sampleVerificationTimer.current)
-      sampleVerificationTimer.current = null
-    }
-    setSampleVerification("idle")
-  }
-
-  const validateSampleLocation = (value: string) => {
-    setDataSampleLocation(value)
+  // Sweep a skeleton over the preview table, then reveal the (new) data.
+  const runPreview = React.useCallback(() => {
     if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
-
-    if (!value.trim()) {
-      setSampleVerification("idle")
-      return
-    }
-
     setSampleVerification("validating")
     sampleVerificationTimer.current = setTimeout(() => {
       setSampleVerification("verified")
       sampleVerificationTimer.current = null
-    }, 1100)
+    }, 1500)
+  }, [])
+
+  const applyPreviewConfig = () => {
+    setPreviewMode(draftPreviewMode)
+    if (draftPreviewMode === "sample") {
+      setDataSampleLocation(draftSample.trim() || previewSampleFill)
+    }
+    setPreviewConfigOpen(false)
+    runPreview()
   }
+
+  // By default the preview samples the source location once it and the format
+  // are both selected; the location then surfaces as the preview name. Once
+  // loaded it stays put — we only re-sweep when the source/format actually
+  // change (switching to a sample preview is handled by applyPreviewConfig).
+  React.useEffect(() => {
+    if (!showHeaderPreviewLocation) return
+    if (previewMode !== "source") return
+    if (!sourceLocation.trim() || !dataFormat) {
+      autoPreviewKeyRef.current = null
+      return
+    }
+    const key = `${sourceLocation}|${dataFormat}`
+    if (autoPreviewKeyRef.current === key) return
+    autoPreviewKeyRef.current = key
+    runPreview()
+  }, [showHeaderPreviewLocation, previewMode, sourceLocation, dataFormat, runPreview])
 
   const validateRegion = (value: string) => {
     setAwsRegion(value)
@@ -1940,7 +2054,7 @@ export function LakewatchAwsS3WizardView({
     regionVerificationTimer.current = setTimeout(() => {
       setRegionVerification("verified")
       regionVerificationTimer.current = null
-    }, 1100)
+    }, 1500)
   }
 
   const dataPreviewSection =
@@ -1957,7 +2071,8 @@ export function LakewatchAwsS3WizardView({
         {showSplitPreview ? (
           <SchemaSplitPreview
             region={previewRegion}
-            activeTemplate={templateController.detailsTemplate}
+            templates={selectedTemplates}
+            unwrapConfigured={unwrapConfigured}
           />
         ) : (
           <>
@@ -1967,67 +2082,124 @@ export function LakewatchAwsS3WizardView({
                 showHeaderPreviewLocation && !showUnwrapPreview ? "h-10" : "h-8"
               )}
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <h2 className="shrink-0 text-sm font-semibold leading-5 text-foreground">
-                  {showUnwrapPreview
-                    ? "Data preview"
-                    : previewReady
-                      ? "aws_sec_lake_raw"
-                      : "Data preview"}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h2 className="min-w-0 truncate text-sm font-semibold leading-5 text-foreground">
+                  {previewHeaderName}
                 </h2>
                 {showHeaderPreviewLocation && !showUnwrapPreview ? (
-                  <div className="ml-4 flex items-center gap-1.5">
-                    {isS3 ? (
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="xs"
-                        onClick={() =>
-                          validateSampleLocation(
-                            sourceLocation.trim() || previewSampleFill
+                  <>
+                    <Popover
+                      open={previewConfigOpen}
+                      onOpenChange={(open) => {
+                        setPreviewConfigOpen(open)
+                        if (open) {
+                          setDraftPreviewMode(previewMode)
+                          setDraftSample(
+                            previewMode === "sample" ? dataSampleLocation : ""
                           )
                         }
-                      >
-                        Use source location
-                      </Button>
-                    ) : null}
-                    <Label
-                      htmlFor="sqs-preview-location"
-                      className="shrink-0 whitespace-nowrap text-hint font-normal text-foreground"
+                      }}
                     >
-                      Preview location
-                    </Label>
-                    <Input
-                      id="sqs-preview-location"
-                      aria-label="Preview location"
-                      value={dataSampleLocation}
-                      onChange={(event) => setSampleValueOnly(event.target.value)}
-                      onFocus={() =>
-                        setDataSampleLocation((current) => current || previewSampleFill)
-                      }
-                      onClick={() =>
-                        setDataSampleLocation((current) => current || previewSampleFill)
-                      }
-                      placeholder={previewSamplePlaceholder}
-                      className="h-6 w-64 bg-background dark:bg-background"
-                    />
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="xs"
-                      onClick={() =>
-                        validateSampleLocation(
-                          dataSampleLocation.trim() || previewSampleFill
-                        )
-                      }
-                    >
-                      Preview sample
-                    </Button>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="Configure data preview source"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[360px] p-4">
+                        <div className="flex flex-col gap-4">
+                          <div className="flex flex-col gap-1">
+                            <p className="text-sm font-semibold leading-5 text-foreground">
+                              Data preview source
+                            </p>
+                            <p className="text-hint text-muted-foreground">
+                              Choose what Lakewatch samples for this preview.
+                            </p>
+                          </div>
+                          <RadioGroup
+                            value={draftPreviewMode}
+                            onValueChange={(value) =>
+                              setDraftPreviewMode(value as "source" | "sample")
+                            }
+                            className="gap-3"
+                          >
+                            <label
+                              htmlFor="preview-source-source"
+                              className="flex cursor-pointer items-start gap-2"
+                            >
+                              <RadioGroupItem
+                                value="source"
+                                id="preview-source-source"
+                                className="mt-0.5"
+                              />
+                              <span className="flex min-w-0 flex-col">
+                                <span className="text-sm text-foreground">
+                                  {sourceLocationLabel}
+                                </span>
+                                <span className="truncate text-hint text-muted-foreground">
+                                  {sourceLocation.trim() ||
+                                    "Select a source location first"}
+                                </span>
+                              </span>
+                            </label>
+                            <label
+                              htmlFor="preview-source-sample"
+                              className="flex cursor-pointer items-start gap-2"
+                            >
+                              <RadioGroupItem
+                                value="sample"
+                                id="preview-source-sample"
+                                className="mt-0.5"
+                              />
+                              <span className="flex min-w-0 flex-1 flex-col gap-2">
+                                <span className="text-sm text-foreground">
+                                  Preview with sample location
+                                </span>
+                                {draftPreviewMode === "sample" ? (
+                                  <ValidatedInput
+                                    aria-label="Sample location"
+                                    value={draftSample}
+                                    onChange={(event) =>
+                                      setDraftSample(event.target.value)
+                                    }
+                                    onFocus={() =>
+                                      setDraftSample(
+                                        (current) => current || previewSampleFill
+                                      )
+                                    }
+                                    onClick={() =>
+                                      setDraftSample(
+                                        (current) => current || previewSampleFill
+                                      )
+                                    }
+                                    placeholder={previewSamplePlaceholder}
+                                  />
+                                ) : null}
+                              </span>
+                            </label>
+                          </RadioGroup>
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              onClick={applyPreviewConfig}
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <VerificationIndicator
                       state={sampleVerification}
-                      label="Preview location"
+                      label="Data preview"
                     />
-                  </div>
+                  </>
                 ) : null}
               </div>
               <div className="flex items-center">
@@ -2057,29 +2229,30 @@ export function LakewatchAwsS3WizardView({
               </div>
             </div>
             {previewExpanded ? (
-              showUnwrapPreview ? (
+              previewLoading || unwrapLoading ? (
+                <RawDataPreviewSkeleton />
+              ) : showUnwrapPreview ? (
                 <EventUnwrapPreview
                   topLevelField={topLevelField}
-                  instant={unwrapping !== "json-array"}
+                  sourceName={
+                    activePreviewLocation.trim() || S3_SOURCE_LOCATION_SAMPLE
+                  }
+                  instant
                 />
               ) : previewReady ? (
-                <RawDataPreview region={previewRegion} />
-              ) : previewLoading ? (
-                <div className="flex h-20 flex-col items-center justify-center gap-2">
-                  <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                  <p className="text-sm leading-5 text-foreground">Loading data preview</p>
-                </div>
+                <RawDataPreview
+                  region={previewRegion}
+                  sourceName={
+                    activePreviewLocation.trim() || S3_SOURCE_LOCATION_SAMPLE
+                  }
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center gap-1 px-4 py-6 text-center">
                   <TableIcon className="h-9 w-9 text-muted-foreground" />
                   <p className="text-sm leading-5 text-foreground">
-                    {isSqs
-                      ? "An optional S3 path to a smaller sample of the data to preview."
-                      : isS3
-                        ? "An optional S3 path to a smaller sample of the data."
-                        : isSimpleWizard && !isExistingTable
-                          ? "An optional path to a smaller sample of the data to preview."
-                          : "Configure a table to see a preview"}
+                    {showHeaderPreviewLocation
+                      ? "Select a source location and format to preview your data."
+                      : "Configure a table to see a preview"}
                   </p>
                 </div>
               )
@@ -2181,7 +2354,7 @@ export function LakewatchAwsS3WizardView({
                     <p className="text-hint text-muted-foreground">
                       {simpleConfig?.sourceHint}
                     </p>
-                    <Input
+                    <ValidatedInput
                       id="sqs-source-location"
                       value={sourceLocation}
                       onChange={(event) => setSourceLocation(event.target.value)}
@@ -2306,27 +2479,30 @@ export function LakewatchAwsS3WizardView({
                   {simpleConfig?.sourceHint ?? "Hint text here"}
                 </p>
                 {isExistingTable ? (
-                  <div className="flex">
-                    <Input
-                      id="simple-source-location"
-                      value={sourceLocation}
-                      onChange={(event) => setSourceLocation(event.target.value)}
-                      placeholder="Enter a table or browse"
-                      className="rounded-r-none border-r-0"
-                    />
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="icon-sm"
-                      className="rounded-l-none"
-                      aria-label="Browse Unity Catalog tables"
-                      onClick={() => setCatalogPickerOpen(true)}
-                    >
-                      <FolderIcon className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-1">
+                      <Input
+                        id="simple-source-location"
+                        value={sourceLocation}
+                        onChange={(event) => setSourceLocation(event.target.value)}
+                        placeholder="Enter a table or browse"
+                        className="rounded-r-none border-r-0"
+                      />
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="icon-sm"
+                        className="rounded-l-none"
+                        aria-label="Browse Unity Catalog tables"
+                        onClick={() => setCatalogPickerOpen(true)}
+                      >
+                        <FolderIcon className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                    <ValidationIndicator value={sourceLocation} />
                   </div>
                 ) : (
-                  <Input
+                  <ValidatedInput
                     id="simple-source-location"
                     value={sourceLocation}
                     onChange={(event) => setSourceLocation(event.target.value)}
@@ -2408,22 +2584,25 @@ export function LakewatchAwsS3WizardView({
                 <p className="text-hint text-muted-foreground">
                   The S3 path to ingest data from (e.g. s3://my-bucket/logs/).
                 </p>
-                <Select value={sourceLocation} onValueChange={setSourceLocation}>
-                  <SelectTrigger className="w-full" aria-label="S3 source location">
-                    <SelectValue placeholder="Select an S3 location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="s3://lakewatch-security-logs/">
-                      s3://lakewatch-security-logs/
-                    </SelectItem>
-                    <SelectItem value="s3://production-cloudtrail/AWSLogs/">
-                      s3://production-cloudtrail/AWSLogs/
-                    </SelectItem>
-                    <SelectItem value="s3://security-data/vpc-flow/">
-                      s3://security-data/vpc-flow/
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select value={sourceLocation} onValueChange={setSourceLocation}>
+                    <SelectTrigger className="w-full" aria-label="S3 source location">
+                      <SelectValue placeholder="Select an S3 location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="s3://lakewatch-security-logs/">
+                        s3://lakewatch-security-logs/
+                      </SelectItem>
+                      <SelectItem value="s3://production-cloudtrail/AWSLogs/">
+                        s3://production-cloudtrail/AWSLogs/
+                      </SelectItem>
+                      <SelectItem value="s3://security-data/vpc-flow/">
+                        s3://security-data/vpc-flow/
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <ValidationIndicator value={sourceLocation} />
+                </div>
               </div>
 
               <WizardFormatField value={dataFormat} onValueChange={setDataFormat} />
@@ -2511,7 +2690,7 @@ export function LakewatchAwsS3WizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Parse"
+              title="Parsers"
               description="Select the parsers Lakewatch should use to classify your logs"
             />
 
@@ -2612,7 +2791,16 @@ export function LakewatchAwsS3WizardView({
                             size="sm"
                             onClick={() => {
                               setPreviewVisible(true)
-                              setJsonArrayApplied(true)
+                              setJsonArrayApplied(false)
+                              if (unwrapLoadingTimer.current) {
+                                clearTimeout(unwrapLoadingTimer.current)
+                              }
+                              setUnwrapLoading(true)
+                              unwrapLoadingTimer.current = setTimeout(() => {
+                                setUnwrapLoading(false)
+                                setJsonArrayApplied(true)
+                                unwrapLoadingTimer.current = null
+                              }, 1500)
                             }}
                           >
                             Apply

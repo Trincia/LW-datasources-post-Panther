@@ -10,6 +10,7 @@ import {
   PencilIcon,
 } from "@/components/icons"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { ValidatedInput } from "@/components/lakewatch/ValidatedInput"
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { Badge } from "@/components/ui/badge"
@@ -858,7 +859,7 @@ export function LakewatchSchemaDetailView({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="clone-reference-url">Reference URL</Label>
-            <Input
+            <ValidatedInput
               id="clone-reference-url"
               type="url"
               value={cloneReferenceUrl}

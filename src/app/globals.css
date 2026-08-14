@@ -496,6 +496,14 @@
   to   { transform: rotate(360deg) translate3d(0, 0, 0); }
 }
 
+/* ─── Skeleton Shimmer Sweep ──────────────────────────────────────────────── */
+/* A highlight bar that sweeps left→right across a skeleton placeholder while a
+   preview table loads or is replaced with new data. */
+@keyframes skeleton-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
 /* ─── DuBois Utility Classes ──────────────────────────────────────────────── */
 @layer utilities {
   /* DuBois hint — 12px/16px. Explicit rule because Tailwind v4 may resolve
@@ -530,4 +538,33 @@
   .row-hover:hover     { background-color: var(--table-row-hover); }
   .row-selected        { background-color: var(--table-row-selected); }
   .row-selected:hover  { background-color: var(--table-row-selected-hover); }
+
+  /* Shimmer sweep overlay — apply to a relative, clipped skeleton container. */
+  .skeleton-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.45) 50%,
+      transparent 100%
+    );
+    animation: skeleton-sweep 1.5s ease-in-out infinite;
+  }
+  .dark .skeleton-sweep::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.09) 50%,
+      transparent 100%
+    );
+  }
 }

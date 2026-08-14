@@ -3,7 +3,21 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
-import { Activity, Check, Loader2, Lock, MoreHorizontal, Pencil } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Loader2,
+  Lock,
+  Minus,
+  MoreHorizontal,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  User,
+  Users,
+  X,
+} from "lucide-react"
 
 import {
   CalendarRangeIcon,
@@ -31,14 +45,22 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Empty } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -61,7 +83,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -72,6 +93,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
 const SOURCE_STATUSES = [
@@ -154,7 +176,8 @@ function buildSeriesPaths(values: readonly number[], max: number = CHART_MAX) {
   return { line, area }
 }
 
-const EVENTS_MAX = 500
+const EVENTS_SPARKLINE_MAX = 13
+const EVENTS_SPARKLINE = [9.8, 10.2, 9.6, 10.9, 11.4, 10.7, 11.57]
 const EVENTS_SERIES = {
   label: "Processed Events",
   color: "#8acaff",
@@ -172,17 +195,33 @@ const CHART_DATES = [
   ["04:00", "JUL 28"],
 ] as const
 
-function MetricCard({
+type TrendDirection = "up" | "down" | "unchanged"
+
+const TREND_CONFIG: Record<
+  TrendDirection,
+  { Icon: React.ComponentType<{ className?: string }>; color: string }
+> = {
+  up: { Icon: ArrowUp, color: "text-[var(--success)]" },
+  down: { Icon: ArrowDown, color: "text-destructive" },
+  unchanged: { Icon: Minus, color: "text-muted-foreground" },
+}
+
+function TrendMetricCard({
   label,
   value,
   unit,
-  approximate,
+  trend,
+  change,
+  comparison,
 }: {
   label: string
   value: string
   unit: string
-  approximate?: boolean
+  trend: TrendDirection
+  change: string
+  comparison: string
 }) {
+  const { Icon, color } = TREND_CONFIG[trend]
   return (
     <div className="rounded bg-muted/70 p-3">
       <div className="flex items-center gap-1">
@@ -190,24 +229,291 @@ function MetricCard({
         <InfoSmallIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
       </div>
       <p className="mt-1 whitespace-nowrap text-blue-400">
-        {approximate ? <span className="text-hint text-foreground">~ </span> : null}
         <span className={cn(PAGE_TITLE_SEMIBOLD, "text-blue-400")}>{value}</span>{" "}
         <span className="text-hint text-foreground">{unit}</span>
       </p>
+      <div className="mt-1 flex items-center gap-1 text-hint">
+        <span className={cn("flex items-center gap-0.5 font-semibold", color)}>
+          <Icon className="h-3.5 w-3.5" />
+          {change}
+        </span>
+        <span className="text-muted-foreground">{comparison}</span>
+      </div>
     </div>
   )
 }
 
-function ProcessingScheduleToolbar() {
+function EventsSparklineCard() {
+  const { line, area } = buildSeriesPaths(EVENTS_SPARKLINE, EVENTS_SPARKLINE_MAX)
+  return (
+    <div className="flex flex-col rounded bg-muted/70 p-3">
+      <div className="flex items-center gap-1">
+        <p className="text-sm font-semibold leading-5 text-foreground">
+          Events (last 7 days)
+        </p>
+        <InfoSmallIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+      </div>
+      <div className="mt-2 min-h-[44px] flex-1">
+        <svg
+          className="size-full"
+          viewBox={`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`}
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="events-spark-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={EVENTS_SERIES.color} stopOpacity={0.22} />
+              <stop offset="90%" stopColor={EVENTS_SERIES.color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <path d={area} fill="url(#events-spark-fill)" stroke="none" />
+          <path
+            d={line}
+            fill="none"
+            stroke={EVENTS_SERIES.color}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+type PermissionValue = "view" | "edit" | "manage"
+
+type PermissionRow = {
+  id: string
+  name: string
+  secondary?: string
+  kind: "group" | "user"
+  permission: PermissionValue
+  removable: boolean
+}
+
+const INITIAL_PERMISSION_ROWS: PermissionRow[] = [
+  {
+    id: "all-users",
+    name: "All workspace users",
+    kind: "group",
+    permission: "view",
+    removable: false,
+  },
+  {
+    id: "steve-zhang",
+    name: "Steve Zhang",
+    secondary: "(steve.zhang@databricks.com)",
+    kind: "user",
+    permission: "manage",
+    removable: true,
+  },
+  {
+    id: "admins",
+    name: "Admins",
+    kind: "group",
+    permission: "manage",
+    removable: false,
+  },
+]
+
+const ADD_PRINCIPAL_OPTIONS = [
+  { id: "amir.patel@databricks.com", name: "Amir Patel", kind: "user" as const },
+  { id: "jane.lee@databricks.com", name: "Jane Lee", kind: "user" as const },
+  { id: "data-engineers", name: "Data Engineers", kind: "group" as const },
+  { id: "security-analysts", name: "Security Analysts", kind: "group" as const },
+]
+
+function PermissionSelect({
+  value,
+  onValueChange,
+}: {
+  value: PermissionValue
+  onValueChange: (value: PermissionValue) => void
+}) {
+  return (
+    <Select value={value} onValueChange={(next) => onValueChange(next as PermissionValue)}>
+      <SelectTrigger className="w-[220px]" aria-label="Permission level">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="view">Can View</SelectItem>
+        <SelectItem value="edit">Can Edit</SelectItem>
+        <SelectItem value="manage">Can Manage</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function DatasourcePermissionsDialog({
+  datasourceName,
+  open,
+  onOpenChange,
+}: {
+  datasourceName: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [rows, setRows] = React.useState<PermissionRow[]>(INITIAL_PERMISSION_ROWS)
+  const [newPrincipal, setNewPrincipal] = React.useState("")
+  const [newPermission, setNewPermission] = React.useState<PermissionValue>("manage")
+
+  // Reset to the seeded state each time the dialog is opened.
+  React.useEffect(() => {
+    if (open) {
+      setRows(INITIAL_PERMISSION_ROWS)
+      setNewPrincipal("")
+      setNewPermission("manage")
+    }
+  }, [open])
+
+  const setPermission = (id: string, permission: PermissionValue) => {
+    setRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, permission } : row))
+    )
+  }
+
+  const removeRow = (id: string) => {
+    setRows((current) => current.filter((row) => row.id !== id))
+  }
+
+  const addPrincipal = () => {
+    const option = ADD_PRINCIPAL_OPTIONS.find((entry) => entry.id === newPrincipal)
+    if (!option || rows.some((row) => row.id === option.id)) return
+    setRows((current) => [
+      ...current,
+      {
+        id: option.id,
+        name: option.name,
+        secondary: option.kind === "user" ? `(${option.id})` : undefined,
+        kind: option.kind,
+        permission: newPermission,
+        removable: true,
+      },
+    ])
+    setNewPrincipal("")
+    setNewPermission("manage")
+  }
+
+  const availableOptions = ADD_PRINCIPAL_OPTIONS.filter(
+    (option) => !rows.some((row) => row.id === option.id)
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-base font-normal leading-6">
+            Permission Settings for:
+            <span className="block font-semibold">{datasourceName}</span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Manage who can view and manage {datasourceName}.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4">
+          <div className="grid grid-cols-[1fr_220px_32px] items-center gap-x-4 gap-y-3">
+            <span className="text-hint font-semibold uppercase text-muted-foreground">
+              Name
+            </span>
+            <span className="text-hint font-semibold uppercase text-muted-foreground">
+              Permission
+            </span>
+            <span />
+
+            {rows.map((row) => (
+              <React.Fragment key={row.id}>
+                <div className="flex min-w-0 items-center gap-2">
+                  {row.kind === "group" ? (
+                    <Users className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : (
+                    <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
+                  <span className="min-w-0 truncate text-sm text-foreground">
+                    {row.name}
+                    {row.secondary ? (
+                      <span className="text-muted-foreground"> {row.secondary}</span>
+                    ) : null}
+                  </span>
+                </div>
+                <PermissionSelect
+                  value={row.permission}
+                  onValueChange={(value) => setPermission(row.id, value)}
+                />
+                {row.removable ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove ${row.name}`}
+                    onClick={() => removeRow(row.id)}
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                ) : (
+                  <span
+                    className="flex size-6 items-center justify-center"
+                    title="This permission is inherited and can't be removed."
+                  >
+                    <InfoSmallIcon className="h-4 w-4 text-muted-foreground" />
+                  </span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 border-t border-input pt-4">
+            <Select value={newPrincipal} onValueChange={setNewPrincipal}>
+              <SelectTrigger className="flex-1" aria-label="Select principal">
+                <SelectValue placeholder="Select user, group or service principal..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableOptions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    No more principals available
+                  </div>
+                ) : (
+                  availableOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            <PermissionSelect value={newPermission} onValueChange={setNewPermission} />
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              disabled={!newPrincipal}
+              onClick={addPrincipal}
+            >
+              Add
+            </Button>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="default" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => onOpenChange(false)}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ProcessingScheduleToolbar({ onDirty }: { onDirty: () => void }) {
   const [cadence, setCadence] = React.useState("at-least-every")
   const [interval, setInterval] = React.useState("10")
   const [unit, setUnit] = React.useState("minutes")
-  const [editorMode, setEditorMode] = React.useState("ui")
-  const [dirty, setDirty] = React.useState(false)
   const [editingSchedule, setEditingSchedule] = React.useState(false)
-  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
 
-  const markDirty = () => setDirty(true)
+  const markDirty = () => onDirty()
 
   const CADENCE_LABELS: Record<string, string> = {
     "at-least-every": "At least every",
@@ -224,7 +530,7 @@ function ProcessingScheduleToolbar() {
   }`
 
   return (
-    <div className="flex items-center justify-between gap-x-3 gap-y-2">
+    <div className="flex items-center gap-x-3 gap-y-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-[7px] gap-y-2">
         <p className="shrink-0 text-sm font-semibold leading-5 text-foreground">
           Processing schedule
@@ -297,26 +603,51 @@ function ProcessingScheduleToolbar() {
           </>
         )}
       </div>
+    </div>
+  )
+}
 
-      <div className="flex shrink-0 items-center gap-2">
-        <SegmentedControl value={editorMode} onValueChange={setEditorMode}>
-          <SegmentedItem value="ui">UI</SegmentedItem>
-          <SegmentedItem value="yaml">YAML</SegmentedItem>
-        </SegmentedControl>
-        <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
-        <Button variant="default" size="sm">
-          <Lock className="h-4 w-4" />
-          Permissions
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!dirty}
-          onClick={() => setDirty(false)}
-        >
-          Save
-        </Button>
-      </div>
+function DatasourceActionControls({
+  datasourceName,
+  dirty,
+  onSaved,
+}: {
+  datasourceName: string
+  dirty: boolean
+  onSaved: () => void
+}) {
+  const [permissionsOpen, setPermissionsOpen] = React.useState(false)
+  const [editorMode, setEditorMode] = React.useState("ui")
+  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
+
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <SegmentedControl value={editorMode} onValueChange={setEditorMode}>
+        <SegmentedItem value="ui">UI</SegmentedItem>
+        <SegmentedItem value="yaml">YAML</SegmentedItem>
+      </SegmentedControl>
+      <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
+      <Button
+        variant="default"
+        size="sm"
+        onClick={() => setPermissionsOpen(true)}
+      >
+        <Lock className="h-4 w-4" />
+        Permissions
+      </Button>
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={!dirty}
+        onClick={onSaved}
+      >
+        Save
+      </Button>
+      <DatasourcePermissionsDialog
+        datasourceName={datasourceName}
+        open={permissionsOpen}
+        onOpenChange={setPermissionsOpen}
+      />
     </div>
   )
 }
@@ -431,93 +762,6 @@ function DataProcessedChart() {
                 {series.label}
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function EventsChart() {
-  const [scale, setScale] = React.useState("linear")
-  const { line, area } = buildSeriesPaths(EVENTS_SERIES.values, EVENTS_MAX)
-
-  return (
-    <div className="rounded bg-muted/70 p-4">
-      <h3 className="text-sm font-semibold leading-5 text-foreground">Events</h3>
-
-      <div className="mt-5">
-        <div className="min-w-0">
-          <div className="mb-3 flex items-center">
-            <SegmentedControl value={scale} onValueChange={setScale}>
-              <SegmentedItem value="linear" className="h-6 px-2 text-hint">
-                Linear
-              </SegmentedItem>
-              <SegmentedItem value="logarithmic" className="h-6 px-2 text-hint">
-                Logarithmic
-              </SegmentedItem>
-            </SegmentedControl>
-          </div>
-
-          <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
-            <div className="flex h-[110px] flex-col justify-between text-right text-hint text-muted-foreground">
-              <span>500k</span>
-              <span>400k</span>
-              <span>300k</span>
-              <span>200k</span>
-              <span>100k</span>
-              <span>0</span>
-            </div>
-            <div className="relative h-[110px] min-w-0">
-              <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
-                {Array.from({ length: 6 }, (_, index) => (
-                  <span key={index} className="h-px w-full bg-border/70" />
-                ))}
-              </div>
-              <svg
-                className="absolute inset-0 size-full"
-                viewBox={`0 0 ${CHART_VIEW_W} ${CHART_VIEW_H}`}
-                preserveAspectRatio="none"
-                aria-hidden
-              >
-                <defs>
-                  <linearGradient id="events-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={EVENTS_SERIES.color} stopOpacity={0.22} />
-                    <stop offset="90%" stopColor={EVENTS_SERIES.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <path d={area} fill="url(#events-fill)" stroke="none" />
-                <path
-                  d={line}
-                  fill="none"
-                  stroke={EVENTS_SERIES.color}
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            </div>
-          </div>
-
-          <div className="ml-[72px] mt-2 flex justify-between gap-1 text-center text-hint text-muted-foreground">
-            {CHART_DATES.map(([time, date]) => (
-              <div key={date} className="flex flex-col gap-0.5">
-                <span>{time}</span>
-                <span className="font-semibold">{date}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="ml-[72px] mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2 text-hint text-foreground">
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: EVENTS_SERIES.color }}
-                aria-hidden
-              />
-              {EVENTS_SERIES.label}
-            </div>
           </div>
         </div>
       </div>
@@ -726,6 +970,10 @@ function DatasourceSchemasTab() {
   const pendingSchemas = inferredParam
     ? inferredParam.split(",").map((value) => value.trim()).filter(Boolean)
     : []
+  const [removedSchemas, setRemovedSchemas] = React.useState<string[]>([])
+  const visibleSchemas = DATASOURCE_SCHEMAS.filter(
+    (row) => !removedSchemas.includes(row.schema)
+  )
 
   return (
     <section>
@@ -761,7 +1009,7 @@ function DatasourceSchemasTab() {
               </TableCell>
             </TableRow>
           ))}
-          {DATASOURCE_SCHEMAS.map((row) => {
+          {visibleSchemas.map((row) => {
             const versions = buildVersions(row.schema)
             const latest = versions[0]
             const upToDate =
@@ -791,13 +1039,41 @@ function DatasourceSchemasTab() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="default" size="sm" asChild>
-                    <Link
-                      href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
-                    >
-                      View
-                    </Link>
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="default" size="sm" asChild>
+                      <Link
+                        href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
+                      >
+                        View
+                      </Link>
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`More actions for ${row.schema}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() =>
+                            setRemovedSchemas((prev) =>
+                              prev.includes(row.schema)
+                                ? prev
+                                : [...prev, row.schema]
+                            )
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete parser
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             )
@@ -1300,22 +1576,34 @@ export function LakewatchDatasourceDetailView() {
   const [description, setDescription] = React.useState("")
   const [editingDescription, setEditingDescription] = React.useState(false)
   const [draftDescription, setDraftDescription] = React.useState("")
+  const [healthSchedule, setHealthSchedule] = React.useState("")
+  const [healthLagInterval, setHealthLagInterval] = React.useState("")
+  const [volumeCheck, setVolumeCheck] = React.useState(false)
+  const [latencyCheck, setLatencyCheck] = React.useState(false)
+  const [nullTimestampCheck, setNullTimestampCheck] = React.useState(false)
+  const [toolbarDirty, setToolbarDirty] = React.useState(false)
+  const [advancedOpen, setAdvancedOpen] = React.useState(false)
+  const suggestedDescription =
+    "Ingests AWS CloudTrail audit logs from the audit-logs-7830bcf S3 bucket in us-west-2. " +
+    "Raw events are parsed and normalized into the lakewatch.default.audit_logs_7830bcf table for " +
+    "security monitoring and compliance reporting. New objects are picked up continuously, so records " +
+    "are typically queryable within a few minutes of delivery."
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
-      <div className="flex items-start justify-between gap-6">
-        <div className="min-w-0">
-          <Breadcrumb className="mb-2">
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/lakewatch/datasources">Datasources</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </BreadcrumbList>
-          </Breadcrumb>
+      <div>
+        <Breadcrumb className="mb-2">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/lakewatch/datasources">Datasources</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </BreadcrumbList>
+        </Breadcrumb>
 
+        <div className="flex items-start justify-between gap-6">
           <div className="flex min-w-0 items-center gap-3">
             <LakewatchDatasourceLogo kind={logoKind} size="detail" />
             <div className="min-w-0">
@@ -1326,14 +1614,32 @@ export function LakewatchDatasourceDetailView() {
               </p>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <DetailHeaderControls />
+            <DatasourceActionControls
+              datasourceName={sourceName}
+              dirty={toolbarDirty}
+              onSaved={() => setToolbarDirty(false)}
+            />
+          </div>
         </div>
-        <DetailHeaderControls />
       </div>
 
       <div className="mt-5">
-          <ProcessingScheduleToolbar />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-primary hover:text-blue-700"
+              onClick={() => setAdvancedOpen(true)}
+            >
+              Advanced options
+            </Button>
+          </div>
 
-          <div className="mt-5 flex max-w-[679px] flex-col gap-5">
+          <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-8">
+          <div className="flex flex-col gap-5">
             {editingDescription ? (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="datasource-overview-description">Description</Label>
@@ -1393,31 +1699,183 @@ export function LakewatchDatasourceDetailView() {
                     {description}
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto justify-start whitespace-normal p-0 !px-0 text-left text-sm font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+                    onClick={() => setDescription(suggestedDescription)}
+                  >
                     Add a description for this datasource
-                  </p>
+                  </Button>
                 )}
               </div>
             )}
-            <WizardAnnotationsField />
+            <Sheet open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <SheetContent side="right" className="sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>Advanced options</SheetTitle>
+                  <SheetDescription>
+                    Configure annotations and health monitoring for this datasource.
+                  </SheetDescription>
+                </SheetHeader>
+                <Tabs
+                  defaultValue="annotations"
+                  className="flex min-h-0 flex-1 flex-col gap-0"
+                >
+                  <TabsList variant="line" className="shrink-0 px-6">
+                    <TabsTrigger value="annotations">Annotations</TabsTrigger>
+                    <TabsTrigger value="health">Health monitoring</TabsTrigger>
+                  </TabsList>
+                  <TabsContent
+                    value="annotations"
+                    className="min-h-0 overflow-y-auto px-6 pb-6 pt-4"
+                  >
+                    <WizardAnnotationsField bare />
+                  </TabsContent>
+                  <TabsContent
+                    value="health"
+                    className="min-h-0 overflow-y-auto px-6 pb-6 pt-4"
+                  >
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <Label htmlFor="health-schedule">Schedule *</Label>
+                        <p className="text-hint text-muted-foreground">
+                          A Quartz cron expression for when the health check runs.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="health-schedule"
+                          value={healthSchedule}
+                          onChange={(event) => setHealthSchedule(event.target.value)}
+                          placeholder="0 0 * * * ? *"
+                          className="flex-1 font-mono"
+                        />
+                        <span className="shrink-0 text-sm text-muted-foreground">
+                          Every hour
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div>
+                        <Label htmlFor="health-lag-interval">Lag interval (hours) *</Label>
+                        <p className="text-hint text-muted-foreground">
+                          Number of hours to wait before analyzing data, to account for
+                          ingestion latency. For example, with a lag of 1 hour, a job running
+                          at 14:30 analyzes data up to 14:00.
+                        </p>
+                      </div>
+                      <Input
+                        id="health-lag-interval"
+                        type="number"
+                        min={0}
+                        value={healthLagInterval}
+                        onChange={(event) => setHealthLagInterval(event.target.value)}
+                        placeholder="1"
+                      />
+                    </div>
+
+                    <div className="border-t border-border" />
+
+                    <div className="flex flex-col gap-2">
+                      <h3 className="text-lg font-semibold leading-6 text-foreground">
+                        Volume check
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Detects anomalies in bronze table data volume using statistical
+                        comparison.
+                      </p>
+                      <label
+                        htmlFor="health-volume-check"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <Checkbox
+                          id="health-volume-check"
+                          checked={volumeCheck}
+                          onCheckedChange={(checked) => setVolumeCheck(checked === true)}
+                        />
+                        <span className="text-sm text-foreground">Enable volume check</span>
+                      </label>
+                    </div>
+
+                    <div className="border-t border-border" />
+
+                    <div className="flex flex-col gap-2">
+                      <h3 className="text-lg font-semibold leading-6 text-foreground">
+                        Latency check
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Detects when too many rows have excessive ingestion latency.
+                      </p>
+                      <label
+                        htmlFor="health-latency-check"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <Checkbox
+                          id="health-latency-check"
+                          checked={latencyCheck}
+                          onCheckedChange={(checked) => setLatencyCheck(checked === true)}
+                        />
+                        <span className="text-sm text-foreground">Enable latency check</span>
+                      </label>
+                    </div>
+
+                    <div className="border-t border-border" />
+
+                    <div className="flex flex-col gap-2">
+                      <h3 className="text-lg font-semibold leading-6 text-foreground">
+                        Null timestamp check
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Detects when too many rows are missing their original event timestamp.
+                      </p>
+                      <label
+                        htmlFor="health-null-timestamp-check"
+                        className="flex cursor-pointer items-center gap-2"
+                      >
+                        <Checkbox
+                          id="health-null-timestamp-check"
+                          checked={nullTimestampCheck}
+                          onCheckedChange={(checked) =>
+                            setNullTimestampCheck(checked === true)
+                          }
+                        />
+                        <span className="text-sm text-foreground">
+                          Enable null timestamp check
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                  </TabsContent>
+                </Tabs>
+              </SheetContent>
+            </Sheet>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] lg:gap-8">
             <section>
-              <h2 className="text-lg font-semibold leading-6 text-foreground">Basic info</h2>
-              <dl className="mt-3 grid grid-cols-[128px_1fr] items-center gap-x-4 gap-y-2 text-sm">
+              <h2 className="text-base font-semibold leading-6 text-foreground">Basic info</h2>
+              <dl className="mt-3 grid grid-cols-[104px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 text-sm">
                 <dt className="text-foreground">Source ID</dt>
-                <dd className="text-primary">422e7cbe-3ec2-4c68-9fcf-f04ef87f8170</dd>
+                <dd className="min-w-0 truncate text-primary" title="422e7cbe-3ec2-4c68-9fcf-f04ef87f8170">
+                  422e7cbe-3ec2-4c68-9fcf-f04ef87f8170
+                </dd>
                 <dt className="text-foreground">AWS account ID</dt>
-                <dd className="text-primary">296062572198</dd>
+                <dd className="min-w-0 truncate text-primary" title="296062572198">
+                  296062572198
+                </dd>
                 <dt className="text-foreground">Destination table</dt>
-                <dd>
+                <dd className="min-w-0">
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-sm font-normal text-primary"
+                    className="h-auto max-w-full justify-start truncate p-0 text-sm font-normal text-primary"
                     asChild
                   >
-                    <Link href="#">lakewatch.default.audit_logs_7830bcf</Link>
+                    <Link href="#" title="lakewatch.default.audit_logs_7830bcf">
+                      lakewatch.default.audit_logs_7830bcf
+                    </Link>
                   </Button>
                 </dd>
               </dl>
@@ -1425,24 +1883,7 @@ export function LakewatchDatasourceDetailView() {
 
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold leading-6 text-foreground">Source status</h2>
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-1.5">
-                      <Activity className="h-4 w-4" aria-hidden />
-                      Health monitoring
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="sm:max-w-md">
-                    <SheetHeader>
-                      <SheetTitle>Health monitoring</SheetTitle>
-                      <SheetDescription>
-                        Configure health checks and alerting for this datasource.
-                      </SheetDescription>
-                    </SheetHeader>
-                    <div className="flex-1 overflow-y-auto px-6 pb-6" />
-                  </SheetContent>
-                </Sheet>
+                <h2 className="text-base font-semibold leading-6 text-foreground">Source status</h2>
               </div>
               <dl className="mt-3 flex flex-col gap-2 text-sm">
                 {SOURCE_STATUSES.map(([label, date]) => (
@@ -1471,21 +1912,24 @@ export function LakewatchDatasourceDetailView() {
               <h2 className="text-lg font-semibold leading-6 text-foreground">Overview stats</h2>
             </div>
 
-            <div className="mt-3 grid items-start gap-4 lg:grid-cols-[214px_minmax(0,1fr)]">
-              <div className="grid gap-3">
-                <MetricCard label="Vol. of data processed" value="2.48" unit="GBs" />
-                <MetricCard
-                  label="% of total processed data"
-                  value="98.52"
-                  unit="%"
-                  approximate
-                />
-                <MetricCard label="# of events processed" value="11.57" unit="M" />
-              </div>
-
-              <div className="grid min-w-0 gap-4">
-                <EventsChart />
-              </div>
+            <div className="mt-3 grid items-stretch gap-4 lg:grid-cols-3">
+              <TrendMetricCard
+                label="Events ingested (last 24h)"
+                value="1.24"
+                unit="M"
+                trend="up"
+                change="12.4%"
+                comparison="vs. prev. 24h"
+              />
+              <TrendMetricCard
+                label="Events ingested (last 7d)"
+                value="11.57"
+                unit="M"
+                trend="down"
+                change="3.2%"
+                comparison="vs. prev. 7d"
+              />
+              <EventsSparklineCard />
             </div>
           </section>
 

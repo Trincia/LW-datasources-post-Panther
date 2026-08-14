@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { CatalogIcon, CheckCircleIcon } from "@/components/icons"
+import { PreviewSkeleton } from "@/components/lakewatch/PreviewSkeleton"
 import { RunAsControl, RUN_AS_OPTIONS } from "@/components/lakewatch/RunAsControl"
 import { UnityCatalogExplorerModal } from "@/components/lakewatch/datasources-new/UnityCatalogExplorerModal"
 import { Button } from "@/components/ui/button"
@@ -157,10 +158,42 @@ const PREVIEW_SOURCES = [
   },
 ] as const
 
-function VerificationCheck({ valid }: { valid: boolean }) {
+function VerificationCheck({ value }: { value: string }) {
+  const [state, setState] = React.useState<
+    "idle" | "validating" | "verified"
+  >(() => (value.trim() ? "verified" : "idle"))
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    if (timer.current) clearTimeout(timer.current)
+    if (!value.trim()) {
+      setState("idle")
+      return
+    }
+    setState("validating")
+    timer.current = setTimeout(() => {
+      setState("verified")
+      timer.current = null
+    }, 1500)
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current)
+        timer.current = null
+      }
+    }
+  }, [value])
+
   return (
-    <span className="flex size-6 shrink-0 items-center justify-center">
-      {valid ? (
+    <span
+      className="flex size-6 shrink-0 items-center justify-center"
+      aria-live="polite"
+    >
+      {state === "validating" ? (
+        <LoaderCircle
+          className="h-4 w-4 animate-spin text-muted-foreground"
+          aria-label="Validating"
+        />
+      ) : state === "verified" ? (
         <CheckCircleIcon
           className="h-4 w-4 text-[var(--success)]"
           ariaLabel="Verified"
@@ -171,12 +204,7 @@ function VerificationCheck({ valid }: { valid: boolean }) {
 }
 
 function SamplePreviewSkeleton() {
-  return (
-    <div className="flex items-center justify-center gap-2 px-6 py-16">
-      <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">Loading sample preview…</p>
-    </div>
-  )
+  return <PreviewSkeleton className="h-[240px]" panes={2} rows={6} />
 }
 
 function SamplePreviewTables({ dataset }: { dataset: PreviewDataset }) {
@@ -280,20 +308,26 @@ export function SchemaPreviewPanel({
   const [uploadedFile, setUploadedFile] = React.useState("")
   const [pasteSample, setPasteSample] = React.useState("")
   const [appliedLabel, setAppliedLabel] = React.useState("")
-  const [sampleLoading, setSampleLoading] = React.useState(false)
+  const [sampleLoading, setSampleLoading] = React.useState(preloaded)
   const loadTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Sweep a skeleton over the preview whenever the sample dataset loads or is
+  // replaced (including the initial preloaded view).
   React.useEffect(() => {
+    if (!preloaded) return
+    setSampleLoading(true)
+    if (loadTimer.current) clearTimeout(loadTimer.current)
+    loadTimer.current = setTimeout(() => setSampleLoading(false), 1500)
     return () => {
       if (loadTimer.current) clearTimeout(loadTimer.current)
     }
-  }, [])
+  }, [preloaded, schemaName])
 
   const applySample = (label: string) => {
     setAppliedLabel(label)
     setSampleLoading(true)
     if (loadTimer.current) clearTimeout(loadTimer.current)
-    loadTimer.current = setTimeout(() => setSampleLoading(false), 1200)
+    loadTimer.current = setTimeout(() => setSampleLoading(false), 1500)
   }
 
   const clearSample = () => {
@@ -415,7 +449,7 @@ export function SchemaPreviewPanel({
                             )
                           }
                         />
-                        <VerificationCheck valid={!!externalLocation.trim()} />
+                        <VerificationCheck value={externalLocation} />
                       </div>
                     </DialogBody>
                     <DialogFooter>
@@ -483,7 +517,7 @@ export function SchemaPreviewPanel({
                             <CatalogIcon size={16} className="text-muted-foreground" />
                           </Button>
                         </div>
-                        <VerificationCheck valid={!!tableLocation.trim()} />
+                        <VerificationCheck value={tableLocation} />
                       </div>
                     </DialogBody>
                     <DialogFooter>

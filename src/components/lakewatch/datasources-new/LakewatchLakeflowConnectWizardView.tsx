@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 
-const CONNECT_STEPS = ["Connection", "Parse"] as const
+const CONNECT_STEPS = ["Connection", "Parsers"] as const
 
 export const CONNECT_SOURCES = {
   slack: "Slack",
@@ -636,7 +636,7 @@ export function LakewatchLakeflowConnectWizardView({
           >
             <StepPanelHeader
               step={2}
-              title="Parse"
+              title="Parsers"
               description={`Select the parsers Lakewatch should use to classify data from ${label}.`}
             />
 
