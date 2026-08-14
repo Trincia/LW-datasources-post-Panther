@@ -366,6 +366,7 @@ export function WizardDatasourceNameField({
   onSchemaChange,
   name,
   onNameChange,
+  onNameFocus,
 }: {
   catalog: string
   onCatalogChange: (value: string) => void
@@ -373,6 +374,8 @@ export function WizardDatasourceNameField({
   onSchemaChange: (value: string) => void
   name: string
   onNameChange: (value: string) => void
+  /** Optional focus/click handler — used to auto-fill an example name. */
+  onNameFocus?: () => void
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -410,6 +413,8 @@ export function WizardDatasourceNameField({
             aria-label="Datasource name"
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
+            onFocus={onNameFocus}
+            onClick={onNameFocus}
             required
             className="pl-9"
           />
@@ -1135,7 +1140,7 @@ export function WizardAnnotationsField({ bare = false }: { bare?: boolean } = {}
   )
 }
 
-function RawDataPreview({
+export function RawDataPreview({
   region,
   sourceName,
 }: {
@@ -1202,7 +1207,7 @@ const RAW_PREVIEW_SKELETON_WIDTHS = [
   "w-[50%]",
 ]
 
-function RawDataPreviewSkeleton() {
+export function RawDataPreviewSkeleton() {
   return (
     <div className="skeleton-sweep overflow-hidden" aria-hidden>
       <div className="flex h-6 items-center border-b border-input px-2">

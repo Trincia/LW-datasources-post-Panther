@@ -142,8 +142,9 @@ export function LakewatchSchemasView() {
     setCustomSchemas(readCustomSchemas())
 
     const url = new URL(window.location.href)
-    if (url.searchParams.get("created")) {
-      toast.success("New parser successfully added")
+    const createdName = url.searchParams.get("created")
+    if (createdName) {
+      toast.success(`${createdName} was successfully created`)
       url.searchParams.delete("created")
       window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
     }

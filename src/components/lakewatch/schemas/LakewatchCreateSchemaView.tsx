@@ -137,8 +137,7 @@ export function LakewatchCreateSchemaView() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const name = schemaId.trim()
-    if (!name) return
+    const name = schemaId.trim() || SAMPLE_SCHEMA_ID
 
     saveCustomSchema({
       name,
@@ -184,7 +183,7 @@ export function LakewatchCreateSchemaView() {
       </div>
 
       <div className="mx-auto mt-10 flex w-full max-w-[960px] flex-col items-center gap-4">
-      <Card className="w-full max-w-[631px] gap-6 p-6 shadow-none">
+      <Card className="w-full max-w-[920px] gap-6 p-6 shadow-none">
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold leading-6 text-foreground">General Info</h2>
 
@@ -192,7 +191,7 @@ export function LakewatchCreateSchemaView() {
             <Label htmlFor="schema-id">Name</Label>
             <div className="flex items-center gap-1">
               <Select value="sec_dev" disabled>
-                <SelectTrigger className="w-full" aria-label="Catalog">
+                <SelectTrigger className="min-w-0 flex-1" aria-label="Catalog">
                   <CatalogIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                   <SelectValue />
                 </SelectTrigger>
@@ -202,7 +201,7 @@ export function LakewatchCreateSchemaView() {
               </Select>
               <span className="text-muted-foreground">.</span>
               <Select value={destSchema} onValueChange={setDestSchema}>
-                <SelectTrigger className="w-full" aria-label="Schema">
+                <SelectTrigger className="min-w-0 flex-1" aria-label="Schema">
                   <SchemaIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                   <SelectValue />
                 </SelectTrigger>

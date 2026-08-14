@@ -22,6 +22,8 @@ import {
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import {
+  RawDataPreview,
+  RawDataPreviewSkeleton,
   WizardComputeModeField,
   WizardDatasourceNameField,
 } from "@/components/lakewatch/datasources-new/LakewatchAwsS3WizardView"
@@ -228,7 +230,7 @@ export function LakewatchLakeflowConnectWizardView({
   )
 
   const [activeStep, setActiveStep] = React.useState(1)
-  const [connection, setConnection] = React.useState(connectionRows[0]?.name ?? "")
+  const [connection, setConnection] = React.useState("")
   const [connectionFilter, setConnectionFilter] = React.useState("")
   const [createOpen, setCreateOpen] = React.useState(false)
   const [editingConnection, setEditingConnection] = React.useState<string | null>(null)
@@ -241,8 +243,21 @@ export function LakewatchLakeflowConnectWizardView({
   const [schema, setSchema] = React.useState("default")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
+  // Raw sample only loads once a connection is picked; sweep a skeleton first.
+  const [previewLoading, setPreviewLoading] = React.useState(false)
   const templateController = useIntegrationTemplates(label)
   const contentRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!connection) {
+      setPreviewLoading(false)
+      return
+    }
+    setPreviewLoading(true)
+    const timer = window.setTimeout(() => setPreviewLoading(false), 1500)
+    return () => window.clearTimeout(timer)
+  }, [connection])
+
   const [contentWidth, setContentWidth] = React.useState(0)
 
   React.useEffect(() => {
@@ -342,7 +357,15 @@ export function LakewatchLakeflowConnectWizardView({
       )}
     >
       <div className="flex h-8 items-center justify-between border-y border-input px-2">
-        <h2 className="text-sm font-semibold leading-5 text-foreground">Data preview</h2>
+        <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-foreground">
+          <span className="shrink-0">Data preview</span>
+          {connection ? (
+            <>
+              <span className="shrink-0 text-muted-foreground">·</span>
+              <span className="min-w-0 truncate font-normal text-muted-foreground">{label}</span>
+            </>
+          ) : null}
+        </h2>
         <div className="flex items-center">
           <Button
             type="button"
@@ -370,12 +393,18 @@ export function LakewatchLakeflowConnectWizardView({
         </div>
       </div>
       {previewExpanded ? (
-        <div className="flex h-[94px] flex-col items-center justify-center gap-1">
-          <TableIcon className="h-9 w-9 text-muted-foreground" />
-          <p className="text-sm leading-5 text-foreground">
-            Configure a table to see a preview
-          </p>
-        </div>
+        !connection ? (
+          <div className="flex h-[94px] flex-col items-center justify-center gap-1">
+            <TableIcon className="h-9 w-9 text-muted-foreground" />
+            <p className="text-sm leading-5 text-foreground">
+              Configure a table to see a preview
+            </p>
+          </div>
+        ) : previewLoading ? (
+          <RawDataPreviewSkeleton />
+        ) : (
+          <RawDataPreview region="us-east-1" sourceName={label} />
+        )
       ) : null}
     </section>
   ) : null
@@ -456,6 +485,9 @@ export function LakewatchLakeflowConnectWizardView({
                 onSchemaChange={setSchema}
                 name={datasourceName}
                 onNameChange={setDatasourceName}
+                onNameFocus={() => {
+                  if (!datasourceName) setDatasourceName(`${source}-audit-logs`)
+                }}
               />
 
               <div className="flex flex-col gap-3">
