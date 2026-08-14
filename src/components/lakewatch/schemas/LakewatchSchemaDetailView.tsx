@@ -14,6 +14,14 @@ import { ValidatedInput } from "@/components/lakewatch/ValidatedInput"
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { Badge } from "@/components/ui/badge"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -683,6 +691,7 @@ export function LakewatchSchemaDetailView({
   // Opened from a datasource's Parsers tab: show it read-only with
   // the sample data preview docked at the bottom, and no clone/edit actions.
   const fromDatasource = !formMode && searchParams.get("from") === "datasource"
+  const originDatasource = searchParams.get("datasource")?.trim() || ""
   const [isCustom, setIsCustom] = React.useState(false)
 
   React.useEffect(() => {
@@ -713,6 +722,7 @@ export function LakewatchSchemaDetailView({
     return `v${latestNum + 1}`
   }, [versions])
   const [detailView, setDetailView] = React.useState<"ui" | "yaml">("ui")
+  const [previewOpen, setPreviewOpen] = React.useState(false)
   const [editingCloneName, setEditingCloneName] = React.useState(false)
   const [cloneDescription, setCloneDescription] = React.useState(details.description)
   const [cloneReferenceUrl, setCloneReferenceUrl] = React.useState(details.docsUrl)
@@ -734,6 +744,35 @@ export function LakewatchSchemaDetailView({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-10 pb-12 pt-8">
+      {fromDatasource ? (
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/lakewatch/datasources">Datasources</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            {originDatasource ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link
+                      href={`/lakewatch/datasources/${encodeURIComponent(originDatasource)}`}
+                    >
+                      {originDatasource}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+              </>
+            ) : null}
+            <BreadcrumbItem>
+              <BreadcrumbPage>{schemaName}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      ) : null}
       <div className="flex items-start justify-between gap-6">
         {formMode ? (
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -923,9 +962,28 @@ export function LakewatchSchemaDetailView({
           <SchemaCodeView schemaName={schemaName} details={details} />
         )}
       </Card>
+
+      {formMode ? (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => setPreviewOpen((current) => !current)}
+          >
+            Results preview
+          </Button>
+        </div>
+      ) : null}
     </div>
       {fromDatasource ? (
         <SchemaPreviewPanel preloaded schemaName={schemaName} />
+      ) : formMode && previewOpen ? (
+        <SchemaPreviewPanel
+          preloaded
+          schemaName={schemaName}
+          schemaDefinition={schemaYaml}
+        />
       ) : null}
     </div>
   )

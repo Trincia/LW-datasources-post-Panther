@@ -1018,10 +1018,12 @@ function DatasourceSchemasTab({
   isApiConnector = false,
   schemas = DATASOURCE_SCHEMAS as readonly DatasourceSchemaRow[],
   destinationTables = DESTINATION_TABLES,
+  datasourceName = "",
 }: {
   isApiConnector?: boolean
   schemas?: readonly DatasourceSchemaRow[]
   destinationTables?: Record<string, string[]>
+  datasourceName?: string
 }) {
   const searchParams = useSearchParams()
   const inferredParam = searchParams.get("inferred")
@@ -1131,7 +1133,11 @@ function DatasourceSchemasTab({
                   <div className="flex items-center justify-end gap-1">
                     <Button variant="default" size="sm" asChild>
                       <Link
-                        href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource`}
+                        href={`/lakewatch/schemas/${encodeURIComponent(row.schema)}?from=datasource${
+                          datasourceName
+                            ? `&datasource=${encodeURIComponent(datasourceName)}`
+                            : ""
+                        }`}
                       >
                         View
                       </Link>
@@ -2182,6 +2188,7 @@ export function LakewatchDatasourceDetailView() {
             isApiConnector={isApiConnector}
             schemas={connectorSchemas ?? undefined}
             destinationTables={connectorDestinations ?? undefined}
+            datasourceName={sourceName}
           />
         </TabsContent>
         <TabsContent value="system-cases" className="mt-4">
