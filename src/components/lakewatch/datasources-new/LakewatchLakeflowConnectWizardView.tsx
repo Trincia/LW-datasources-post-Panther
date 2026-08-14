@@ -282,7 +282,11 @@ export function LakewatchLakeflowConnectWizardView({
 
   const handleFinish = () => {
     const name = datasourceName.trim() || `${source}-datasource`
-    router.push(`/lakewatch/datasources/${encodeURIComponent(name)}`)
+    const params = new URLSearchParams({ connector: source })
+    if (connection) params.set("connection", connection)
+    router.push(
+      `/lakewatch/datasources/${encodeURIComponent(name)}?${params.toString()}`
+    )
   }
 
   const sampleConnName = `${source}-audit-logs`
@@ -728,8 +732,8 @@ export function LakewatchLakeflowConnectWizardView({
               <Input
                 id="new-conn-name"
                 value={newConnName}
+                placeholder={sampleConnName}
                 onChange={(event) => setNewConnName(event.target.value)}
-                onFocus={() => setNewConnName((current) => current || sampleConnName)}
                 onClick={() => setNewConnName((current) => current || sampleConnName)}
               />
             </div>

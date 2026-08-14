@@ -359,6 +359,8 @@ const DATA_FORMATS = [
   },
 ] as const
 
+const SAMPLE_DATASOURCE_NAME = "lakewatch-account-us-west-2"
+
 export function WizardDatasourceNameField({
   catalog,
   onCatalogChange,
@@ -411,9 +413,9 @@ export function WizardDatasourceNameField({
           />
           <Input
             aria-label="Datasource name"
+            placeholder="Datasource name"
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
-            onFocus={onNameFocus}
             onClick={onNameFocus}
             required
             className="pl-9"
@@ -1990,8 +1992,10 @@ export function LakewatchAwsS3WizardView({
   const templateController = useIntegrationTemplates()
   const pendingSchemas: string[] = []
   const [catalog, setCatalog] = React.useState("sec_dev")
-  const [schema, setSchema] = React.useState("default")
-  const [datasourceName, setDatasourceName] = React.useState("lakewatch-account-us-west-2")
+  const [schema, setSchema] = React.useState("production")
+  const [datasourceName, setDatasourceName] = React.useState("")
+  const fillSampleDatasourceName = () =>
+    setDatasourceName((current) => current || SAMPLE_DATASOURCE_NAME)
   const sampleVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const prepareEventsRef = React.useRef<HTMLDivElement>(null)
@@ -2475,6 +2479,7 @@ export function LakewatchAwsS3WizardView({
                     onSchemaChange={setSchema}
                     name={datasourceName}
                     onNameChange={setDatasourceName}
+                    onNameFocus={fillSampleDatasourceName}
                   />
 
                   <div className="flex flex-col gap-2">
@@ -2599,6 +2604,7 @@ export function LakewatchAwsS3WizardView({
                 onSchemaChange={setSchema}
                 name={datasourceName}
                 onNameChange={setDatasourceName}
+                onNameFocus={fillSampleDatasourceName}
               />
 
               <div className="flex flex-col gap-2">
@@ -2758,6 +2764,7 @@ export function LakewatchAwsS3WizardView({
                 onSchemaChange={setSchema}
                 name={datasourceName}
                 onNameChange={setDatasourceName}
+                onNameFocus={fillSampleDatasourceName}
               />
 
               <div className="flex flex-col gap-2">
@@ -2860,7 +2867,7 @@ export function LakewatchAwsS3WizardView({
             )}
             onSubmit={(event) => {
               event.preventDefault()
-              const name = datasourceName.trim() || "lakewatch-account-us-west-2"
+              const name = datasourceName.trim() || SAMPLE_DATASOURCE_NAME
               const inferredParam = pendingSchemas.length
                 ? `?inferred=${pendingSchemas.map(encodeURIComponent).join(",")}`
                 : ""

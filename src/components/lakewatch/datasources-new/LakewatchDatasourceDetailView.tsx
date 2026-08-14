@@ -34,6 +34,7 @@ import {
   LakewatchDatasourceLogo,
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
+import { CONNECT_SOURCES } from "@/components/lakewatch/datasources-new/LakewatchLakeflowConnectWizardView"
 import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
@@ -128,6 +129,46 @@ const DESTINATION_TABLES: Record<string, string[]> = {
   "AWS.ALB": ["lakewatch.default.aws_alb"],
   "AWS.S3ServerAccess": ["lakewatch.default.aws_s3serveraccess"],
   "AWS.CloudTrail": ["lakewatch.default.aws_cloudtrail"],
+}
+
+type DatasourceSchemaRow = { path: string; schema: string }
+
+/** Slugifies a parser name into a Unity Catalog table name segment. */
+function toTableName(name: string) {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "parser"
+  )
+}
+
+// The built-in parsers surfaced by an API connector, mirroring the cards shown
+// on the connector's "Parsers" step (Audit Logs / Access Logs / Events).
+const CONNECTOR_PARSER_SUFFIXES = ["Audit Logs", "Access Logs", "Events"] as const
+
+function buildConnectorSchemas(family: string): DatasourceSchemaRow[] {
+  return CONNECTOR_PARSER_SUFFIXES.map((suffix) => ({
+    schema: `${family} ${suffix}`,
+    path: "",
+  }))
+}
+
+function buildConnectorDestinations(family: string): Record<string, string[]> {
+  const tables: Record<string, string[]> = {}
+  for (const suffix of CONNECTOR_PARSER_SUFFIXES) {
+    const name = `${family} ${suffix}`
+    tables[name] = [`lakewatch.default.${toTableName(name)}`]
+  }
+  return tables
+}
+
+// API connectors that have a dedicated brand logo; others fall back to generic.
+const CONNECTOR_LOGO_KINDS: Record<string, LakewatchDatasourceLogoKind> = {
+  slack: "slack",
+  "1password": "1password",
+  okta: "okta",
 }
 
 const DATASOURCE_LOGOS: Record<string, LakewatchDatasourceLogoKind> = {
@@ -973,14 +1014,22 @@ function DatasourceHealthTab() {
   )
 }
 
-function DatasourceSchemasTab() {
+function DatasourceSchemasTab({
+  isApiConnector = false,
+  schemas = DATASOURCE_SCHEMAS as readonly DatasourceSchemaRow[],
+  destinationTables = DESTINATION_TABLES,
+}: {
+  isApiConnector?: boolean
+  schemas?: readonly DatasourceSchemaRow[]
+  destinationTables?: Record<string, string[]>
+}) {
   const searchParams = useSearchParams()
   const inferredParam = searchParams.get("inferred")
   const pendingSchemas = inferredParam
     ? inferredParam.split(",").map((value) => value.trim()).filter(Boolean)
     : []
   const [removedSchemas, setRemovedSchemas] = React.useState<string[]>([])
-  const visibleSchemas = DATASOURCE_SCHEMAS.filter(
+  const visibleSchemas = schemas.filter(
     (row) => !removedSchemas.includes(row.schema)
   )
 
@@ -1033,8 +1082,11 @@ function DatasourceSchemasTab() {
           {visibleSchemas.map((row) => {
             const versions = buildVersions(row.schema)
             const latest = versions[0]
+            // API connector parsers are always kept on the latest version.
             const upToDate =
-              row.schema === "AWS.ALB" || row.schema === "AWS.CloudTrail"
+              isApiConnector ||
+              row.schema === "AWS.ALB" ||
+              row.schema === "AWS.CloudTrail"
             const hasUpdate = !upToDate && versions.length > 1
             const used = hasUpdate ? versions[1] : latest
             return (
@@ -1042,7 +1094,7 @@ function DatasourceSchemasTab() {
                 <TableCell className="text-foreground">{row.schema}</TableCell>
                 <TableCell className="text-foreground">
                   <div className="flex min-w-0 flex-col gap-1">
-                    {(DESTINATION_TABLES[row.schema] ?? []).map((table) => (
+                    {(destinationTables[row.schema] ?? []).map((table) => (
                       <Button
                         key={table}
                         variant="link"
@@ -1729,8 +1781,35 @@ function DetailHeaderControls() {
 
 export function LakewatchDatasourceDetailView() {
   const params = useParams<{ sourceId: string }>()
+  const searchParams = useSearchParams()
   const sourceName = decodeURIComponent(params.sourceId ?? "lakewatch-account-us-west-2")
-  const logoKind = DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"
+
+  // When arriving from a Lakeflow Connect (API connector) add flow, the source
+  // type and parsers are driven by the chosen connector rather than the S3
+  // defaults below.
+  const connectorKey = searchParams.get("connector")
+  const connectorFamily =
+    connectorKey && connectorKey in CONNECT_SOURCES
+      ? CONNECT_SOURCES[connectorKey as keyof typeof CONNECT_SOURCES]
+      : null
+  const connectionName =
+    searchParams.get("connection")?.trim() ||
+    (connectorKey ? `${connectorKey}-connection` : "")
+
+  const logoKind: LakewatchDatasourceLogoKind = connectorFamily
+    ? CONNECTOR_LOGO_KINDS[connectorKey as string] ?? "fluentbit"
+    : DATASOURCE_LOGOS[sourceName] ?? "cloudtrail"
+  const isApiConnector =
+    Boolean(connectorFamily) ||
+    logoKind === "slack" ||
+    logoKind === "okta" ||
+    logoKind === "1password"
+  const connectorSchemas = connectorFamily
+    ? buildConnectorSchemas(connectorFamily)
+    : null
+  const connectorDestinations = connectorFamily
+    ? buildConnectorDestinations(connectorFamily)
+    : null
   const [description, setDescription] = React.useState("")
   const [editingDescription, setEditingDescription] = React.useState(false)
   const [draftDescription, setDraftDescription] = React.useState("")
@@ -1741,11 +1820,15 @@ export function LakewatchDatasourceDetailView() {
   const [nullTimestampCheck, setNullTimestampCheck] = React.useState(false)
   const [toolbarDirty, setToolbarDirty] = React.useState(false)
   const [advancedOpen, setAdvancedOpen] = React.useState(false)
-  const suggestedDescription =
-    "Ingests AWS CloudTrail audit logs from the audit-logs-7830bcf S3 bucket in us-west-2. " +
-    "Raw events are parsed and normalized into the lakewatch.default.audit_logs_7830bcf table for " +
-    "security monitoring and compliance reporting. New objects are picked up continuously, so records " +
-    "are typically queryable within a few minutes of delivery."
+  const suggestedDescription = connectorFamily
+    ? `Ingests ${connectorFamily} audit, access, and activity events through the ${connectionName} ` +
+      `connection. Raw events are parsed and normalized into dedicated lakewatch.default tables for ` +
+      `security monitoring and detection. New events are pulled continuously and are typically ` +
+      `queryable within a few minutes of ingestion.`
+    : "Ingests AWS CloudTrail audit logs from the audit-logs-7830bcf S3 bucket in us-west-2. " +
+      "Raw events are parsed and normalized into the lakewatch.default.audit_logs_7830bcf table for " +
+      "security monitoring and compliance reporting. New objects are picked up continuously, so records " +
+      "are typically queryable within a few minutes of delivery."
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
@@ -1767,8 +1850,17 @@ export function LakewatchDatasourceDetailView() {
             <div className="min-w-0">
               <h1 className={`${PAGE_TITLE_SEMIBOLD} truncate`}>{sourceName}</h1>
               <p className="text-hint text-foreground">
-                S3 Bucket →{" "}
-                <span className="text-primary">audit-logs-7830bcf</span>
+                {connectorFamily ? (
+                  <>
+                    {connectorFamily} connection →{" "}
+                    <span className="text-primary">{connectionName}</span>
+                  </>
+                ) : (
+                  <>
+                    S3 Bucket →{" "}
+                    <span className="text-primary">audit-logs-7830bcf</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -2078,7 +2170,11 @@ export function LakewatchDatasourceDetailView() {
 
           <div className="my-6 h-px bg-border" />
 
-          <DatasourceSchemasTab />
+          <DatasourceSchemasTab
+            isApiConnector={isApiConnector}
+            schemas={connectorSchemas ?? undefined}
+            destinationTables={connectorDestinations ?? undefined}
+          />
         </TabsContent>
         <TabsContent value="system-cases" className="mt-4">
           <DatasourceSystemCasesTab datasourceName={sourceName} />

@@ -564,11 +564,6 @@ export function SchemaPreviewPanel({
                           onChange={(event) =>
                             setExternalLocation(event.target.value)
                           }
-                          onFocus={() =>
-                            setExternalLocation(
-                              (current) => current || EXTERNAL_LOCATION_SAMPLE
-                            )
-                          }
                           onClick={() =>
                             setExternalLocation(
                               (current) => current || EXTERNAL_LOCATION_SAMPLE
