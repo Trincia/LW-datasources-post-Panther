@@ -1525,7 +1525,7 @@ export function IntegrationTemplatesField({
               onCheckedChange={(value) => setSkipTemplates(value === true)}
             />
             <span className="text-sm text-foreground">
-              Skip parsers for now
+              Write datasource to raw table only. Skip parsers for now
             </span>
           </label>
 

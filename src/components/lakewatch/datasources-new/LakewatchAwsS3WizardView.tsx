@@ -1243,6 +1243,19 @@ function deriveViewTableName(location: string) {
   return slug ? `bronze_${slug}_view` : ""
 }
 
+// Realistic column names for the existing-table source, used to populate the
+// primary-key column pickers. Mirrors the preview columns plus a few extras.
+const EXISTING_TABLE_COLUMNS = [
+  "event_time",
+  "event_id",
+  "user_identity",
+  "action",
+  "resource",
+  "source_ip",
+  "region",
+  "account_id",
+] as const
+
 const EXISTING_TABLE_PREVIEW_DATA: PreviewTableData = {
   columns: ["event_time", "event_id", "user_identity", "action", "resource"],
   rows: [
@@ -1985,10 +1998,32 @@ export function LakewatchAwsS3WizardView({
   const [topLevelField, setTopLevelField] = React.useState("")
   const [jsonArrayApplied, setJsonArrayApplied] = React.useState(false)
   const [unwrapLoading, setUnwrapLoading] = React.useState(false)
-  const [unwrapReady, setUnwrapReady] = React.useState(false)
   const unwrapLoadingTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
   const [previewVisible, setPreviewVisible] = React.useState(true)
+  // The user initiates each preview render via the "Preview data" button. `stale`
+  // means a fresh update is available (button active); `initiated` means a preview
+  // has been rendered for the current step (otherwise the panel shows empty state).
+  const [previewStale, setPreviewStale] = React.useState(true)
+  const [previewInitiated, setPreviewInitiated] = React.useState(false)
+  const previewStaleInitRef = React.useRef(false)
+  const previewInitiatedRef = React.useRef(false)
+  // Once a preview has been shown, any change that reactivates the button spins
+  // it briefly before settling into its active "Update preview" state (the
+  // reload itself only happens on click).
+  const [previewButtonLoading, setPreviewButtonLoading] = React.useState(false)
+  const previewButtonTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The preview body renders from a snapshot captured when the user last clicked
+  // the button — never from live state — so adding/removing parsers (or changing
+  // anything else) never updates the shown preview until the next click.
+  const [renderedSnapshot, setRenderedSnapshot] = React.useState<{
+    kind: "raw" | "unwrap" | "split"
+    templates: ActiveTemplatePreview[]
+    unwrapConfigured: boolean
+    sourceName: string
+    region: string
+    topLevelField: string
+  } | null>(null)
   const templateController = useIntegrationTemplates()
   const pendingSchemas: string[] = []
   const [catalog, setCatalog] = React.useState("sec_dev")
@@ -2000,7 +2035,6 @@ export function LakewatchAwsS3WizardView({
   const regionVerificationTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const prepareEventsRef = React.useRef<HTMLDivElement>(null)
   const contentRef = React.useRef<HTMLDivElement>(null)
-  const autoPreviewKeyRef = React.useRef<string | null>(null)
   const [contentWidth, setContentWidth] = React.useState(0)
 
   React.useEffect(() => {
@@ -2018,11 +2052,10 @@ export function LakewatchAwsS3WizardView({
   const schemasReady =
     templateController.selectedNames.length > 0 || pendingSchemas.length > 0
   // "No unwrapping" keeps the raw preview. Every other option applies an
-  // unwrapping: non-JSON-Array options after a brief loading wheel (unwrapReady);
-  // JSON Array once its top-level field is applied.
+  // unwrapping; JSON Array additionally requires its top-level field to be applied.
   const unwrapConfigured =
     unwrapping !== "none" &&
-    (unwrapping === "json-array" ? jsonArrayApplied : unwrapReady)
+    (unwrapping === "json-array" ? jsonArrayApplied : true)
   // The selected parsers, shaped for the split preview's output dropdown.
   const selectedTemplates: ActiveTemplatePreview[] = templateController.selectedIds
     .map((id) => templateController.templateById.get(id))
@@ -2086,20 +2119,33 @@ export function LakewatchAwsS3WizardView({
   const activePreviewLocation =
     previewMode === "sample" ? dataSampleLocation : sourceLocation
   // The active location doubles as the preview name once a preview is loading/ready.
-  const previewHeaderName = showUnwrapPreview
+  const previewHeaderName = showSplitPreview
     ? "Data preview"
-    : showHeaderPreviewLocation
-      ? (previewReady || previewLoading) && activePreviewLocation.trim()
-        ? activePreviewLocation
-        : "Data preview"
-      : previewReady
-        ? "aws_sec_lake_raw"
-        : "Data preview"
+    : showUnwrapPreview
+      ? "Data preview"
+      : showHeaderPreviewLocation
+        ? (previewReady || previewLoading) && activePreviewLocation.trim()
+          ? activePreviewLocation
+          : "Data preview"
+        : previewReady
+          ? "aws_sec_lake_raw"
+          : "Data preview"
+  // The preview only renders when the user clicks "Preview data"; the button is
+  // active whenever a fresh preview is available to (re)load.
+  const previewAvailable =
+    activeStep === 1
+      ? showHeaderPreviewLocation
+        ? Boolean(sourceLocation.trim() && dataFormat) ||
+          (previewMode === "sample" && Boolean(dataSampleLocation.trim()))
+        : true
+      : schemasReady || unwrapConfigured
+  const previewButtonActive = previewAvailable && previewStale
   React.useEffect(
     () => () => {
       if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
       if (regionVerificationTimer.current) clearTimeout(regionVerificationTimer.current)
       if (unwrapLoadingTimer.current) clearTimeout(unwrapLoadingTimer.current)
+      if (previewButtonTimer.current) clearTimeout(previewButtonTimer.current)
     },
     []
   )
@@ -2117,24 +2163,18 @@ export function LakewatchAwsS3WizardView({
       clearTimeout(unwrapLoadingTimer.current)
       unwrapLoadingTimer.current = null
     }
-    // Non-JSON-Array transforms show a short loading wheel, then the side-by-side.
-    if (unwrapping !== "none" && unwrapping !== "json-array") {
-      setUnwrapReady(false)
-      setUnwrapLoading(true)
-      unwrapLoadingTimer.current = setTimeout(() => {
-        setUnwrapLoading(false)
-        setUnwrapReady(true)
-        unwrapLoadingTimer.current = null
-      }, 1500)
-    } else {
-      setUnwrapLoading(false)
-      setUnwrapReady(false)
-    }
+    setUnwrapLoading(false)
   }, [unwrapping])
 
-  // Sweep a skeleton over the preview table, then reveal the (new) data.
+  // Sweep a skeleton over the preview table, then reveal the (new) data. Marks
+  // the preview initiated (so the panel leaves its empty state) and no longer
+  // stale (so the "Preview data" button disables until the next change).
   const runPreview = React.useCallback(() => {
     if (sampleVerificationTimer.current) clearTimeout(sampleVerificationTimer.current)
+    if (previewButtonTimer.current) clearTimeout(previewButtonTimer.current)
+    setPreviewButtonLoading(false)
+    setPreviewInitiated(true)
+    setPreviewStale(false)
     setSampleVerification("validating")
     sampleVerificationTimer.current = setTimeout(() => {
       setSampleVerification("verified")
@@ -2142,31 +2182,81 @@ export function LakewatchAwsS3WizardView({
     }, 1500)
   }, [])
 
-  const applyPreviewConfig = () => {
-    setPreviewMode(draftPreviewMode)
-    if (draftPreviewMode === "sample") {
-      setDataSampleLocation(draftSample.trim() || previewSampleFill)
-    }
-    setPreviewConfigOpen(false)
+  // Capture the live preview configuration into a snapshot, then run the sweep.
+  // The body only ever reflects this snapshot, so nothing changes on screen until
+  // the user explicitly (re)loads via the button.
+  const loadPreview = (sourceNameOverride?: string) => {
+    setRenderedSnapshot({
+      kind: showSplitPreview ? "split" : showUnwrapPreview ? "unwrap" : "raw",
+      templates: selectedTemplates,
+      unwrapConfigured,
+      sourceName:
+        sourceNameOverride ??
+        (activePreviewLocation.trim() || S3_SOURCE_LOCATION_SAMPLE),
+      region: previewRegion,
+      topLevelField,
+    })
     runPreview()
   }
 
-  // By default the preview samples the source location once it and the format
-  // are both selected; the location then surfaces as the preview name. Once
-  // loaded it stays put — we only re-sweep when the source/format actually
-  // change (switching to a sample preview is handled by applyPreviewConfig).
+  const applyPreviewConfig = () => {
+    const nextMode = draftPreviewMode
+    const nextSample =
+      nextMode === "sample"
+        ? draftSample.trim() || previewSampleFill
+        : sourceLocation
+    setPreviewMode(nextMode)
+    if (nextMode === "sample") {
+      setDataSampleLocation(nextSample)
+    }
+    setPreviewConfigOpen(false)
+    loadPreview(nextSample.trim() || S3_SOURCE_LOCATION_SAMPLE)
+  }
+
   React.useEffect(() => {
-    if (!showHeaderPreviewLocation) return
-    if (previewMode !== "source") return
-    if (!sourceLocation.trim() || !dataFormat) {
-      autoPreviewKeyRef.current = null
+    previewInitiatedRef.current = previewInitiated
+  }, [previewInitiated])
+
+  // The preview never renders on its own — any change that would alter it simply
+  // marks it stale so the button re-activates. Once a preview has already been
+  // shown, that reactivation first spins the button briefly and relabels it to
+  // "Update preview"; the (re)load itself still waits for a click.
+  const selectedParserKey = templateController.selectedIds.join("|")
+  React.useEffect(() => {
+    if (!previewStaleInitRef.current) {
+      previewStaleInitRef.current = true
       return
     }
-    const key = `${sourceLocation}|${dataFormat}`
-    if (autoPreviewKeyRef.current === key) return
-    autoPreviewKeyRef.current = key
-    runPreview()
-  }, [showHeaderPreviewLocation, previewMode, sourceLocation, dataFormat, runPreview])
+    setPreviewStale(true)
+    if (previewInitiatedRef.current) {
+      setPreviewButtonLoading(true)
+      if (previewButtonTimer.current) clearTimeout(previewButtonTimer.current)
+      previewButtonTimer.current = setTimeout(() => {
+        setPreviewButtonLoading(false)
+        previewButtonTimer.current = null
+      }, 900)
+    }
+  }, [
+    sourceLocation,
+    dataFormat,
+    previewMode,
+    dataSampleLocation,
+    unwrapConfigured,
+    unwrapping,
+    schemasReady,
+    selectedParserKey,
+  ])
+
+  // Moving between steps resets the preview to its empty state with the button
+  // active, so the user explicitly loads the preview for the new step.
+  React.useEffect(() => {
+    setPreviewInitiated(false)
+    setPreviewStale(true)
+    setPreviewButtonLoading(false)
+    setRenderedSnapshot(null)
+    if (previewButtonTimer.current) clearTimeout(previewButtonTimer.current)
+    setSampleVerification("idle")
+  }, [activeStep])
 
   const validateRegion = (value: string) => {
     setAwsRegion(value)
@@ -2184,10 +2274,11 @@ export function LakewatchAwsS3WizardView({
     }, 1500)
   }
 
+  const showLocationControls =
+    activeStep === 1 && showHeaderPreviewLocation && !showUnwrapPreview
   const dataPreviewSection =
     previewVisible &&
-    (activeStep === 1 ||
-      (activeStep === 2 && (previewReady || schemasReady || showUnwrapPreview))) ? (
+    (activeStep === 1 || schemasReady || unwrapConfigured) ? (
       <section
         aria-label="Data preview"
         className={cn(
@@ -2200,25 +2291,14 @@ export function LakewatchAwsS3WizardView({
             tableName={sourceLocation}
             onClose={() => setPreviewVisible(false)}
           />
-        ) : showSplitPreview ? (
-          <SchemaSplitPreview
-            region={previewRegion}
-            templates={selectedTemplates}
-            unwrapConfigured={unwrapConfigured}
-          />
         ) : (
           <>
-            <div
-              className={cn(
-                "flex items-center justify-between border-y border-input px-2",
-                showHeaderPreviewLocation && !showUnwrapPreview ? "h-10" : "h-8"
-              )}
-            >
+            <div className="flex h-10 items-center justify-between border-y border-input px-2 py-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <h2 className="min-w-0 truncate text-sm font-semibold leading-5 text-foreground">
                   {previewHeaderName}
                 </h2>
-                {showHeaderPreviewLocation && !showUnwrapPreview ? (
+                {showLocationControls ? (
                   <>
                     <Popover
                       open={previewConfigOpen}
@@ -2334,7 +2414,22 @@ export function LakewatchAwsS3WizardView({
                   </>
                 ) : null}
               </div>
-              <div className="flex items-center">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!previewButtonActive || previewButtonLoading}
+                  onClick={() => loadPreview()}
+                >
+                  {previewButtonLoading ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : previewInitiated ? (
+                    "Update preview"
+                  ) : (
+                    "Preview data"
+                  )}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -2361,32 +2456,38 @@ export function LakewatchAwsS3WizardView({
               </div>
             </div>
             {previewExpanded ? (
-              previewLoading || unwrapLoading ? (
-                <RawDataPreviewSkeleton />
-              ) : showUnwrapPreview ? (
-                <EventUnwrapPreview
-                  topLevelField={topLevelField}
-                  sourceName={
-                    activePreviewLocation.trim() || S3_SOURCE_LOCATION_SAMPLE
-                  }
-                  instant
-                />
-              ) : previewReady ? (
-                <RawDataPreview
-                  region={previewRegion}
-                  sourceName={
-                    activePreviewLocation.trim() || S3_SOURCE_LOCATION_SAMPLE
-                  }
-                />
-              ) : (
+              !previewInitiated || !renderedSnapshot ? (
                 <div className="flex flex-col items-center justify-center gap-1 px-4 py-6 text-center">
                   <TableIcon className="h-9 w-9 text-muted-foreground" />
                   <p className="text-sm leading-5 text-foreground">
-                    {showHeaderPreviewLocation
-                      ? "Select a source location and format to preview your data."
-                      : "Configure a table to see a preview"}
+                    {previewAvailable
+                      ? "Select “Preview data” to load a preview."
+                      : activeStep === 2
+                        ? "Select one or more parsers to preview your data."
+                        : showHeaderPreviewLocation
+                          ? "Select a source location and format to preview your data."
+                          : "Configure a table to see a preview"}
                   </p>
                 </div>
+              ) : previewLoading ? (
+                <RawDataPreviewSkeleton />
+              ) : renderedSnapshot.kind === "split" ? (
+                <SchemaSplitPreview
+                  region={renderedSnapshot.region}
+                  templates={renderedSnapshot.templates}
+                  unwrapConfigured={renderedSnapshot.unwrapConfigured}
+                />
+              ) : renderedSnapshot.kind === "unwrap" ? (
+                <EventUnwrapPreview
+                  topLevelField={renderedSnapshot.topLevelField}
+                  sourceName={renderedSnapshot.sourceName}
+                  instant
+                />
+              ) : (
+                <RawDataPreview
+                  region={renderedSnapshot.region}
+                  sourceName={renderedSnapshot.sourceName}
+                />
               )
             ) : null}
           </>
@@ -2678,19 +2779,35 @@ export function LakewatchAwsS3WizardView({
                   </p>
                   <div className="flex flex-col gap-2">
                     {primaryKeyColumns.map((column, index) => (
-                      <Input
+                      <Select
                         key={index}
-                        id={`primary-key-column-${index}`}
-                        value={column}
-                        onChange={(event) =>
+                        value={column || undefined}
+                        onValueChange={(value) =>
                           setPrimaryKeyColumns((current) =>
-                            current.map((value, i) =>
-                              i === index ? event.target.value : value
+                            current.map((existing, i) =>
+                              i === index ? value : existing
                             )
                           )
                         }
-                        placeholder="Enter a column name"
-                      />
+                      >
+                        <SelectTrigger
+                          id={`primary-key-column-${index}`}
+                          className="w-full"
+                          aria-label="Primary-key column"
+                        >
+                          <SelectValue placeholder="Select a column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EXISTING_TABLE_COLUMNS.filter(
+                            (col) =>
+                              col === column || !primaryKeyColumns.includes(col)
+                          ).map((col) => (
+                            <SelectItem key={col} value={col}>
+                              {col}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ))}
                     <Button
                       type="button"
@@ -2698,6 +2815,11 @@ export function LakewatchAwsS3WizardView({
                       size="icon-sm"
                       aria-label="Add primary-key column"
                       className="self-start"
+                      disabled={
+                        primaryKeyColumns.length >=
+                          EXISTING_TABLE_COLUMNS.length ||
+                        primaryKeyColumns.some((value) => !value)
+                      }
                       onClick={() =>
                         setPrimaryKeyColumns((current) => [...current, ""])
                       }

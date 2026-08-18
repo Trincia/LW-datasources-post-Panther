@@ -243,20 +243,41 @@ export function LakewatchLakeflowConnectWizardView({
   const [schema, setSchema] = React.useState("default")
   const [previewVisible, setPreviewVisible] = React.useState(true)
   const [previewExpanded, setPreviewExpanded] = React.useState(true)
-  // Raw sample only loads once a connection is picked; sweep a skeleton first.
+  // The raw sample only renders when the user clicks "Preview data". `stale`
+  // means a fresh preview is available (button active); `initiated` means a
+  // preview has been rendered (otherwise the panel shows its empty state).
   const [previewLoading, setPreviewLoading] = React.useState(false)
+  const [previewStale, setPreviewStale] = React.useState(true)
+  const [previewInitiated, setPreviewInitiated] = React.useState(false)
+  const previewLoadTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const templateController = useIntegrationTemplates(label)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
+  // Selecting (or changing) the connection makes a fresh preview available but
+  // never renders it automatically — the user initiates the load via the button.
   React.useEffect(() => {
-    if (!connection) {
-      setPreviewLoading(false)
-      return
-    }
-    setPreviewLoading(true)
-    const timer = window.setTimeout(() => setPreviewLoading(false), 1500)
-    return () => window.clearTimeout(timer)
+    setPreviewInitiated(false)
+    setPreviewStale(true)
+    setPreviewLoading(false)
   }, [connection])
+
+  React.useEffect(
+    () => () => {
+      if (previewLoadTimer.current) clearTimeout(previewLoadTimer.current)
+    },
+    []
+  )
+
+  const loadPreview = React.useCallback(() => {
+    if (previewLoadTimer.current) clearTimeout(previewLoadTimer.current)
+    setPreviewInitiated(true)
+    setPreviewStale(false)
+    setPreviewLoading(true)
+    previewLoadTimer.current = setTimeout(() => {
+      setPreviewLoading(false)
+      previewLoadTimer.current = null
+    }, 1500)
+  }, [])
 
   const [contentWidth, setContentWidth] = React.useState(0)
 
@@ -360,7 +381,7 @@ export function LakewatchLakeflowConnectWizardView({
         templatePanelOpen ? undefined : "-mx-5 -mb-5 mt-auto"
       )}
     >
-      <div className="flex h-8 items-center justify-between border-y border-input px-2">
+      <div className="flex h-10 items-center justify-between border-y border-input px-2 py-1">
         <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-foreground">
           <span className="shrink-0">Data preview</span>
           {connection ? (
@@ -370,7 +391,16 @@ export function LakewatchLakeflowConnectWizardView({
             </>
           ) : null}
         </h2>
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={!connection || !previewStale}
+            onClick={loadPreview}
+          >
+            Preview data
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -397,11 +427,13 @@ export function LakewatchLakeflowConnectWizardView({
         </div>
       </div>
       {previewExpanded ? (
-        !connection ? (
+        !connection || !previewInitiated ? (
           <div className="flex h-[94px] flex-col items-center justify-center gap-1">
             <TableIcon className="h-9 w-9 text-muted-foreground" />
             <p className="text-sm leading-5 text-foreground">
-              Configure a table to see a preview
+              {connection
+                ? "Select “Preview data” to load a preview."
+                : "Configure a table to see a preview"}
             </p>
           </div>
         ) : previewLoading ? (

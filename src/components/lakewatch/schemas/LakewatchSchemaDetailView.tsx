@@ -840,7 +840,7 @@ export function LakewatchSchemaDetailView({
                 </Badge>
               ) : (
                 <Badge variant="default_tag" className="text-hint uppercase">
-                  Panther managed
+                  Built-in
                 </Badge>
               )}
               <Badge variant="secondary" className="text-hint uppercase">
@@ -931,7 +931,7 @@ export function LakewatchSchemaDetailView({
             <MetadataItem label="Used in">
               <span className="font-semibold">
                 {details.datasourceCount}{" "}
-                {details.datasourceCount === 1 ? "Log Source" : "Log Sources"}
+                {details.datasourceCount === 1 ? "Datasource" : "Datasources"}
               </span>
             </MetadataItem>
           </dl>

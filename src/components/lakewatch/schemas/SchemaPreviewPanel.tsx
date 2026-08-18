@@ -438,35 +438,60 @@ export function SchemaPreviewPanel({
   const [appliedLabel, setAppliedLabel] = React.useState(
     unwrapped ? "Unwrapped events" : ""
   )
-  const [sampleLoading, setSampleLoading] = React.useState(preloaded || unwrapped)
+  const [sampleLoading, setSampleLoading] = React.useState(false)
+  // The user initiates each preview render via the "Preview data" button.
+  // `stale` means a fresh preview is available (button active); `initiated`
+  // means a preview has been rendered (otherwise the panel shows its empty state).
+  const [previewStale, setPreviewStale] = React.useState(true)
+  const [previewInitiated, setPreviewInitiated] = React.useState(false)
   const loadTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const staleInitRef = React.useRef(false)
 
-  // Sweep a skeleton over the preview whenever the sample dataset loads or is
-  // replaced (including the initial preloaded view).
-  React.useEffect(() => {
-    if (!preloaded && !unwrapped) return
-    setSampleLoading(true)
+  const hasSample = preloaded || appliedLabel !== ""
+
+  // Sweep a skeleton over the preview, then reveal the (new) data. Marks the
+  // preview initiated (leaving its empty state) and no longer stale (button
+  // disables until the next change).
+  const loadPreview = React.useCallback(() => {
     if (loadTimer.current) clearTimeout(loadTimer.current)
-    loadTimer.current = setTimeout(() => setSampleLoading(false), 1500)
-    return () => {
+    setPreviewInitiated(true)
+    setPreviewStale(false)
+    setSampleLoading(true)
+    loadTimer.current = setTimeout(() => {
+      setSampleLoading(false)
+      loadTimer.current = null
+    }, 1500)
+  }, [])
+
+  React.useEffect(
+    () => () => {
       if (loadTimer.current) clearTimeout(loadTimer.current)
+    },
+    []
+  )
+
+  // Any change that would alter the preview re-activates the button so the user
+  // can re-load it (the currently shown preview stays until they do).
+  React.useEffect(() => {
+    if (!staleInitRef.current) {
+      staleInitRef.current = true
+      return
     }
-  }, [preloaded, unwrapped, schemaName])
+    setPreviewStale(true)
+  }, [schemaDefinition, unwrapped, schemaName])
 
   const applySample = (label: string) => {
     setAppliedLabel(label)
-    setSampleLoading(true)
-    if (loadTimer.current) clearTimeout(loadTimer.current)
-    loadTimer.current = setTimeout(() => setSampleLoading(false), 1500)
+    loadPreview()
   }
 
   const clearSample = () => {
     if (loadTimer.current) clearTimeout(loadTimer.current)
     setSampleLoading(false)
+    setPreviewInitiated(false)
+    setPreviewStale(true)
     setAppliedLabel("")
   }
-
-  const hasSample = preloaded || appliedLabel !== ""
 
   const cardClass =
     "flex items-center gap-4 rounded-md border-[1.5px] border-border bg-background p-4 text-left transition-colors hover:border-primary/40"
@@ -501,7 +526,18 @@ export function SchemaPreviewPanel({
             </>
           ) : null}
         </div>
-        <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={!hasSample || !previewStale}
+            onClick={loadPreview}
+          >
+            Preview data
+          </Button>
+          <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
+        </div>
       </div>
 
       {!hasSample ? (
@@ -681,6 +717,13 @@ export function SchemaPreviewPanel({
           </p>
         </div>
       </div>
+      ) : !previewInitiated ? (
+        <div className="flex flex-col items-center justify-center gap-1 p-6 text-center">
+          <Table2 className="h-9 w-9 text-muted-foreground" />
+          <p className="text-sm leading-5 text-foreground">
+            Select “Preview data” to load a preview.
+          </p>
+        </div>
       ) : sampleLoading ? (
         <SamplePreviewSkeleton />
       ) : (
