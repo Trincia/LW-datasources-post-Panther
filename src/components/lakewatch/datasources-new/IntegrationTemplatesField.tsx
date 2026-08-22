@@ -61,7 +61,7 @@ type TemplateField = {
   timeFormats?: string[]
 }
 
-type IntegrationTemplate = {
+export type IntegrationTemplate = {
   id: string
   name: string
   version: string
@@ -512,6 +512,57 @@ function toTableName(name: string) {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "") || "integration_template"
   )
+}
+
+/**
+ * Builds parser templates from a datasource's existing parser rows so the
+ * "Add parser" surface can pre-pin the parsers already attached to the
+ * datasource. Rows that match a known catalog template reuse its rich field
+ * data; anything else is synthesized into a minimal built-in template.
+ */
+export function buildParserTemplates(
+  rows: { name: string; version?: string; table?: string; fieldCount?: number }[]
+): IntegrationTemplate[] {
+  const normalize = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+  return rows.map((row, index) => {
+    const rowKey = normalize(row.name)
+    const match = INITIAL_TEMPLATES.find((template) => {
+      const templateKey = normalize(template.name)
+      return (
+        templateKey === rowKey ||
+        templateKey.includes(rowKey) ||
+        rowKey.includes(templateKey)
+      )
+    })
+    const id = `datasource-parser-${index}-${toTableName(row.name)}`
+
+    if (match) {
+      return {
+        ...match,
+        id,
+        name: row.name,
+        version: row.version ?? match.version,
+        defaultOutput: row.table ?? match.defaultOutput,
+      }
+    }
+
+    return {
+      id,
+      name: row.name,
+      version: row.version ?? "v1",
+      kind: "built-in" as const,
+      group: row.name.split(/[.\s]/)[0] || "Parsers",
+      description: `Structures and validates ${row.name} events.`,
+      modified: TODAY_LABEL,
+      fieldCount: row.fieldCount ?? 0,
+      fields: [],
+      defaultOutput: row.table ?? `lakewatch.default.${toTableName(row.name)}`,
+      linkedDatasource: "—",
+      createdBy: "J. Martinez",
+    }
+  })
 }
 
 function TemplateDetailsPanel({
@@ -1106,11 +1157,19 @@ function TemplateSearchDropdown({
     tab === "all" ? true : template.kind === tab
   )
 
-  const groups = byTab.reduce<Record<string, IntegrationTemplate[]>>((acc, template) => {
-    acc[template.group] = acc[template.group] ?? []
-    acc[template.group].push(template)
-    return acc
-  }, {})
+  // Built-in templates are grouped by their vendor family (e.g. "AWS"); custom
+  // templates are shown flat, ungrouped, in their own section below.
+  const builtInTemplates = byTab.filter((template) => template.kind === "built-in")
+  const customTemplates = byTab.filter((template) => template.kind === "custom")
+
+  const groups = builtInTemplates.reduce<Record<string, IntegrationTemplate[]>>(
+    (acc, template) => {
+      acc[template.group] = acc[template.group] ?? []
+      acc[template.group].push(template)
+      return acc
+    },
+    {}
+  )
   const groupNames = Object.keys(groups)
 
   const tabs: { value: SearchTab; label: string }[] = [
@@ -1143,78 +1202,104 @@ function TemplateSearchDropdown({
       </div>
 
       <div className="max-h-[320px] overflow-y-auto py-1">
-        {groupNames.length === 0 ? (
+        {byTab.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             No parsers found
           </p>
         ) : (
-          groupNames.map((groupName) => {
-            const groupTemplates = groups[groupName]
-            const groupIds = groupTemplates.map((template) => template.id)
-            const allSelected = groupIds.every((id) => selectedIds.includes(id))
-            const expanded = expandedGroups[groupName] ?? true
-            const groupKind = groupTemplates[0]?.kind ?? "built-in"
+          <>
+            {groupNames.map((groupName) => {
+              const groupTemplates = groups[groupName]
+              const groupIds = groupTemplates.map((template) => template.id)
+              const allSelected = groupIds.every((id) => selectedIds.includes(id))
+              const expanded = expandedGroups[groupName] ?? true
+              const groupKind = groupTemplates[0]?.kind ?? "built-in"
 
-            return (
-              <div key={groupName}>
-                <div className="flex items-center gap-2 px-3 py-2 hover:bg-accent">
-                  <Checkbox
-                    checked={allSelected}
-                    aria-label={`Select all ${groupName} templates`}
-                    onCheckedChange={(checked) => onToggleGroup(groupIds, checked === true)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="size-4"
-                    aria-label={expanded ? `Collapse ${groupName}` : `Expand ${groupName}`}
-                    onClick={() =>
-                      setExpandedGroups((current) => ({
-                        ...current,
-                        [groupName]: !expanded,
-                      }))
-                    }
-                  >
-                    {expanded ? (
-                      <ChevronDown className="size-3.5 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-3.5 text-muted-foreground" />
-                    )}
-                  </Button>
-                  <span className="text-sm font-semibold text-foreground">{groupName}</span>
-                  <span className="text-hint text-muted-foreground">
-                    {groupTemplates.length} templates
-                  </span>
-                  <div className="ml-auto">
-                    <TemplateKindBadge kind={groupKind} />
+              return (
+                <div key={groupName}>
+                  <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent">
+                    <Checkbox
+                      checked={allSelected}
+                      aria-label={`Select all ${groupName} templates`}
+                      onCheckedChange={(checked) => onToggleGroup(groupIds, checked === true)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="size-4"
+                      aria-label={expanded ? `Collapse ${groupName}` : `Expand ${groupName}`}
+                      onClick={() =>
+                        setExpandedGroups((current) => ({
+                          ...current,
+                          [groupName]: !expanded,
+                        }))
+                      }
+                    >
+                      {expanded ? (
+                        <ChevronDown className="size-3.5 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-3.5 text-muted-foreground" />
+                      )}
+                    </Button>
+                    <span className="text-sm font-semibold text-foreground">{groupName}</span>
+                    <span className="text-hint text-muted-foreground">
+                      {groupTemplates.length} templates
+                    </span>
+                    <div className="ml-auto">
+                      <TemplateKindBadge kind={groupKind} />
+                    </div>
                   </div>
-                </div>
 
-                {expanded
-                  ? groupTemplates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="flex items-center gap-2 py-2 pr-3 pl-9 hover:bg-accent"
-                      >
-                        <Checkbox
-                          checked={selectedIds.includes(template.id)}
-                          aria-label={`Select ${template.name}`}
-                          onCheckedChange={() => onToggle(template.id)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-foreground">{template.name}</p>
-                          <p className="truncate text-hint text-muted-foreground">
-                            {template.description}
-                          </p>
+                  {expanded
+                    ? groupTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="flex items-center gap-3 py-2.5 pr-3 pl-[42px] hover:bg-accent"
+                        >
+                          <Checkbox
+                            checked={selectedIds.includes(template.id)}
+                            aria-label={`Select ${template.name}`}
+                            onCheckedChange={() => onToggle(template.id)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-foreground">{template.name}</p>
+                            <p className="truncate text-hint text-muted-foreground">
+                              {template.description}
+                            </p>
+                          </div>
+                          <TemplateKindBadge kind={template.kind} />
                         </div>
-                        <TemplateKindBadge kind={template.kind} />
-                      </div>
-                    ))
-                  : null}
+                      ))
+                    : null}
+                </div>
+              )
+            })}
+
+            {groupNames.length > 0 && customTemplates.length > 0 ? (
+              <div className="my-1 h-px w-full bg-border" />
+            ) : null}
+
+            {customTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent"
+              >
+                <Checkbox
+                  checked={selectedIds.includes(template.id)}
+                  aria-label={`Select ${template.name}`}
+                  onCheckedChange={() => onToggle(template.id)}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{template.name}</p>
+                  <p className="truncate text-hint text-muted-foreground">
+                    {template.description}
+                  </p>
+                </div>
+                <TemplateKindBadge kind={template.kind} />
               </div>
-            )
-          })
+            ))}
+          </>
         )}
       </div>
     </div>
@@ -1223,13 +1308,25 @@ function TemplateSearchDropdown({
 
 export type IntegrationTemplatesController = ReturnType<typeof useIntegrationTemplates>
 
-export function useIntegrationTemplates(family?: string) {
-  const [templates, setTemplates] = React.useState<IntegrationTemplate[]>(() =>
-    family ? buildFamilyTemplates(family) : INITIAL_TEMPLATES,
-  )
-  const [selectedIds, setSelectedIds] = React.useState<string[]>(() =>
-    family ? buildFamilyTemplates(family).map((template) => template.id) : [],
-  )
+export function useIntegrationTemplates(
+  family?: string,
+  options?: {
+    /** Additional templates to merge into the catalog (e.g. a datasource's own parsers). */
+    extraTemplates?: IntegrationTemplate[]
+    /** Template ids selected on mount. Overrides the family default. */
+    initialSelectedIds?: string[]
+  }
+) {
+  const [templates, setTemplates] = React.useState<IntegrationTemplate[]>(() => {
+    const base = family ? buildFamilyTemplates(family) : INITIAL_TEMPLATES
+    const extra = options?.extraTemplates ?? []
+    const seen = new Set(base.map((template) => template.id))
+    return [...base, ...extra.filter((template) => !seen.has(template.id))]
+  })
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(() => {
+    if (options?.initialSelectedIds) return options.initialSelectedIds
+    return family ? buildFamilyTemplates(family).map((template) => template.id) : []
+  })
   const [detailsId, setDetailsId] = React.useState<string | null>(null)
   const [cloneBase, setCloneBase] = React.useState<IntegrationTemplate | null>(null)
 

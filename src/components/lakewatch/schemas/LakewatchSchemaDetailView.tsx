@@ -9,7 +9,10 @@ import {
   LinkIcon,
   PencilIcon,
 } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchWarehouseSelector,
+  WarehouseStatusIndicator,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { ValidatedInput } from "@/components/lakewatch/ValidatedInput"
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
@@ -35,7 +38,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -815,7 +817,7 @@ export function LakewatchSchemaDetailView({
               </h1>
               <Select value={selectedVersion} onValueChange={setSelectedVersion}>
                 <SelectTrigger className="w-auto" aria-label="Version">
-                  <SelectValue />
+                  <span className="font-semibold text-foreground">{selectedVersion}</span>
                 </SelectTrigger>
                 <SelectContent>
                   {versions.map((item) => (
@@ -858,18 +860,26 @@ export function LakewatchSchemaDetailView({
                 </Link>
               </Button>
               <Button type="button" variant="primary" size="sm" onClick={handleSaveClone}>
-                Save
+                Save new version
               </Button>
             </>
           ) : fromDatasource ? null : (
             <>
               {isCustom ? (
-                <Button variant="default" size="sm" asChild>
-                  <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/edit`}>
-                    <Plus className="h-4 w-4" />
-                    Add new version
-                  </Link>
-                </Button>
+                <>
+                  <Button variant="default" size="sm" asChild>
+                    <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/edit`}>
+                      <Plus className="h-4 w-4" />
+                      Add new version
+                    </Link>
+                  </Button>
+                  <Button variant="primary" size="sm" asChild>
+                    <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/clone`}>
+                      <Copy className="h-4 w-4" />
+                      Clone
+                    </Link>
+                  </Button>
+                </>
               ) : (
                 <Button variant="default" size="sm" asChild>
                   <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}/clone`}>
@@ -879,6 +889,7 @@ export function LakewatchSchemaDetailView({
                 </Button>
               )}
               <LakewatchWarehouseSelector />
+              <WarehouseStatusIndicator />
             </>
           )}
         </div>

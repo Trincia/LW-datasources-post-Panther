@@ -6,6 +6,7 @@ import { LakewatchSidebar } from "./LakewatchSidebar"
 import { GenieCodePanel } from "@/components/shell/GenieCodePanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Toaster } from "@/components/ui/sonner"
+import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { cn } from "@/lib/utils"
 
 type LakewatchNavId = React.ComponentProps<typeof LakewatchSidebar>["activeItem"]
@@ -40,6 +41,8 @@ export function LakewatchAppShell({
   }
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [genieOpen, setGenieOpen] = React.useState(false)
+  const [prototypeVariation, setPrototypeVariation, { isUnlocked, unlock }] =
+    usePrototypeVariation()
 
   return (
     <div
@@ -65,13 +68,27 @@ export function LakewatchAppShell({
           showCloseButton={false}
           className="w-[220px] border-r-0 bg-gradient-to-b from-[#04355d] to-grey-800 p-0"
         >
-          <LakewatchSidebar open activeItem={activeItem} />
+          <LakewatchSidebar
+            open
+            activeItem={activeItem}
+            prototypeVariation={prototypeVariation}
+            onPrototypeVariationChange={setPrototypeVariation}
+            p1Unlocked={isUnlocked}
+            onUnlockP1={unlock}
+          />
         </SheetContent>
       </Sheet>
 
       <div className="flex min-h-0 flex-1 flex-row gap-1 overflow-hidden px-1 pb-1 pt-0 md:px-1 md:pb-2">
         <div className="hidden md:contents">
-          <LakewatchSidebar open={sidebarOpen} activeItem={activeItem} />
+          <LakewatchSidebar
+            open={sidebarOpen}
+            activeItem={activeItem}
+            prototypeVariation={prototypeVariation}
+            onPrototypeVariationChange={setPrototypeVariation}
+            p1Unlocked={isUnlocked}
+            onUnlockP1={unlock}
+          />
         </div>
 
         <main

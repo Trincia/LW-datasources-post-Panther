@@ -10,7 +10,10 @@ import {
   ChevronDownIcon,
   CodeIcon,
 } from "@/components/icons"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  LakewatchWarehouseSelector,
+  WarehouseStatusIndicator,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -468,6 +471,7 @@ function HeaderControls() {
   return (
     <div className="flex shrink-0 items-center gap-2">
       <LakewatchWarehouseSelector />
+      <WarehouseStatusIndicator />
       <Button variant="ghost" size="icon-sm" aria-label="Schema options">
         <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
       </Button>

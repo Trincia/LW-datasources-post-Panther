@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Check,
   Columns3,
+  History,
   Loader2,
   Lock,
   Minus,
@@ -35,7 +36,25 @@ import {
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
 import { CONNECT_SOURCES } from "@/components/lakewatch/datasources-new/LakewatchLakeflowConnectWizardView"
-import { LakewatchWarehouseSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
+import {
+  IntegrationTemplatePanel,
+  IntegrationTemplatesField,
+  buildParserTemplates,
+  useIntegrationTemplates,
+} from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
+import {
+  DATASOURCE_SCHEMAS,
+  DESTINATION_TABLES,
+  buildConnectorDestinations,
+  buildConnectorSchemas,
+  type DatasourceSchemaRow,
+} from "@/components/lakewatch/datasources-new/datasourceParsers"
+import { DatasourceNormalizeTab } from "@/components/lakewatch/datasources-new/DatasourceNormalizeTab"
+import {
+  LakewatchWarehouseSelector,
+  WarehouseStatusIndicator,
+} from "@/components/lakewatch/LakewatchWarehouseSelector"
+import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -52,6 +71,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -81,12 +101,10 @@ import {
   SegmentedItem,
 } from "@/components/ui/segmented-control"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -98,71 +116,6 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-
-const SOURCE_STATUSES = [
-  ["Source created", "2024-12-21 19:26 UTC"],
-  ["Last data received", "2026-07-28 04:25 UTC"],
-  ["Last data ingested", "2026-07-28 04:24 UTC"],
-] as const
-
-const DATASOURCE_SCHEMAS = [
-  {
-    path: "s3://audit-logs-7830bcf/vpc-",
-    schema: "AWS.VPCFlow",
-  },
-  {
-    path: "s3://audit-logs-7830bcf/AWSLogs/2960625/elasticloadbalancing",
-    schema: "AWS.ALB",
-  },
-  {
-    path: "s3://audit-logs-7830bcf/",
-    schema: "AWS.S3ServerAccess",
-  },
-  {
-    path: "s3://audit-logs-7830bcf/AWSLogs/2960625/CloudTrail",
-    schema: "AWS.CloudTrail",
-  },
-] as const
-
-const DESTINATION_TABLES: Record<string, string[]> = {
-  "AWS.VPCFlow": ["lakewatch.default.aws_vpcflow"],
-  "AWS.ALB": ["lakewatch.default.aws_alb"],
-  "AWS.S3ServerAccess": ["lakewatch.default.aws_s3serveraccess"],
-  "AWS.CloudTrail": ["lakewatch.default.aws_cloudtrail"],
-}
-
-type DatasourceSchemaRow = { path: string; schema: string }
-
-/** Slugifies a parser name into a Unity Catalog table name segment. */
-function toTableName(name: string) {
-  return (
-    name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "parser"
-  )
-}
-
-// The built-in parsers surfaced by an API connector, mirroring the cards shown
-// on the connector's "Parsers" step (Audit Logs / Access Logs / Events).
-const CONNECTOR_PARSER_SUFFIXES = ["Audit Logs", "Access Logs", "Events"] as const
-
-function buildConnectorSchemas(family: string): DatasourceSchemaRow[] {
-  return CONNECTOR_PARSER_SUFFIXES.map((suffix) => ({
-    schema: `${family} ${suffix}`,
-    path: "",
-  }))
-}
-
-function buildConnectorDestinations(family: string): Record<string, string[]> {
-  const tables: Record<string, string[]> = {}
-  for (const suffix of CONNECTOR_PARSER_SUFFIXES) {
-    const name = `${family} ${suffix}`
-    tables[name] = [`lakewatch.default.${toTableName(name)}`]
-  }
-  return tables
-}
 
 // API connectors that have a dedicated brand logo; others fall back to generic.
 const CONNECTOR_LOGO_KINDS: Record<string, LakewatchDatasourceLogoKind> = {
@@ -668,31 +621,33 @@ function DatasourceActionControls({
 }) {
   const [permissionsOpen, setPermissionsOpen] = React.useState(false)
   const [editorMode, setEditorMode] = React.useState("ui")
-  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 flex-col items-end gap-2">
+      <div className="flex items-center gap-2">
+        <LakewatchWarehouseSelector />
+        <WarehouseStatusIndicator />
+        <Button
+          variant="default"
+          size="icon-sm"
+          aria-label="Permissions"
+          onClick={() => setPermissionsOpen(true)}
+        >
+          <Lock className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!dirty}
+          onClick={onSaved}
+        >
+          Save
+        </Button>
+      </div>
       <SegmentedControl value={editorMode} onValueChange={setEditorMode}>
         <SegmentedItem value="ui">UI</SegmentedItem>
         <SegmentedItem value="yaml">YAML</SegmentedItem>
       </SegmentedControl>
-      <RunAsControl value={runAs} onValueChange={setRunAs} align="end" />
-      <Button
-        variant="default"
-        size="sm"
-        onClick={() => setPermissionsOpen(true)}
-      >
-        <Lock className="h-4 w-4" />
-        Permissions
-      </Button>
-      <Button
-        variant="primary"
-        size="sm"
-        disabled={!dirty}
-        onClick={onSaved}
-      >
-        Save
-      </Button>
       <DatasourcePermissionsDialog
         datasourceName={datasourceName}
         open={permissionsOpen}
@@ -1014,6 +969,115 @@ function DatasourceHealthTab() {
   )
 }
 
+type PinnedParserRow = {
+  name: string
+  version?: string
+  table?: string
+  fieldCount?: number
+}
+
+function AddParserDialog({
+  open,
+  onOpenChange,
+  parserRows,
+  createCustomHref,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  parserRows: PinnedParserRow[]
+  createCustomHref?: string
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <AddParserDialogBody
+          onOpenChange={onOpenChange}
+          parserRows={parserRows}
+          createCustomHref={createCustomHref}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function AddParserDialogBody({
+  onOpenChange,
+  parserRows,
+  createCustomHref,
+}: {
+  onOpenChange: (open: boolean) => void
+  parserRows: PinnedParserRow[]
+  createCustomHref?: string
+}) {
+  const extraTemplates = React.useMemo(
+    () => buildParserTemplates(parserRows),
+    [parserRows]
+  )
+  const initialSelectedIds = React.useMemo(
+    () => extraTemplates.map((template) => template.id),
+    [extraTemplates]
+  )
+  const controller = useIntegrationTemplates(undefined, {
+    extraTemplates,
+    initialSelectedIds,
+  })
+  const panelOpen = controller.panelOpen
+
+  return (
+    <DialogContent
+      showCloseButton={false}
+      className={cn(
+        "flex max-h-[86vh] flex-col gap-0 overflow-hidden p-0 transition-[max-width] duration-200 sm:max-w-2xl",
+        panelOpen && "sm:max-w-[1120px]"
+      )}
+    >
+      <DialogHeader className="flex-row items-start justify-between gap-3 border-b border-border px-6 py-4 text-left">
+        <div className="flex flex-col gap-1">
+          <DialogTitle>Add Parser</DialogTitle>
+          <DialogDescription>
+            Select built-in or custom parsers to structure and validate incoming
+            event data.
+          </DialogDescription>
+        </div>
+        <DialogClose asChild>
+          <Button variant="ghost" size="icon-sm" aria-label="Close add parser">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DialogClose>
+      </DialogHeader>
+
+      <div className="flex min-h-0 flex-1 flex-row">
+        <div
+          className={cn(
+            "min-h-0 overflow-y-auto p-6",
+            panelOpen ? "w-[460px] shrink-0 border-r border-border" : "flex-1"
+          )}
+        >
+          <IntegrationTemplatesField
+            controller={controller}
+            hideHeader
+            createCustomHref={createCustomHref}
+          />
+        </div>
+        {panelOpen ? (
+          <div className="hidden min-h-0 min-w-0 flex-1 lg:block">
+            <IntegrationTemplatePanel controller={controller} className="h-full" />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-3">
+        <Button variant="default" size="sm" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => onOpenChange(false)}>
+          Add parsers
+        </Button>
+      </div>
+    </DialogContent>
+  )
+}
+
 function DatasourceSchemasTab({
   isApiConnector = false,
   schemas = DATASOURCE_SCHEMAS as readonly DatasourceSchemaRow[],
@@ -1031,8 +1095,32 @@ function DatasourceSchemasTab({
     ? inferredParam.split(",").map((value) => value.trim()).filter(Boolean)
     : []
   const [removedSchemas, setRemovedSchemas] = React.useState<string[]>([])
+  const [addParserOpen, setAddParserOpen] = React.useState(false)
+  const [versionOverrides, setVersionOverrides] = React.useState<
+    Record<string, string>
+  >({})
+  const [versionTarget, setVersionTarget] = React.useState<{
+    schema: string
+    current: string
+  } | null>(null)
   const visibleSchemas = schemas.filter(
     (row) => !removedSchemas.includes(row.schema)
+  )
+
+  // Parsers already attached to this datasource, pre-pinned in the Add parser
+  // dialog so users start from the current set and add on top of it.
+  const pinnedParserRows = React.useMemo(
+    () =>
+      visibleSchemas.map((row) => {
+        const versions = buildVersions(row.schema)
+        return {
+          name: row.schema,
+          version: versions[0]?.version ?? "v1",
+          table: (destinationTables[row.schema] ?? [])[0],
+          fieldCount: 11,
+        }
+      }),
+    [visibleSchemas, destinationTables]
   )
 
   return (
@@ -1041,12 +1129,21 @@ function DatasourceSchemasTab({
         <h2 className="text-lg font-semibold leading-6 text-foreground">
           Parsers
         </h2>
-        <Button variant="default" size="sm" className="gap-1.5" asChild>
-          <Link href="/lakewatch/schemas/new">
-            <Plus className="h-4 w-4" />
-            Add parser
-          </Link>
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setAddParserOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Add parser
         </Button>
+        <AddParserDialog
+          open={addParserOpen}
+          onOpenChange={setAddParserOpen}
+          parserRows={pinnedParserRows}
+          createCustomHref="/lakewatch/schemas/new"
+        />
       </div>
       <Table className="mt-3">
         <TableHeader>
@@ -1090,7 +1187,12 @@ function DatasourceSchemasTab({
               row.schema === "AWS.ALB" ||
               row.schema === "AWS.CloudTrail"
             const hasUpdate = !upToDate && versions.length > 1
-            const used = hasUpdate ? versions[1] : latest
+            const defaultUsed = hasUpdate ? versions[1] : latest
+            const override = versionOverrides[row.schema]
+            const used =
+              (override && versions.find((v) => v.version === override)) ||
+              defaultUsed
+            const showUpdate = used.version !== latest.version
             return (
               <TableRow key={row.schema}>
                 <TableCell className="text-foreground">{row.schema}</TableCell>
@@ -1124,7 +1226,7 @@ function DatasourceSchemasTab({
                     <Badge variant="secondary" className="font-normal text-hint">
                       {latest.created}
                     </Badge>
-                    {hasUpdate ? (
+                    {showUpdate ? (
                       <Badge variant="indigo">Update available</Badge>
                     ) : null}
                   </div>
@@ -1154,6 +1256,17 @@ function DatasourceSchemasTab({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
+                          onSelect={() =>
+                            setVersionTarget({
+                              schema: row.schema,
+                              current: used.version,
+                            })
+                          }
+                        >
+                          <History className="h-4 w-4" />
+                          Change version
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           variant="destructive"
                           onSelect={() =>
                             setRemovedSchemas((prev) =>
@@ -1175,7 +1288,120 @@ function DatasourceSchemasTab({
           })}
         </TableBody>
       </Table>
+      <ChangeVersionDialog
+        target={versionTarget}
+        onOpenChange={(open) => {
+          if (!open) setVersionTarget(null)
+        }}
+        onConfirm={(schema, version) => {
+          setVersionOverrides((prev) => ({ ...prev, [schema]: version }))
+          setVersionTarget(null)
+        }}
+      />
     </section>
+  )
+}
+
+function ChangeVersionDialog({
+  target,
+  onOpenChange,
+  onConfirm,
+}: {
+  target: { schema: string; current: string } | null
+  onOpenChange: (open: boolean) => void
+  onConfirm: (schema: string, version: string) => void
+}) {
+  return (
+    <Dialog open={!!target} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="gap-1">
+          <DialogTitle>Change version</DialogTitle>
+          {target ? (
+            <DialogDescription className="text-foreground">
+              {target.schema}
+            </DialogDescription>
+          ) : null}
+        </DialogHeader>
+        {target ? (
+          <ChangeVersionBody
+            key={target.schema}
+            target={target}
+            onConfirm={onConfirm}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ChangeVersionBody({
+  target,
+  onConfirm,
+}: {
+  target: { schema: string; current: string }
+  onConfirm: (schema: string, version: string) => void
+}) {
+  const versions = buildVersions(target.schema)
+  const latest = versions[0]?.version
+  const [selected, setSelected] = React.useState(target.current)
+
+  return (
+    <>
+      <DialogBody className="gap-2">
+        <div role="radiogroup" className="flex flex-col gap-1.5">
+          {versions.map((version) => {
+            const active = version.version === selected
+            return (
+              <button
+                key={version.version}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setSelected(version.version)}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded border px-3 py-2 text-left transition-colors",
+                  active
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">
+                    {version.version}
+                  </span>
+                  {version.version === latest ? (
+                    <Badge variant="secondary" className="font-normal text-hint">
+                      Latest
+                    </Badge>
+                  ) : null}
+                  <span className="text-hint text-muted-foreground">
+                    {version.created}
+                  </span>
+                </span>
+                {active ? (
+                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </DialogBody>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="default" size="sm">
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={selected === target.current}
+          onClick={() => onConfirm(target.schema, selected)}
+        >
+          Change version
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 
@@ -1758,9 +1984,11 @@ function DatasourceSystemCasesTab({
               </TableCell>
               <TableCell className="text-foreground">{row.resourceType}</TableCell>
               <TableCell className="text-foreground">{datasourceName}</TableCell>
-              <TableCell className="text-muted-foreground">Unassigned</TableCell>
               <TableCell>
-                <Badge variant="coral">{row.state}</Badge>
+                <Badge variant="charcoal">Unassigned</Badge>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-destructive">{row.state}</span>
               </TableCell>
               <TableCell>
                 <Badge variant="lemon">{row.severity}</Badge>
@@ -1777,18 +2005,12 @@ function DatasourceSystemCasesTab({
   )
 }
 
-function DetailHeaderControls() {
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      <LakewatchWarehouseSelector />
-    </div>
-  )
-}
-
 export function LakewatchDatasourceDetailView() {
   const params = useParams<{ sourceId: string }>()
   const searchParams = useSearchParams()
   const sourceName = decodeURIComponent(params.sourceId ?? "lakewatch-account-us-west-2")
+  const [variation] = usePrototypeVariation()
+  const isP1 = variation === "p1"
 
   // When arriving from a Lakeflow Connect (API connector) add flow, the source
   // type and parsers are driven by the chosen connector rather than the S3
@@ -1833,7 +2055,13 @@ export function LakewatchDatasourceDetailView() {
   const [latencyCheck, setLatencyCheck] = React.useState(false)
   const [nullTimestampCheck, setNullTimestampCheck] = React.useState(false)
   const [toolbarDirty, setToolbarDirty] = React.useState(false)
-  const [advancedOpen, setAdvancedOpen] = React.useState(false)
+  const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
+  const healthEnabled =
+    volumeCheck ||
+    latencyCheck ||
+    nullTimestampCheck ||
+    healthSchedule.trim() !== "" ||
+    healthLagInterval.trim() !== ""
   const suggestedDescription = connectorFamily
     ? `Ingests ${connectorFamily} audit, access, and activity events through the ${connectionName} ` +
       `connection. Raw events are parsed and normalized into dedicated lakewatch.default tables for ` +
@@ -1879,7 +2107,6 @@ export function LakewatchDatasourceDetailView() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <DetailHeaderControls />
             <DatasourceActionControls
               datasourceName={sourceName}
               dirty={toolbarDirty}
@@ -1898,10 +2125,16 @@ export function LakewatchDatasourceDetailView() {
               2
             </span>
           </TabsTrigger>
+          {isP1 ? (
+            <>
+              <TabsTrigger value="dlq">DLQ</TabsTrigger>
+              <TabsTrigger value="normalize">Normalize</TabsTrigger>
+            </>
+          ) : null}
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-8">
-          <div className="flex flex-col gap-5 lg:col-span-2">
+          <div className="grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)]">
+            <div className="flex flex-col gap-5">
             {editingDescription ? (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="datasource-overview-description">Description</Label>
@@ -1974,184 +2207,202 @@ export function LakewatchDatasourceDetailView() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0 text-primary hover:text-blue-700"
-                onClick={() => setAdvancedOpen(true)}
-              >
-                Advanced options
-              </Button>
+            <div className="border-t border-border pt-4">
+              <RunAsControl value={runAs} onValueChange={setRunAs} />
             </div>
 
-            <Sheet open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <SheetContent side="right" className="sm:max-w-md">
-                <SheetHeader>
-                  <SheetTitle>Advanced options</SheetTitle>
-                  <SheetDescription>
-                    Configure annotations and health monitoring for this datasource.
-                  </SheetDescription>
-                </SheetHeader>
-                <Tabs
-                  defaultValue="annotations"
-                  className="flex min-h-0 flex-1 flex-col gap-0"
-                >
-                  <TabsList variant="line" className="shrink-0 px-6">
-                    <TabsTrigger value="annotations">Annotations</TabsTrigger>
-                    <TabsTrigger value="health">Health monitoring</TabsTrigger>
-                  </TabsList>
-                  <TabsContent
-                    value="annotations"
-                    className="min-h-0 overflow-y-auto px-6 pb-6 pt-4"
-                  >
-                    <WizardAnnotationsField bare />
-                  </TabsContent>
-                  <TabsContent
-                    value="health"
-                    className="min-h-0 overflow-y-auto px-6 pb-6 pt-4"
-                  >
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <Label htmlFor="health-schedule">Schedule *</Label>
-                        <p className="text-hint text-muted-foreground">
-                          A Quartz cron expression for when the health check runs.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          id="health-schedule"
-                          value={healthSchedule}
-                          onChange={(event) => setHealthSchedule(event.target.value)}
-                          placeholder="0 0 * * * ? *"
-                          className="flex-1 font-mono"
-                        />
-                        <span className="shrink-0 text-sm text-muted-foreground">
-                          Every hour
-                        </span>
-                      </div>
-                    </div>
+            <div className="border-t border-border pt-4">
+              <ProcessingScheduleToolbar onDirty={() => setToolbarDirty(true)} />
+            </div>
+            </div>
 
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <Label htmlFor="health-lag-interval">Lag interval (hours) *</Label>
-                        <p className="text-hint text-muted-foreground">
-                          Number of hours to wait before analyzing data, to account for
-                          ingestion latency. For example, with a lag of 1 hour, a job running
-                          at 14:30 analyzes data up to 14:00.
-                        </p>
-                      </div>
-                      <Input
-                        id="health-lag-interval"
-                        type="number"
-                        min={0}
-                        value={healthLagInterval}
-                        onChange={(event) => setHealthLagInterval(event.target.value)}
-                        placeholder="1"
-                      />
-                    </div>
-
-                    <div className="border-t border-border" />
-
-                    <div className="flex flex-col gap-2">
-                      <h3 className="text-lg font-semibold leading-6 text-foreground">
-                        Volume check
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Detects anomalies in bronze table data volume using statistical
-                        comparison.
-                      </p>
-                      <label
-                        htmlFor="health-volume-check"
-                        className="flex cursor-pointer items-center gap-2"
+            <div className="flex flex-col gap-5 lg:border-l lg:border-border lg:pl-10">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold leading-5 text-foreground">
+                    Health monitoring
+                  </p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="Edit health monitoring"
                       >
-                        <Checkbox
-                          id="health-volume-check"
-                          checked={volumeCheck}
-                          onCheckedChange={(checked) => setVolumeCheck(checked === true)}
-                        />
-                        <span className="text-sm text-foreground">Enable volume check</span>
-                      </label>
-                    </div>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="max-h-[70vh] w-[400px] overflow-y-auto"
+                    >
+                      <div className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-2">
+                          <div>
+                            <Label htmlFor="health-schedule">Schedule *</Label>
+                            <p className="text-hint text-muted-foreground">
+                              A Quartz cron expression for when the health check runs.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Input
+                              id="health-schedule"
+                              value={healthSchedule}
+                              onChange={(event) => {
+                                setHealthSchedule(event.target.value)
+                                setToolbarDirty(true)
+                              }}
+                              placeholder="0 0 * * * ? *"
+                              className="flex-1 font-mono"
+                            />
+                            <span className="shrink-0 text-sm text-muted-foreground">
+                              Every hour
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="border-t border-border" />
+                        <div className="flex flex-col gap-2">
+                          <div>
+                            <Label htmlFor="health-lag-interval">
+                              Lag interval (hours) *
+                            </Label>
+                            <p className="text-hint text-muted-foreground">
+                              Number of hours to wait before analyzing data, to account
+                              for ingestion latency. For example, with a lag of 1 hour, a
+                              job running at 14:30 analyzes data up to 14:00.
+                            </p>
+                          </div>
+                          <Input
+                            id="health-lag-interval"
+                            type="number"
+                            min={0}
+                            value={healthLagInterval}
+                            onChange={(event) => {
+                              setHealthLagInterval(event.target.value)
+                              setToolbarDirty(true)
+                            }}
+                            placeholder="1"
+                          />
+                        </div>
 
-                    <div className="flex flex-col gap-2">
-                      <h3 className="text-lg font-semibold leading-6 text-foreground">
-                        Latency check
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Detects when too many rows have excessive ingestion latency.
-                      </p>
-                      <label
-                        htmlFor="health-latency-check"
-                        className="flex cursor-pointer items-center gap-2"
-                      >
-                        <Checkbox
-                          id="health-latency-check"
-                          checked={latencyCheck}
-                          onCheckedChange={(checked) => setLatencyCheck(checked === true)}
-                        />
-                        <span className="text-sm text-foreground">Enable latency check</span>
-                      </label>
-                    </div>
+                        <div className="border-t border-border" />
 
-                    <div className="border-t border-border" />
+                        <div className="flex flex-col gap-2">
+                          <h3 className="text-sm font-semibold leading-5 text-foreground">
+                            Volume check
+                          </h3>
+                          <p className="text-hint text-muted-foreground">
+                            Detects anomalies in bronze table data volume using
+                            statistical comparison.
+                          </p>
+                          <label
+                            htmlFor="health-volume-check"
+                            className="flex cursor-pointer items-center gap-2"
+                          >
+                            <Checkbox
+                              id="health-volume-check"
+                              checked={volumeCheck}
+                              onCheckedChange={(checked) => {
+                                setVolumeCheck(checked === true)
+                                setToolbarDirty(true)
+                              }}
+                            />
+                            <span className="text-sm text-foreground">
+                              Enable volume check
+                            </span>
+                          </label>
+                        </div>
 
-                    <div className="flex flex-col gap-2">
-                      <h3 className="text-lg font-semibold leading-6 text-foreground">
-                        Null timestamp check
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Detects when too many rows are missing their original event timestamp.
-                      </p>
-                      <label
-                        htmlFor="health-null-timestamp-check"
-                        className="flex cursor-pointer items-center gap-2"
-                      >
-                        <Checkbox
-                          id="health-null-timestamp-check"
-                          checked={nullTimestampCheck}
-                          onCheckedChange={(checked) =>
-                            setNullTimestampCheck(checked === true)
-                          }
-                        />
-                        <span className="text-sm text-foreground">
-                          Enable null timestamp check
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                  </TabsContent>
-                </Tabs>
-              </SheetContent>
-            </Sheet>
-          </div>
+                        <div className="border-t border-border" />
 
-            <section>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-base font-semibold leading-6 text-foreground">Source status</h2>
+                        <div className="flex flex-col gap-2">
+                          <h3 className="text-sm font-semibold leading-5 text-foreground">
+                            Latency check
+                          </h3>
+                          <p className="text-hint text-muted-foreground">
+                            Detects when too many rows have excessive ingestion latency.
+                          </p>
+                          <label
+                            htmlFor="health-latency-check"
+                            className="flex cursor-pointer items-center gap-2"
+                          >
+                            <Checkbox
+                              id="health-latency-check"
+                              checked={latencyCheck}
+                              onCheckedChange={(checked) => {
+                                setLatencyCheck(checked === true)
+                                setToolbarDirty(true)
+                              }}
+                            />
+                            <span className="text-sm text-foreground">
+                              Enable latency check
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="border-t border-border" />
+
+                        <div className="flex flex-col gap-2">
+                          <h3 className="text-sm font-semibold leading-5 text-foreground">
+                            Null timestamp check
+                          </h3>
+                          <p className="text-hint text-muted-foreground">
+                            Detects when too many rows are missing their original event
+                            timestamp.
+                          </p>
+                          <label
+                            htmlFor="health-null-timestamp-check"
+                            className="flex cursor-pointer items-center gap-2"
+                          >
+                            <Checkbox
+                              id="health-null-timestamp-check"
+                              checked={nullTimestampCheck}
+                              onCheckedChange={(checked) => {
+                                setNullTimestampCheck(checked === true)
+                                setToolbarDirty(true)
+                              }}
+                            />
+                            <span className="text-sm text-foreground">
+                              Enable null timestamp check
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Badge variant={healthEnabled ? "teal" : "secondary"}>
+                    {healthEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                </div>
               </div>
-              <dl className="mt-3 flex flex-col gap-2 text-sm">
-                {SOURCE_STATUSES.map(([label, date]) => (
-                  <div
-                    key={label}
-                    className="grid grid-cols-[minmax(0,1fr)_170px] items-center gap-4"
-                  >
-                    <dt className="flex items-center gap-2 text-foreground">
-                      <span
-                        className="size-2 rounded-full bg-[var(--success)]"
-                        aria-hidden
-                      />
-                      {label}
-                    </dt>
-                    <dd className="text-muted-foreground">{date}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold leading-5 text-foreground">
+                    Annotations
+                  </p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="Edit annotations"
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[420px]">
+                      <WizardAnnotationsField bare />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <p className="text-sm text-muted-foreground">No annotations</p>
+              </div>
+            </div>
           </div>
 
           <div className="my-6 h-px bg-border" />
@@ -2194,6 +2445,21 @@ export function LakewatchDatasourceDetailView() {
         <TabsContent value="system-cases" className="mt-4">
           <DatasourceSystemCasesTab datasourceName={sourceName} />
         </TabsContent>
+        {isP1 ? (
+          <>
+            <TabsContent value="dlq" className="mt-4">
+              <p className="text-sm text-muted-foreground">
+                Dead-letter queue details for this datasource will appear here.
+              </p>
+            </TabsContent>
+            <TabsContent value="normalize" className="mt-4">
+              <DatasourceNormalizeTab
+                schemas={connectorSchemas ?? DATASOURCE_SCHEMAS}
+                destinationTables={connectorDestinations ?? DESTINATION_TABLES}
+              />
+            </TabsContent>
+          </>
+        ) : null}
       </Tabs>
     </div>
   )

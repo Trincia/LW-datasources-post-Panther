@@ -13,11 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-const COMPUTE_OPTIONS = [
-  "Lakewatch Warehouse",
-  "Serverless SQL",
-  "Shared Warehouse",
-]
+const COMPUTE_OPTIONS = ["sec_dev", "sec_stag", "sec_sandbox"]
 
 const CATALOG_OPTIONS = ["sec_sandbox", "sec_dev", "sec_stag"]
 
@@ -63,8 +59,14 @@ export function LakewatchCatalogSelector({ className }: { className?: string }) 
   )
 }
 
-export function LakewatchWarehouseSelector() {
-  const [warehouse, setWarehouse] = React.useState(COMPUTE_OPTIONS[0])
+export function LakewatchWarehouseSelector({
+  options = COMPUTE_OPTIONS,
+  className,
+}: {
+  options?: string[]
+  className?: string
+} = {}) {
+  const [warehouse, setWarehouse] = React.useState(options[0])
 
   return (
     <DropdownMenu>
@@ -72,11 +74,14 @@ export function LakewatchWarehouseSelector() {
         <Button
           variant="default"
           size="sm"
-          className="min-w-[213px] justify-between gap-2 font-normal"
+          className={cn(
+            "min-w-[213px] justify-between gap-2 font-normal",
+            className
+          )}
           aria-label={`Compute: ${warehouse}`}
         >
           <span className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-[var(--success)]" aria-hidden />
+            <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
             <span className="text-foreground">{warehouse}</span>
           </span>
           <ChevronDownIcon size={16} className="text-muted-foreground" />
@@ -84,11 +89,12 @@ export function LakewatchWarehouseSelector() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuRadioGroup value={warehouse} onValueChange={setWarehouse}>
-          {COMPUTE_OPTIONS.map((option) => (
+          {options.map((option) => (
             <DropdownMenuRadioItem key={option} value={option}>
               <span className="flex items-center gap-2">
-                <span
-                  className="size-2 rounded-full bg-[var(--success)]"
+                <CatalogIcon
+                  size={16}
+                  className="text-muted-foreground"
                   aria-hidden
                 />
                 {option}
@@ -101,10 +107,31 @@ export function LakewatchWarehouseSelector() {
   )
 }
 
+/**
+ * Boxed green status indicator shown next to the catalog/compute picker to
+ * signal the warehouse is running. Matches the indicator on the datasource
+ * detail header so it reads consistently across the site.
+ */
+export function WarehouseStatusIndicator({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex h-8 w-9 shrink-0 items-center justify-center rounded border border-input bg-background",
+        className
+      )}
+      role="img"
+      aria-label="Warehouse running"
+    >
+      <span className="h-2 w-2 rounded-full bg-[var(--success)]" aria-hidden />
+    </div>
+  )
+}
+
 export function LakewatchDataControls({ className }: { className?: string }) {
   return (
     <div className={cn("flex shrink-0 items-center gap-2", className)}>
       <LakewatchWarehouseSelector />
+      <WarehouseStatusIndicator />
     </div>
   )
 }
