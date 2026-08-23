@@ -746,6 +746,7 @@ export function LakewatchSchemaDetailView({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-10 pb-12 pt-8">
+      <div className="flex flex-col gap-2">
       {fromDatasource ? (
         <Breadcrumb>
           <BreadcrumbList>
@@ -774,7 +775,30 @@ export function LakewatchSchemaDetailView({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-      ) : null}
+      ) : (
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/lakewatch/schemas">Parsers</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            {formMode ? (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link href={`/lakewatch/schemas/${encodeURIComponent(schemaName)}`}>
+                      {schemaName}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+              </>
+            ) : null}
+          </BreadcrumbList>
+        </Breadcrumb>
+      )}
       <div className="flex items-start justify-between gap-6">
         {formMode ? (
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -893,6 +917,7 @@ export function LakewatchSchemaDetailView({
             </>
           )}
         </div>
+      </div>
       </div>
 
       {formMode ? (
