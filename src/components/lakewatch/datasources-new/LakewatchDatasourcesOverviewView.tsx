@@ -135,16 +135,16 @@ function MetricCard({
 
 function DataProcessedSparkline() {
   return (
-    <div className="relative mt-1 -mx-3.5 -mb-3.5 h-12 overflow-hidden" aria-hidden>
+    <div className="relative mt-1 -mb-3.5 h-12 overflow-hidden" aria-hidden>
       <img
         alt=""
         src="/lakewatch/charts/data-processed-fill.svg"
-        className="absolute left-4 right-4 top-0 h-[47px]"
+        className="absolute inset-x-0 top-0 h-[47px] w-full"
       />
       <img
         alt=""
         src="/lakewatch/charts/data-processed-line.svg"
-        className="absolute left-4 right-4 top-0 h-[34px]"
+        className="absolute inset-x-0 top-0 h-[34px] w-full"
       />
     </div>
   )
@@ -227,7 +227,7 @@ export function LakewatchDatasourcesOverviewView() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-[160px_140px_198px_205px_minmax(280px,1fr)]">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-[minmax(160px,1fr)_minmax(140px,1fr)_minmax(198px,1fr)_minmax(205px,1fr)_minmax(280px,556px)]">
         <MetricCard
           label="Total datasources"
           value={String(DATASOURCES.length)}
@@ -236,7 +236,7 @@ export function LakewatchDatasourcesOverviewView() {
         <MetricCard label="Unhealthy" value="1" valueClassName="text-destructive" />
         <MetricCard label="Total events last 7 days" value="12.4 M" trend="up" />
         <MetricCard label="Total events last 24 hours" value="1.8 M" trend="down" />
-        <div className="min-w-[280px] flex-[1.5] overflow-hidden rounded bg-muted-foreground/20 p-3.5 pr-4">
+        <div className="min-w-[280px] max-w-[556px] overflow-hidden rounded bg-muted-foreground/20 p-3.5">
           <p className="text-sm text-foreground">Data processed last 7 days</p>
           <DataProcessedSparkline />
         </div>
