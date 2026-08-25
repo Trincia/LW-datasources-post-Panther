@@ -23,6 +23,7 @@ import {
   DatasourceNavIcon,
   SchemasNavIcon,
   NormalizersNavIcon,
+  DataModelNavIcon,
   DetectionNavIcon,
   GearIcon,
   LakewatchAlertIcon,
@@ -44,6 +45,7 @@ export type LakewatchNavId =
   | "datasources"
   | "schemas"
   | "normalizers"
+  | "data-models"
   | "detection"
   | "settings"
   | "security-cases"
@@ -196,6 +198,13 @@ export function LakewatchSidebar({
         </NavRow>
         <NavRow href="/lakewatch/observables" icon={VisibleIcon} active={activeItem === "observables"}>
           Observables
+        </NavRow>
+        <NavRow
+          href="/lakewatch/data-models"
+          icon={DataModelNavIcon}
+          active={activeItem === "data-models"}
+        >
+          Data models
         </NavRow>
 
         <div className="pt-2">

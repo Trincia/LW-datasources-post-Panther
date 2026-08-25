@@ -50,6 +50,7 @@ import {
   type DatasourceSchemaRow,
 } from "@/components/lakewatch/datasources-new/datasourceParsers"
 import { DatasourceNormalizeTab } from "@/components/lakewatch/datasources-new/DatasourceNormalizeTab"
+import { DatasourceIngestionDlqTab } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
 import {
   LakewatchWarehouseSelector,
   WarehouseStatusIndicator,
@@ -2046,6 +2047,14 @@ export function LakewatchDatasourceDetailView() {
   const connectorDestinations = connectorFamily
     ? buildConnectorDestinations(connectorFamily)
     : null
+  const dlqParsers = React.useMemo(
+    () =>
+      (connectorSchemas ?? DATASOURCE_SCHEMAS).map((row) => ({
+        name: row.schema,
+        version: buildVersions(row.schema)[0]?.version ?? "v1",
+      })),
+    [connectorSchemas]
+  )
   const [description, setDescription] = React.useState("")
   const [editingDescription, setEditingDescription] = React.useState(false)
   const [draftDescription, setDraftDescription] = React.useState("")
@@ -2116,7 +2125,14 @@ export function LakewatchDatasourceDetailView() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="mt-5">
+      <Tabs
+        defaultValue={
+          isP1 && (searchParams.get("tab") === "dlq" || searchParams.get("tab") === "normalize")
+            ? (searchParams.get("tab") as string)
+            : "overview"
+        }
+        className="mt-5"
+      >
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="system-cases">
@@ -2127,7 +2143,7 @@ export function LakewatchDatasourceDetailView() {
           </TabsTrigger>
           {isP1 ? (
             <>
-              <TabsTrigger value="dlq">DLQ</TabsTrigger>
+              <TabsTrigger value="dlq">Ingestion DLQ</TabsTrigger>
               <TabsTrigger value="normalize">Normalize</TabsTrigger>
             </>
           ) : null}
@@ -2448,9 +2464,11 @@ export function LakewatchDatasourceDetailView() {
         {isP1 ? (
           <>
             <TabsContent value="dlq" className="mt-4">
-              <p className="text-sm text-muted-foreground">
-                Dead-letter queue details for this datasource will appear here.
-              </p>
+              <DatasourceIngestionDlqTab
+                datasourceName={sourceName}
+                parsers={dlqParsers}
+                initialStage={searchParams.get("stage") ?? undefined}
+              />
             </TabsContent>
             <TabsContent value="normalize" className="mt-4">
               <DatasourceNormalizeTab

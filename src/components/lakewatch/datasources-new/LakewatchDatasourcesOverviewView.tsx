@@ -28,6 +28,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
+import {
+  STAGE_META,
+  topFailingStage,
+} from "@/components/lakewatch/datasources-new/ingestionDlq"
+import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { cn } from "@/lib/utils"
 
 type DatasourceRow = {
@@ -187,9 +192,38 @@ function RunHistory({ history }: { history: DatasourceRow["runHistory"] }) {
   )
 }
 
+const DLQ_STAGE_BADGE = {
+  unwrap: "charcoal",
+  parser_match: "coral",
+  field_validation: "brown",
+  output_write: "indigo",
+} as const
+
+/** P1-only indicator: top failing ingestion-DLQ stage, deep-linked into the
+ *  datasource's Ingestion DLQ tab filtered by that stage. */
+function DlqIndicator({ sourceId }: { sourceId: string }) {
+  const top = topFailingStage(sourceId, [{ name: sourceId, version: "v1" }])
+  if (!top) {
+    return <span className="text-hint text-muted-foreground">None</span>
+  }
+  return (
+    <Link
+      href={`/lakewatch/datasources/${encodeURIComponent(sourceId)}?tab=dlq&stage=${top.stage}`}
+      className="inline-flex items-center gap-1.5 hover:opacity-80"
+    >
+      <Badge variant={DLQ_STAGE_BADGE[top.stage]} className="font-normal">
+        {STAGE_META[top.stage].label}
+      </Badge>
+      <span className="text-hint text-foreground">{top.count.toLocaleString()}</span>
+    </Link>
+  )
+}
+
 /** Figma 2492:126283 — Datasources list. */
 export function LakewatchDatasourcesOverviewView() {
   const [filter, setFilter] = React.useState("")
+  const [variation] = usePrototypeVariation()
+  const isP1 = variation === "p1"
 
   const filtered = React.useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -252,6 +286,7 @@ export function LakewatchDatasourcesOverviewView() {
               <TableHead className="w-[13%]">Last data received</TableHead>
               <TableHead className="w-[13%]">Run history</TableHead>
               <TableHead className="w-[14%]">Events</TableHead>
+              {isP1 ? <TableHead className="w-[14%]">Ingestion DLQ</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -294,6 +329,11 @@ export function LakewatchDatasourcesOverviewView() {
                     </span>
                   </div>
                 </TableCell>
+                {isP1 ? (
+                  <TableCell>
+                    <DlqIndicator sourceId={row.id} />
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>

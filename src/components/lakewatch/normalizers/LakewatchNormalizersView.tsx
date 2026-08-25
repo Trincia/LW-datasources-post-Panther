@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { NORMALIZERS } from "@/components/lakewatch/normalizers/normalizers"
+import { NORMALIZER_GROUPS } from "@/components/lakewatch/normalizers/normalizers"
 
 function SortableHeader({
   children,
@@ -39,18 +39,23 @@ function SortableHeader({
 export function LakewatchNormalizersView() {
   const [query, setQuery] = React.useState("")
 
-  const rows = React.useMemo(() => {
+  const groups = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return NORMALIZERS
-    return NORMALIZERS.filter(
-      (row) =>
-        row.identifier.toLowerCase().includes(normalizedQuery) ||
-        row.displayName.toLowerCase().includes(normalizedQuery) ||
-        row.sourceParser.toLowerCase().includes(normalizedQuery) ||
-        row.targetEventClass.toLowerCase().includes(normalizedQuery) ||
-        row.type.toLowerCase().includes(normalizedQuery) ||
-        row.creator.toLowerCase().includes(normalizedQuery)
-    )
+    return NORMALIZER_GROUPS.map((group) => {
+      if (!normalizedQuery) return group
+      return {
+        ...group,
+        rows: group.rows.filter(
+          (row) =>
+            row.identifier.toLowerCase().includes(normalizedQuery) ||
+            row.displayName.toLowerCase().includes(normalizedQuery) ||
+            row.sourceParser.toLowerCase().includes(normalizedQuery) ||
+            row.targetEventClass.toLowerCase().includes(normalizedQuery) ||
+            row.type.toLowerCase().includes(normalizedQuery) ||
+            row.creator.toLowerCase().includes(normalizedQuery)
+        ),
+      }
+    }).filter((group) => group.rows.length > 0)
   }, [query])
 
   return (
@@ -88,37 +93,53 @@ export function LakewatchNormalizersView() {
           <Table className="min-w-[1180px] table-fixed">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="h-10 w-[22%] py-3">Normalizer name</TableHead>
-                <TableHead className="h-10 w-[16%] py-3">Source Parser / Log Type</TableHead>
-                <TableHead className="h-10 w-[18%] py-3">Target OCSF Event Class</TableHead>
-                <SortableHeader className="w-[12%]">Type</SortableHeader>
-                <SortableHeader className="w-[20%]">Latest version date/time</SortableHeader>
-                <SortableHeader className="w-[12%]">Creator</SortableHeader>
+                <TableHead className="h-10 w-[32%] py-3">Normalizer name</TableHead>
+                <TableHead className="h-10 w-[15%] py-3">Source Parser / Log Type</TableHead>
+                <TableHead className="h-10 w-[16%] py-3">Target OCSF Event Class</TableHead>
+                <SortableHeader className="w-[9%]">Type</SortableHeader>
+                <SortableHeader className="w-[17%]">Latest version date/time</SortableHeader>
+                <SortableHeader className="w-[11%]">Creator</SortableHeader>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.identifier} className="h-14">
-                  <TableCell className="py-4">
-                    <Link
-                      href={`/lakewatch/normalizers/${encodeURIComponent(row.identifier)}`}
-                      className="text-primary underline underline-offset-4"
-                    >
-                      {row.displayName}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="py-4 text-foreground">{row.sourceParser}</TableCell>
-                  <TableCell className="py-4 text-foreground">{row.targetEventClass}</TableCell>
-                  <TableCell className="py-4">
-                    {row.type === "built-in" ? (
-                      <Badge variant="teal">Built-in</Badge>
-                    ) : (
-                      <Badge variant="brown">Custom</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="py-4 text-foreground">{row.latestVersion}</TableCell>
-                  <TableCell className="py-4 text-foreground">{row.creator}</TableCell>
-                </TableRow>
+              {groups.map((group) => (
+                <React.Fragment key={group.id}>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={6} className="bg-muted/50 py-2">
+                      <span className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">{group.name}</span>
+                        <span className="text-muted-foreground">Class {group.classUid}</span>
+                        <Badge variant="secondary" className="font-normal">
+                          {group.rows.length}
+                        </Badge>
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                  {group.rows.map((row) => (
+                    <TableRow key={row.identifier} className="h-14">
+                      <TableCell className="py-4">
+                        <Link
+                          href={`/lakewatch/normalizers/${encodeURIComponent(row.identifier)}`}
+                          title={row.displayName}
+                          className="block truncate text-primary underline underline-offset-4"
+                        >
+                          {row.displayName}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-4 text-foreground">{row.sourceParser}</TableCell>
+                      <TableCell className="py-4 text-foreground">{row.targetEventClass}</TableCell>
+                      <TableCell className="py-4">
+                        {row.type === "built-in" ? (
+                          <Badge variant="teal">Built-in</Badge>
+                        ) : (
+                          <Badge variant="brown">Custom</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-4 text-foreground">{row.latestVersion}</TableCell>
+                      <TableCell className="py-4 text-foreground">{row.creator}</TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>

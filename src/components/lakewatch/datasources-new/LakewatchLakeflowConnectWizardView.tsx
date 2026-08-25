@@ -21,6 +21,8 @@ import {
   IntegrationTemplatesField,
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
+import { IngestionDlqAuthoringSummary } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
+import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import {
   RawDataPreview,
   RawDataPreviewSkeleton,
@@ -224,6 +226,8 @@ export function LakewatchLakeflowConnectWizardView({
   source: LakewatchConnectSource
 }) {
   const router = useRouter()
+  const [variation] = usePrototypeVariation()
+  const isP1 = variation === "p1"
   const label = CONNECT_SOURCES[source]
   const [connectionRows, setConnectionRows] = React.useState<ConnectionRow[]>(() =>
     buildConnectionRows(source)
@@ -710,6 +714,14 @@ export function LakewatchLakeflowConnectWizardView({
                 hideHeader
                 hideCreateCustom
               />
+
+              {isP1 ? (
+                <IngestionDlqAuthoringSummary
+                  datasourceName={datasourceName}
+                  catalog={catalog}
+                  className="mt-4"
+                />
+              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">

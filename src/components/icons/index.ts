@@ -138,6 +138,7 @@ export { DashIcon } from "./DashIcon";
 export { DashboardCodeIcon } from "./DashboardCodeIcon";
 export { DashboardIcon } from "./DashboardIcon";
 export { DataIcon } from "./DataIcon";
+export { DataModelNavIcon } from "./DataModelNavIcon";
 export { DatabaseClockIcon } from "./DatabaseClockIcon";
 export { DatabaseIcon } from "./DatabaseIcon";
 export { DatabaseImportIcon } from "./DatabaseImportIcon";

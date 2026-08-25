@@ -44,6 +44,8 @@ import {
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import { UnityCatalogExplorerModal } from "@/components/lakewatch/datasources-new/UnityCatalogExplorerModal"
+import { IngestionDlqAuthoringSummary } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
+import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -1973,6 +1975,8 @@ export function LakewatchAwsS3WizardView({
   kind?: LakewatchDatasourceWizardKind
 }) {
   const router = useRouter()
+  const [variation] = usePrototypeVariation()
+  const isP1 = variation === "p1"
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
   const [viewTableName, setViewTableName] = React.useState("")
@@ -3134,6 +3138,14 @@ export function LakewatchAwsS3WizardView({
                     : "/lakewatch/schemas/new"
                 }
               />
+
+              {isP1 ? (
+                <IngestionDlqAuthoringSummary
+                  datasourceName={datasourceName}
+                  catalog={catalog}
+                  className="mt-4"
+                />
+              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-input px-8 py-3">
