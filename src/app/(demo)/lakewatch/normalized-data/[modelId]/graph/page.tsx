@@ -6,10 +6,13 @@ import { LakewatchNormalizedDataGraphView } from "@/components/lakewatch/normali
 
 export default function LakewatchNormalizedDataGraphPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ modelId: string }>
+  searchParams: Promise<{ highlight?: string }>
 }) {
   const { modelId } = use(params)
+  const { highlight } = use(searchParams)
 
   return (
     <LakewatchAppShell
@@ -18,7 +21,10 @@ export default function LakewatchNormalizedDataGraphPage({
       userInitial="J"
       mainClassName="relative flex flex-col overflow-hidden"
     >
-      <LakewatchNormalizedDataGraphView modelId={decodeURIComponent(modelId)} />
+      <LakewatchNormalizedDataGraphView
+        modelId={decodeURIComponent(modelId)}
+        highlight={highlight}
+      />
     </LakewatchAppShell>
   )
 }

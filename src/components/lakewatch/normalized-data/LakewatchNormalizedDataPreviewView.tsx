@@ -113,10 +113,10 @@ export function LakewatchNormalizedDataPreviewView({ modelId }: { modelId: strin
   if (!model) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Normalized data not found</h1>
-        <p className="text-sm text-muted-foreground">No normalized data table matches “{modelId}”.</p>
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Data model not found</h1>
+        <p className="text-sm text-muted-foreground">No data model matches “{modelId}”.</p>
         <Button variant="link" size="sm" asChild className="w-fit px-0">
-          <Link href="/lakewatch/normalized-data">Back to Normalized data</Link>
+          <Link href="/lakewatch/normalized-data">Back to Data models</Link>
         </Button>
       </div>
     )
@@ -138,7 +138,7 @@ export function LakewatchNormalizedDataPreviewView({ modelId }: { modelId: strin
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/lakewatch/normalized-data">Normalized data</BreadcrumbLink>
+                <BreadcrumbLink href="/lakewatch/normalized-data">Data models</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>

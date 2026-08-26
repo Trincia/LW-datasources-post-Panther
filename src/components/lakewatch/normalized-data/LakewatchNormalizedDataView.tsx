@@ -2,12 +2,19 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowsUpDownIcon, PlusIcon, SearchIcon, TableIcon } from "@/components/icons"
+import {
+  ArrowsUpDownIcon,
+  DatasourceNavIcon,
+  PlusIcon,
+  SearchIcon,
+  TableIcon,
+} from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Table,
   TableBody,
@@ -54,20 +61,39 @@ function SortableHeader({
 }
 
 function SourceSummary({ sources }: { sources: string[] }) {
-  const shown = sources.slice(0, 2)
-  const remaining = sources.length - shown.length
+  const label = `${sources.length} source${sources.length === 1 ? "" : "s"}`
   return (
-    <div className="flex flex-col">
-      <span className="font-semibold text-foreground">{sources.length} sources</span>
-      <span className="truncate text-hint text-muted-foreground">
-        {shown.join(", ")}
-        {remaining > 0 ? ` +${remaining} more` : ""}
-      </span>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 font-semibold text-foreground underline-offset-4"
+        >
+          {label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <div className="border-b border-border px-3 py-2 text-hint font-semibold text-foreground">
+          {sources.length} connected datasource{sources.length === 1 ? "" : "s"}
+        </div>
+        <ul className="max-h-72 overflow-y-auto py-1">
+          {sources.map((source) => (
+            <li
+              key={source}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground"
+            >
+              <DatasourceNavIcon size={14} className="shrink-0 text-muted-foreground" />
+              <span className="truncate">{source}</span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   )
 }
 
-/** Normalized data — OCSF destination tables fed by one or more datasources (P1B). */
+/** Data models — OCSF destination tables fed by one or more datasources (P1B). */
 export function LakewatchNormalizedDataView() {
   const [query, setQuery] = React.useState("")
 
@@ -89,18 +115,20 @@ export function LakewatchNormalizedDataView() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Normalized data</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>Data models</h1>
           <div className="flex shrink-0 items-center gap-4">
             <LakewatchDataControls />
-            <Button variant="primary" size="sm">
-              <PlusIcon size={16} />
-              Create
+            <Button variant="primary" size="sm" asChild>
+              <Link href="/lakewatch/normalized-data/new">
+                <PlusIcon size={16} />
+                Create
+              </Link>
             </Button>
           </div>
         </div>
 
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Normalized data tables map one or more datasources into a shared open schema. Each table
+          Data models map one or more datasources into a shared open schema. Each model
           is a governed destination you can query, detect on, and share.
         </p>
 
@@ -113,8 +141,8 @@ export function LakewatchNormalizedDataView() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter normalized data"
-            aria-label="Filter normalized data"
+            placeholder="Filter data models"
+            aria-label="Filter data models"
             className="pl-9"
           />
         </div>
@@ -123,14 +151,14 @@ export function LakewatchNormalizedDataView() {
           <Table className="min-w-[1320px] table-fixed">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="h-10 w-[18%] py-3">Normalized data</TableHead>
-                <TableHead className="h-10 w-[13%] py-3">Type</TableHead>
-                <TableHead className="h-10 w-[14%] py-3">Event class</TableHead>
-                <TableHead className="h-10 w-[12%] py-3">Sources</TableHead>
-                <TableHead className="h-10 w-[16%] py-3">Destination table</TableHead>
-                <SortableHeader className="w-[9%]">Records</SortableHeader>
-                <SortableHeader className="w-[8%]">Freshness</SortableHeader>
-                <SortableHeader className="w-[9%]">Status</SortableHeader>
+                <TableHead className="h-10 w-[17%] py-3">Data model</TableHead>
+                <TableHead className="h-10 w-[23%] py-3">Purpose</TableHead>
+                <TableHead className="h-10 w-[11%] py-3">Type</TableHead>
+                <TableHead className="h-10 w-[11%] py-3">Sources</TableHead>
+                <TableHead className="h-10 w-[15%] py-3">Destination table</TableHead>
+                <SortableHeader className="w-[8%]">Records</SortableHeader>
+                <SortableHeader className="w-[7%]">Freshness</SortableHeader>
+                <SortableHeader className="w-[8%]">Status</SortableHeader>
                 <TableHead className="h-10 w-[9%] py-3" aria-label="Actions" />
               </TableRow>
             </TableHeader>
@@ -150,16 +178,13 @@ export function LakewatchNormalizedDataView() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3">
-                    <DeliveryBadge materialization={model.materialization} />
+                  <TableCell className="py-3 whitespace-normal">
+                    <p className="text-hint whitespace-normal text-muted-foreground">
+                      {model.purpose}
+                    </p>
                   </TableCell>
                   <TableCell className="py-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-foreground">{model.eventClass}</span>
-                      <Badge variant="indigo" className="w-fit font-normal">
-                        Class {model.classUid}
-                      </Badge>
-                    </div>
+                    <DeliveryBadge materialization={model.materialization} />
                   </TableCell>
                   <TableCell className="py-3">
                     <SourceSummary sources={model.sources} />

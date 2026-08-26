@@ -32,6 +32,7 @@ import {
   STAGE_META,
   topFailingStage,
 } from "@/components/lakewatch/datasources-new/ingestionDlq"
+import { getDataModel } from "@/components/lakewatch/data-models/dataModels"
 import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { cn } from "@/lib/utils"
 
@@ -110,6 +111,42 @@ const DATASOURCES: DatasourceRow[] = [
     dlq: "15 events",
   },
 ]
+
+// OCSF data models each datasource contributes to. AWS-Cloudtrail spans several
+// classes; most sources map to one or two; custom test sources map to none.
+const SERVED_MODELS: Record<string, string[]> = {
+  fluentbit: [],
+  slack: ["authentication", "api-activity"],
+  "cloudtrail-vpc": ["authentication", "api-activity", "network-activity", "dns-activity"],
+  okta: ["authentication"],
+  "1password": ["authentication"],
+}
+
+function ServedModels({ sourceId }: { sourceId: string }) {
+  const ids = SERVED_MODELS[sourceId] ?? []
+  if (ids.length === 0) {
+    return <span className="text-hint text-muted-foreground">None</span>
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {ids.map((id) => {
+        const model = getDataModel(id)
+        if (!model) return null
+        return (
+          <Link
+            key={id}
+            href={`/lakewatch/normalized-data/${encodeURIComponent(id)}`}
+            title={model.name}
+          >
+            <Badge variant="indigo" className="font-normal hover:opacity-80">
+              {model.eventClass}
+            </Badge>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
 
 function MetricCard({
   label,
@@ -277,16 +314,17 @@ export function LakewatchDatasourcesOverviewView() {
       </div>
 
       <div className="mt-8 overflow-x-auto">
-        <Table className="min-w-[1180px] table-fixed">
+        <Table className={cn("table-fixed", isP1 ? "min-w-[1440px]" : "min-w-[1180px]")}>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[22%]">Source name</TableHead>
-              <TableHead className="w-[16%]">Log types</TableHead>
-              <TableHead className="w-[14%]">Created</TableHead>
-              <TableHead className="w-[13%]">Last data received</TableHead>
-              <TableHead className="w-[13%]">Run history</TableHead>
-              <TableHead className="w-[14%]">Events</TableHead>
-              {isP1 ? <TableHead className="w-[14%]">Ingestion DLQ</TableHead> : null}
+              <TableHead className="w-[20%]">Source name</TableHead>
+              <TableHead className="w-[15%]">Log types</TableHead>
+              <TableHead className="w-[12%]">Created</TableHead>
+              <TableHead className="w-[12%]">Last data received</TableHead>
+              <TableHead className="w-[11%]">Run history</TableHead>
+              <TableHead className="w-[12%]">Events</TableHead>
+              {isP1 ? <TableHead className="w-[12%]">Ingestion DLQ</TableHead> : null}
+              {isP1 ? <TableHead className="w-[16%]">Data models served</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -332,6 +370,11 @@ export function LakewatchDatasourcesOverviewView() {
                 {isP1 ? (
                   <TableCell>
                     <DlqIndicator sourceId={row.id} />
+                  </TableCell>
+                ) : null}
+                {isP1 ? (
+                  <TableCell className="whitespace-normal">
+                    <ServedModels sourceId={row.id} />
                   </TableCell>
                 ) : null}
               </TableRow>

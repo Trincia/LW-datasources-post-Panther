@@ -219,7 +219,7 @@ export function LakewatchSidebar({
             icon={DataModelNavIcon}
             active={activeItem === "normalized-data"}
           >
-            Normalized data
+            Data models
           </NavRow>
         ) : null}
 

@@ -2144,7 +2144,7 @@ export function LakewatchDatasourceDetailView() {
           {isP1 ? (
             <>
               <TabsTrigger value="dlq">Ingestion DLQ</TabsTrigger>
-              <TabsTrigger value="normalize">Normalize</TabsTrigger>
+              <TabsTrigger value="normalize">Data models served</TabsTrigger>
             </>
           ) : null}
         </TabsList>

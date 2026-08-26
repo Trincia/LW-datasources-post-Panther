@@ -3,7 +3,18 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Copy, FileCode, MoreVertical } from "lucide-react"
+import {
+  BadgeCheck,
+  Copy,
+  FileCode,
+  Globe,
+  MapPin,
+  MoreVertical,
+  Server,
+  ShieldAlert,
+  Sparkles,
+  UserRound,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -24,7 +35,10 @@ import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouse
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   getDataModel,
+  getEnrichments,
   materializationLabel,
+  type Enrichment,
+  type EnrichmentKind,
   type Materialization,
 } from "@/components/lakewatch/data-models/dataModels"
 import {
@@ -61,6 +75,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
 // ─── Deterministic mock helpers ─────────────────────────────────────────────
@@ -95,6 +110,19 @@ function feederCoverage(bp: NormalizerBlueprint): number {
 
 const LAST_RUNS = ["30s ago", "1 min ago", "2 min ago", "4 min ago", "6 min ago"]
 
+const ENRICH_KIND: Record<
+  EnrichmentKind,
+  { badge: React.ComponentProps<typeof Badge>["variant"]; Icon: React.ComponentType<{ className?: string }> }
+> = {
+  GeoIP: { badge: "teal", Icon: MapPin },
+  "Threat intel": { badge: "coral", Icon: ShieldAlert },
+  Identity: { badge: "indigo", Icon: UserRound },
+  "Asset / CMDB": { badge: "brown", Icon: Server },
+  Reputation: { badge: "purple", Icon: BadgeCheck },
+  WHOIS: { badge: "turquoise", Icon: Globe },
+  "ML model": { badge: "lemon", Icon: Sparkles },
+}
+
 function MaterializationIcon({
   materialization,
   className,
@@ -117,10 +145,10 @@ export function LakewatchNormalizedDataDetailView({ modelId }: { modelId: string
   if (!model) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Normalized data not found</h1>
-        <p className="text-sm text-muted-foreground">No normalized data table matches “{modelId}”.</p>
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Data model not found</h1>
+        <p className="text-sm text-muted-foreground">No data model matches “{modelId}”.</p>
         <Button variant="link" size="sm" asChild className="w-fit px-0">
-          <Link href="/lakewatch/normalized-data">Back to Normalized data</Link>
+          <Link href="/lakewatch/normalized-data">Back to Data models</Link>
         </Button>
       </div>
     )
@@ -132,6 +160,7 @@ export function LakewatchNormalizedDataDetailView({ modelId }: { modelId: string
     () => NORMALIZER_BLUEPRINTS.filter((bp) => bp.targetGroupId === model.id),
     [model.id]
   )
+  const enrichments = React.useMemo(() => getEnrichments(model.id), [model.id])
 
   const [description, setDescription] = React.useState(model.description)
   const [descDraft, setDescDraft] = React.useState(model.description)
@@ -172,7 +201,7 @@ export function LakewatchNormalizedDataDetailView({ modelId }: { modelId: string
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/lakewatch/normalized-data">Normalized data</BreadcrumbLink>
+                <BreadcrumbLink href="/lakewatch/normalized-data">Data models</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -334,53 +363,101 @@ export function LakewatchNormalizedDataDetailView({ modelId }: { modelId: string
           <StatTile label="DLQ (24h)" value={model.dlq} />
         </div>
 
-        {/* Source cards */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="font-semibold text-foreground">Sources ({feeders.length})</h2>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() =>
-                router.push(`/lakewatch/normalizers/new?dest=model:${encodeURIComponent(model.id)}`)
-              }
-            >
-              <PlusIcon size={16} />
-              Add source
-            </Button>
-          </div>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Each source maps a datasource parser destination table or an existing Unity Catalog
-            table into this normalized table. Open a row to edit its mapping.
-          </p>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <Table className="min-w-[880px]">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[24%] font-semibold">Source</TableHead>
-                  <TableHead className="w-[10%] font-semibold">Kind</TableHead>
-                  <TableHead className="w-[26%] font-semibold">Destination table</TableHead>
-                  <TableHead className="w-[16%] font-semibold">Mapping coverage</TableHead>
-                  <TableHead className="w-[11%] font-semibold">Records</TableHead>
-                  <TableHead className="w-[9%] font-semibold">Last run</TableHead>
-                  <TableHead className="w-[10%] font-semibold" aria-label="Actions" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {feeders.map((bp) => (
-                  <SourceRow
-                    key={bp.identifier}
-                    bp={bp}
-                    modelId={model.id}
-                    onOpen={() =>
-                      router.push(`/lakewatch/normalizers/${encodeURIComponent(bp.identifier)}`)
-                    }
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+        {/* Sources / Enrichments */}
+        <Tabs defaultValue="sources">
+          <TabsList variant="line">
+            <TabsTrigger value="sources">Sources ({feeders.length})</TabsTrigger>
+            <TabsTrigger value="enrichments">Enrichments ({enrichments.length})</TabsTrigger>
+          </TabsList>
+
+          {/* Sources */}
+          <TabsContent value="sources" className="mt-4 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-4">
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Each source maps a datasource parser destination table or an existing Unity Catalog
+                table into this data model. Open a row to edit its mapping.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="shrink-0"
+                onClick={() =>
+                  router.push(
+                    `/lakewatch/normalizers/new?dest=model:${encodeURIComponent(model.id)}`
+                  )
+                }
+              >
+                <PlusIcon size={16} />
+                Add source
+              </Button>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <Table className="min-w-[880px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[24%] font-semibold">Source</TableHead>
+                    <TableHead className="w-[10%] font-semibold">Kind</TableHead>
+                    <TableHead className="w-[26%] font-semibold">Destination table</TableHead>
+                    <TableHead className="w-[16%] font-semibold">Mapping coverage</TableHead>
+                    <TableHead className="w-[11%] font-semibold">Records</TableHead>
+                    <TableHead className="w-[9%] font-semibold">Last run</TableHead>
+                    <TableHead className="w-[10%] font-semibold" aria-label="Actions" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {feeders.map((bp) => (
+                    <SourceRow
+                      key={bp.identifier}
+                      bp={bp}
+                      modelId={model.id}
+                      onOpen={() =>
+                        router.push(`/lakewatch/normalizers/${encodeURIComponent(bp.identifier)}`)
+                      }
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          {/* Enrichments */}
+          <TabsContent value="enrichments" className="mt-4 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-4">
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                Enrichments add context from reference feeds — geolocation, threat intel, identity,
+                asset, and ML scoring — populating extra OCSF fields as the model refreshes.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => toast("Enrichment builder is coming soon")}
+              >
+                <PlusIcon size={16} />
+                Add enrichment
+              </Button>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <Table className="min-w-[880px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[22%] font-semibold">Enrichment</TableHead>
+                    <TableHead className="w-[13%] font-semibold">Type</TableHead>
+                    <TableHead className="w-[24%] font-semibold">Reference</TableHead>
+                    <TableHead className="w-[22%] font-semibold">Enriched fields</TableHead>
+                    <TableHead className="w-[9%] font-semibold">Match rate</TableHead>
+                    <TableHead className="w-[10%] font-semibold">Records</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {enrichments.map((enrichment) => (
+                    <EnrichmentRow key={enrichment.id} enrichment={enrichment} />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Cumulative YAML dialog */}
@@ -393,7 +470,7 @@ export function LakewatchNormalizedDataDetailView({ modelId }: { modelId: string
             <div className="flex items-center justify-between">
               <p className="text-hint text-muted-foreground">
                 Cumulative spec compiled from {feeders.length} source
-                {feeders.length === 1 ? "" : "s"} feeding this normalized table.
+                {feeders.length === 1 ? "" : "s"} feeding this data model.
               </p>
               <Button
                 variant="default"
@@ -482,6 +559,46 @@ function SourceRow({
             View data
           </Link>
         </Button>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+function EnrichmentRow({ enrichment }: { enrichment: Enrichment }) {
+  const meta = ENRICH_KIND[enrichment.kind]
+  const Icon = meta.Icon
+  return (
+    <TableRow>
+      <TableCell className="py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate font-semibold text-foreground">{enrichment.name}</span>
+          {enrichment.status === "Draft" ? (
+            <Badge variant="secondary" className="shrink-0 font-normal">
+              Draft
+            </Badge>
+          ) : null}
+        </div>
+      </TableCell>
+      <TableCell className="py-3">
+        <Badge variant={meta.badge} className="font-normal">
+          {enrichment.kind}
+        </Badge>
+      </TableCell>
+      <TableCell className="py-3">
+        <code className="truncate text-hint text-foreground">{enrichment.reference}</code>
+      </TableCell>
+      <TableCell className="py-3">
+        <code className="truncate text-hint text-muted-foreground">{enrichment.enrichedFields}</code>
+      </TableCell>
+      <TableCell className="py-3">
+        <span className="flex items-center gap-2">
+          <Progress value={enrichment.matchRate} className="h-1.5 w-16" />
+          <span className="text-hint text-foreground">{enrichment.matchRate}%</span>
+        </span>
+      </TableCell>
+      <TableCell className="py-3 text-foreground">
+        {enrichment.records.replace(" / 24h", "")}
       </TableCell>
     </TableRow>
   )

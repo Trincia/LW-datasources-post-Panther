@@ -136,7 +136,7 @@ export function LakewatchSourceDataPreviewView({
         <p className="text-sm text-muted-foreground">No source matches “{sourceId}”.</p>
         <Button variant="link" size="sm" asChild className="w-fit px-0">
           <Link href={`/lakewatch/normalized-data/${encodeURIComponent(modelId)}`}>
-            Back to normalized data
+            Back to Data models
           </Link>
         </Button>
       </div>
@@ -153,7 +153,7 @@ export function LakewatchSourceDataPreviewView({
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/lakewatch/normalized-data">Normalized data</BreadcrumbLink>
+                <BreadcrumbLink href="/lakewatch/normalized-data">Data models</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -197,7 +197,7 @@ export function LakewatchSourceDataPreviewView({
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Preview of the source data feeding {model?.name ?? "this normalized table"}.
+            Preview of the source data feeding {model?.name ?? "this data model"}.
           </p>
           <div className="flex items-center gap-2">
             <span className="text-hint text-muted-foreground">Sample</span>
