@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -38,11 +39,13 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
-  connectedDatasource,
+  connectedDatasources,
   DETECTION_RULES,
+  getRuleDetail,
   type DetectionRule,
   type DetectionSeverity,
 } from "@/components/lakewatch/marketplace/detectionRules"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
 
 const SEVERITY_BADGE: Record<
@@ -88,6 +91,7 @@ function DisabledTab({ label, tooltip }: { label: string; tooltip: string }) {
 export function LakewatchMarketplaceView() {
   const [query, setQuery] = React.useState("")
   const [importRule, setImportRule] = React.useState<DetectionRule | null>(null)
+  const [detailRule, setDetailRule] = React.useState<DetectionRule | null>(null)
 
   const rows = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -155,6 +159,7 @@ export function LakewatchMarketplaceView() {
                     key={rule.name}
                     rule={rule}
                     onImport={() => setImportRule(rule)}
+                    onOpen={() => setDetailRule(rule)}
                   />
                 ))}
               </TableBody>
@@ -170,6 +175,166 @@ export function LakewatchMarketplaceView() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <Sheet open={Boolean(detailRule)} onOpenChange={(open) => !open && setDetailRule(null)}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[600px]">
+          {detailRule ? (
+            <DetectionRuleDetailPanel
+              rule={detailRule}
+              onImport={() => setImportRule(detailRule)}
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}
+
+function DetectionRuleDetailPanel({
+  rule,
+  onImport,
+}: {
+  rule: DetectionRule
+  onImport: () => void
+}) {
+  const detail = getRuleDetail(rule)
+  const datasources = connectedDatasources(rule)
+  const canImport = datasources.length > 0
+  const mitre = rule.tactic && rule.technique ? `${rule.tactic} / ${rule.technique}` : null
+
+  return (
+    <>
+      <SheetHeader className="flex-row items-center gap-2 border-b px-4 py-3">
+        <SheetTitle className="min-w-0 flex-1 truncate">{rule.name}</SheetTitle>
+        {canImport ? (
+          <Button variant="primary" size="xs" className="mr-6" onClick={onImport}>
+            Import
+          </Button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="mr-6 inline-flex cursor-not-allowed">
+                <Button variant="primary" size="xs" disabled className="pointer-events-none">
+                  Import
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Can&apos;t import — no datasource with the {rule.parser} parser is connected to this
+              workspace.
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </SheetHeader>
+
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 text-sm">
+        <DetailSection title="Source">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Associated parser</span>
+              <Badge
+                variant="charcoal"
+                className="w-fit rounded-full px-2 font-normal dark:bg-grey-400"
+              >
+                {rule.parser}
+              </Badge>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">
+                {datasources.length > 1 ? "Connected datasources" : "Connected datasource"}
+              </span>
+              {datasources.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  {datasources.map((ds) => (
+                    <span key={ds} className="text-foreground">
+                      {ds}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DetailSection>
+
+        <DetailSection title="Comment">
+          <p className="text-foreground">{detail.comment}</p>
+        </DetailSection>
+
+        <DetailSection title="Objective">
+          <p className="text-foreground">{detail.objective}</p>
+        </DetailSection>
+
+        <div className="grid grid-cols-3 gap-4">
+          <DetailField label="Severity" value={rule.severity} />
+          <DetailField label="Fidelity" value={detail.fidelity} />
+          <DetailField label="Category" value={detail.category} />
+        </div>
+
+        <DetailSection title="MITRE ATT&CK">
+          {mitre ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="font-normal">
+                {mitre}
+              </Badge>
+              {rule.techniqueId ? (
+                <span className="text-xs text-muted-foreground">{rule.techniqueId}</span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </DetailSection>
+
+        <DetailSection title="Detection SQL">
+          <CodeBlock code={detail.sql} />
+        </DetailSection>
+
+        <DetailSection title="Notable summary">
+          <p className="text-foreground">{detail.summary}</p>
+        </DetailSection>
+
+        <DetailSection title="Schedule">
+          <p className="text-foreground">{detail.schedule}</p>
+        </DetailSection>
+      </div>
+    </>
+  )
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h3 className="font-semibold text-foreground">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-semibold text-foreground">{label}</span>
+      <span className="text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function CodeBlock({ code }: { code: string }) {
+  const lines = code.split("\n")
+  return (
+    <div className="overflow-x-auto rounded-md border border-border bg-muted/50">
+      <pre className="p-3 font-mono text-xs leading-5">
+        {lines.map((line, index) => (
+          <div key={index} className="flex gap-4">
+            <span className="w-4 shrink-0 select-none text-right text-muted-foreground">
+              {index + 1}
+            </span>
+            <span className="whitespace-pre text-foreground">{line}</span>
+          </div>
+        ))}
+      </pre>
     </div>
   )
 }
@@ -178,6 +343,13 @@ function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () =>
   const [catalog, setCatalog] = React.useState("sec_dev")
   const [schema, setSchema] = React.useState("detection_rules")
   const [name, setName] = React.useState(rule.name)
+  const datasources = connectedDatasources(rule)
+  const needsAssignment = datasources.length > 1
+  const [assignedDatasource, setAssignedDatasource] = React.useState("")
+
+  const canImport =
+    Boolean(catalog.trim() && schema.trim() && name.trim()) &&
+    (!needsAssignment || Boolean(assignedDatasource))
 
   return (
     <>
@@ -189,7 +361,34 @@ function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () =>
           change resource names later.
         </DialogDescription>
       </DialogHeader>
-      <DialogBody className="gap-2">
+      <DialogBody className="gap-4">
+        {needsAssignment ? (
+          <div className="flex flex-col gap-2">
+            <Label>Select the datasource to assign this rule to</Label>
+            <RadioGroup
+              value={assignedDatasource}
+              onValueChange={setAssignedDatasource}
+              className="gap-0 overflow-hidden rounded-md border border-border"
+            >
+              {datasources.map((ds, index) => (
+                <label
+                  key={ds}
+                  htmlFor={`ds-${index}`}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2 px-3 py-2.5",
+                    index > 0 && "border-t border-border",
+                    assignedDatasource === ds && "bg-primary/5"
+                  )}
+                >
+                  <RadioGroupItem id={`ds-${index}`} value={ds} />
+                  <CatalogIcon size={16} className="shrink-0 text-muted-foreground" />
+                  <span className="text-sm text-foreground">{ds}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-2">
         <Label>Resource</Label>
         <div className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5">
           <PathSelect
@@ -218,6 +417,7 @@ function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () =>
             className="min-w-0 flex-1"
           />
         </div>
+        </div>
       </DialogBody>
       <DialogFooter>
         <DialogClose asChild>
@@ -228,9 +428,10 @@ function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () =>
         <Button
           variant="primary"
           size="sm"
-          disabled={!catalog.trim() || !schema.trim() || !name.trim()}
+          disabled={!canImport}
           onClick={() => {
-            toast.success(`Imported ${catalog}.${schema}.${name}`)
+            const target = needsAssignment ? ` to ${assignedDatasource}` : ""
+            toast.success(`Imported ${catalog}.${schema}.${name}${target}`)
             onDone()
           }}
         >
@@ -312,12 +513,20 @@ function PathSelect({
   )
 }
 
-function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: () => void }) {
-  const datasource = connectedDatasource(rule)
-  const canImport = datasource !== null
+function DetectionRuleRow({
+  rule,
+  onImport,
+  onOpen,
+}: {
+  rule: DetectionRule
+  onImport: () => void
+  onOpen: () => void
+}) {
+  const datasources = connectedDatasources(rule)
+  const canImport = datasources.length > 0
 
   return (
-    <TableRow className="h-12">
+    <TableRow className="h-12 cursor-pointer" onClick={onOpen}>
       <TableCell>
         <span className="block truncate text-sm font-semibold text-foreground" title={rule.name}>
           {rule.name}
@@ -329,12 +538,16 @@ function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: (
         </Badge>
       </TableCell>
       <TableCell>
-        {datasource ? (
-          <span className="block truncate text-foreground" title={datasource}>
-            {datasource}
-          </span>
-        ) : (
+        {datasources.length === 0 ? (
           <span className="text-muted-foreground">None</span>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {datasources.map((ds) => (
+              <span key={ds} className="block truncate text-foreground" title={ds}>
+                {ds}
+              </span>
+            ))}
+          </div>
         )}
       </TableCell>
       <TableCell>
@@ -352,7 +565,7 @@ function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: (
           {rule.pack}
         </span>
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
         {canImport ? (
           <Button variant="default" size="xs" onClick={onImport}>
             Import

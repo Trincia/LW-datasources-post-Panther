@@ -29,15 +29,242 @@ const PARSER_DATASOURCE: Record<string, string> = {
   "Slack.AuditLogs": "slack-enterprise",
 }
 
+// Rules where more than one datasource in the workspace produces the parser,
+// so the user must choose which datasource to assign the rule to on import.
+const MULTI_DATASOURCE: Record<string, string[]> = {
+  aws_cloudtrail_logging_disabled: ["aws-cloudtrail-org", "aws-cloudtrail-security"],
+  okta_mfa_deactivated: ["okta-corp", "okta-workforce"],
+  aws_iam_access_key_created: ["aws-cloudtrail-org", "aws-cloudtrail-payer"],
+}
+
 /**
- * Connected datasource for a rule's parser, or `null` when no datasource in the
- * workspace is wired to that parser. Deterministic so ~20% of rules return null.
+ * Connected datasources for a rule's parser. Returns an empty array when no
+ * datasource is wired to the parser, one for the common case, or two for the
+ * handful of rules whose parser is produced by multiple datasources.
  */
-export function connectedDatasource(rule: DetectionRule): string | null {
+export function connectedDatasources(rule: DetectionRule): string[] {
+  if (MULTI_DATASOURCE[rule.name]) return MULTI_DATASOURCE[rule.name]
   let hash = 0
   for (const char of rule.name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  if (hash % 5 === 0) return null
-  return PARSER_DATASOURCE[rule.parser] ?? null
+  if (hash % 5 === 0) return []
+  const single = PARSER_DATASOURCE[rule.parser]
+  return single ? [single] : []
+}
+
+// ---------------------------------------------------------------------------
+// Rule detail (drawer content), derived accurately from each rule's fields.
+// ---------------------------------------------------------------------------
+
+export type DetectionRuleDetail = {
+  comment: string
+  objective: string
+  fidelity: "High" | "Medium" | "Low"
+  category: string
+  sql: string
+  summary: string
+  schedule: string
+}
+
+// Parsed table + key fields each parser's events land in.
+const PARSER_SOURCE: Record<
+  string,
+  { table: string; dateField: string; actorField: string; actionField: string }
+> = {
+  "Databricks.Audit": {
+    table: "system.access.audit",
+    dateField: "event_date",
+    actorField: "user_identity.email",
+    actionField: "action_name",
+  },
+  "Okta.SystemLog": {
+    table: "okta.system_log",
+    dateField: "event_date",
+    actorField: "actor.alternate_id",
+    actionField: "event_type",
+  },
+  "AWS.CloudTrail": {
+    table: "aws.cloudtrail",
+    dateField: "event_date",
+    actorField: "user_identity.arn",
+    actionField: "event_name",
+  },
+  "AWS.GuardDuty": {
+    table: "aws.guardduty_findings",
+    dateField: "event_date",
+    actorField: "resource.access_key_details.principal_id",
+    actionField: "type",
+  },
+  "AWS.VPCFlow": {
+    table: "aws.vpc_flow",
+    dateField: "event_date",
+    actorField: "srcaddr",
+    actionField: "action",
+  },
+  "AzureAD.SignInLogs": {
+    table: "azure_ad.signin_logs",
+    dateField: "event_date",
+    actorField: "user_principal_name",
+    actionField: "operation_name",
+  },
+  "GCP.AuditLog": {
+    table: "gcp.audit_log",
+    dateField: "event_date",
+    actorField: "authentication_info.principal_email",
+    actionField: "method_name",
+  },
+  "GitHub.AuditLog": {
+    table: "github.audit_log",
+    dateField: "event_date",
+    actorField: "actor",
+    actionField: "action",
+  },
+  "Kubernetes.Audit": {
+    table: "kubernetes.audit",
+    dateField: "event_date",
+    actorField: "user.username",
+    actionField: "verb",
+  },
+  "Slack.AuditLogs": {
+    table: "slack.audit_logs",
+    dateField: "event_date",
+    actorField: "actor.user.email",
+    actionField: "action",
+  },
+}
+
+// Vendor prefixes stripped when deriving the human-readable signal.
+const VENDOR_PREFIXES = new Set([
+  "aws",
+  "okta",
+  "gcp",
+  "entra",
+  "github",
+  "slack",
+  "k8s",
+  "azuread",
+])
+
+const ACRONYMS: Record<string, string> = {
+  acl: "ACL",
+  acls: "ACLs",
+  aws: "AWS",
+  iam: "IAM",
+  mfa: "MFA",
+  k8s: "Kubernetes",
+  gcp: "GCP",
+  ec2: "EC2",
+  ebs: "EBS",
+  eks: "EKS",
+  vpc: "VPC",
+  s3: "S3",
+  ip: "IP",
+  sql: "SQL",
+  api: "API",
+}
+
+function humanize(name: string): string {
+  return name
+    .split("_")
+    .map((token) => ACRONYMS[token] ?? token)
+    .join(" ")
+}
+
+function signalTokens(rule: DetectionRule): string[] {
+  const tokens = rule.name.split("_")
+  if (tokens.length > 1 && VENDOR_PREFIXES.has(tokens[0])) return tokens.slice(1)
+  return tokens
+}
+
+function categoryFor(rule: DetectionRule): string {
+  const n = rule.name
+  if (/bruteforce|impossible_travel|enumeration|port_scan|allowlist/.test(n)) return "Correlation"
+  if (/anomalous|abuse|cryptomining/.test(n)) return "Anomaly"
+  if (/disabled|modified|deleted|change|created|enabled|attached|assigned/.test(n))
+    return "Static Signature"
+  return "Static Signature"
+}
+
+function fidelityFor(rule: DetectionRule): DetectionRuleDetail["fidelity"] {
+  let hash = 0
+  for (const char of rule.name) hash = (hash * 17 + char.charCodeAt(0)) >>> 0
+  return (["High", "Medium", "Low"] as const)[hash % 3]
+}
+
+function scheduleFor(rule: DetectionRule): string {
+  switch (rule.severity) {
+    case "Critical":
+      return "1h"
+    case "High":
+      return "12h"
+    case "Medium":
+      return "12h"
+    case "Low":
+      return "24h"
+    default:
+      return "24h"
+  }
+}
+
+// Hand-authored SQL for rules where accuracy matters most; others generate below.
+const SQL_OVERRIDES: Record<string, string> = {
+  acl_controls_disabled: `FROM system.access.audit
+|> WHERE
+  event_date >= current_date
+  AND service_name = 'accounts'
+  AND action_name IN ('disableWorkspaceAcls',
+    'disableClusterAcls', 'disableTableAcls')
+|> SELECT *`,
+}
+
+function generateSql(rule: DetectionRule): string {
+  if (SQL_OVERRIDES[rule.name]) return SQL_OVERRIDES[rule.name]
+  const src = PARSER_SOURCE[rule.parser]
+  if (!src) {
+    return `FROM ${rule.parser.toLowerCase()}\n|> WHERE\n  event_date >= current_date\n|> SELECT *`
+  }
+  const keyword = signalTokens(rule).slice(-2).join("_")
+  return `FROM ${src.table}
+|> WHERE
+  ${src.dateField} >= current_date
+  AND ${src.actionField} ILIKE '%${keyword}%'
+|> SELECT *`
+}
+
+function summaryFor(rule: DetectionRule): string {
+  const src = PARSER_SOURCE[rule.parser]
+  const actor = src ? `{${src.actorField}}` : "{actor}"
+  const action = src ? `{${src.actionField}}` : "{action}"
+  return `${humanize(rule.name)}: ${action} by ${actor}`
+}
+
+const DETAIL_OVERRIDES: Record<string, Partial<DetectionRuleDetail>> = {
+  acl_controls_disabled: {
+    comment:
+      "Detects when access control lists are disabled at the workspace, cluster, or table level, removing authorization barriers across the environment",
+    objective:
+      "Detect when access control lists are disabled at the workspace, cluster, or table level. Disabling ACLs removes authorization barriers and effectively grants unrestricted access to resources. This is rare in normal operations and a strong signal of security control weakening.",
+    summary: "ACL controls disabled: {action_name} by {user_identity.email}",
+  },
+}
+
+export function getRuleDetail(rule: DetectionRule): DetectionRuleDetail {
+  const signal = humanize(rule.name).toLowerCase()
+  const hasMitre = Boolean(rule.tactic && rule.technique)
+  const comment = `Detects ${signal} in ${rule.parser} events, indicating a potential security-relevant change or adversary action.`
+  const objective = hasMitre
+    ? `Identify ${signal} by evaluating ${rule.parser} events. This behavior maps to the ${rule.tactic} tactic via ${rule.technique} (${rule.techniqueId}) and can indicate weakening of security controls or active adversary activity.`
+    : `Identify ${signal} by evaluating ${rule.parser} events. Surfaced findings should be triaged for weakening of security controls or active adversary activity.`
+
+  return {
+    comment,
+    objective,
+    fidelity: fidelityFor(rule),
+    category: categoryFor(rule),
+    sql: generateSql(rule),
+    summary: summaryFor(rule),
+    schedule: scheduleFor(rule),
+    ...DETAIL_OVERRIDES[rule.name],
+  }
 }
 
 export const DETECTION_RULES: DetectionRule[] = [
