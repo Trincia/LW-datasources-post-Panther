@@ -45,7 +45,7 @@ import {
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import { UnityCatalogExplorerModal } from "@/components/lakewatch/datasources-new/UnityCatalogExplorerModal"
 import { IngestionDlqAuthoringSummary } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
-import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
+import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -1976,7 +1976,7 @@ export function LakewatchAwsS3WizardView({
 }) {
   const router = useRouter()
   const [variation] = usePrototypeVariation()
-  const isP1 = variation === "p1"
+  const isP1 = isAnyP1(variation)
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
   const [viewTableName, setViewTableName] = React.useState("")

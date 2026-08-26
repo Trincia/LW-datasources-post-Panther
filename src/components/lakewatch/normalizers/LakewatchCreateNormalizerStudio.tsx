@@ -72,7 +72,7 @@ import type {
   TargetClass,
   TargetField,
 } from "@/components/lakewatch/normalizers/normalizerModel"
-import { getOcsfClass, OCSF_CLASSES } from "@/components/lakewatch/normalizers/normalizers"
+import { findTemplate, getOcsfClass, OCSF_CLASSES } from "@/components/lakewatch/normalizers/normalizers"
 import {
   DATA_MODELS,
   getDataModel,
@@ -343,7 +343,7 @@ function isColumnMapping(mapping: Mapping): boolean {
   return !/^'.*'$/.test(mapping.source) && !/^\d+$/.test(mapping.source)
 }
 
-function buildNormalizationYaml(args: {
+export function buildNormalizationYaml(args: {
   name: string
   source: SourceDataset
   target: TargetClass
@@ -1190,10 +1190,16 @@ function SourceCatalogPicker({
 
 export function LakewatchCreateNormalizerStudio({
   initialNormalizer,
+  presetTargetValue,
+  lockDestination = false,
 }: {
   /** When provided, the studio opens pre-filled with this normalizer's source,
    * OCSF destination, and complete (100% mapped) field mappings. */
   initialNormalizer?: NormalizerBlueprint
+  /** Preset the destination (e.g. "model:authentication") for the add-source flow. */
+  presetTargetValue?: string
+  /** When true the destination picker is locked (add-source into a fixed model). */
+  lockDestination?: boolean
 } = {}) {
   const router = useRouter()
   const isExisting = Boolean(initialNormalizer)
@@ -1225,7 +1231,9 @@ export function LakewatchCreateNormalizerStudio({
 
   const [normalizerName, setNormalizerName] = React.useState(initialNormalizer?.name ?? "")
   const [sourceId, setSourceId] = React.useState(initialNormalizer?.source.id ?? "")
-  const [targetId, setTargetId] = React.useState(initialTargetValue)
+  const [targetId, setTargetId] = React.useState(
+    initialNormalizer ? initialTargetValue : (presetTargetValue ?? "")
+  )
   const [sourceQuery, setSourceQuery] = React.useState("")
   const [targetQuery, setTargetQuery] = React.useState("")
   const [dataView, setDataView] = React.useState<"summary" | "table">("summary")
@@ -1310,6 +1318,16 @@ export function LakewatchCreateNormalizerStudio({
   const coverage = relevantFields.length
     ? Math.round((mappedRelevant / relevantFields.length) * 100)
     : 0
+
+  // Add-source flow: suggest a normalizer template that maps the picked parser
+  // source into the (preset) destination class. Raw / UC-table sources have none.
+  const sourceTemplate = React.useMemo(
+    () =>
+      source && target && source.kind === "parsed"
+        ? (findTemplate(source.name, target.id) ?? null)
+        : null,
+    [source, target]
+  )
 
   // Destination profiling reuses the source distributions so the two columns
   // line up side-by-side. Look up the SOURCE field a target is mapped to.
@@ -1419,6 +1437,45 @@ export function LakewatchCreateNormalizerStudio({
     applyMapping(selectedSource, targetPath)
   }
 
+  // Shared progressive reveal used by Auto-normalize and Apply-template: streams
+  // the queued recommendations in over `duration`ms with a status + progress bar.
+  const runProgressive = (queue: Recommendation[], startNote: string, doneNote: string, duration = 20000) => {
+    setRecommendations([])
+    setAutoRunning(true)
+    setAutoProgress(0)
+    setAutoStatus("Scanning source schema…")
+    setAssistantNote(startNote)
+
+    const start = Date.now()
+    const statusFor = (p: number) =>
+      p < 20
+        ? "Scanning source schema…"
+        : p < 45
+          ? "Profiling field values…"
+          : p < 75
+            ? "Matching to OCSF fields…"
+            : "Scoring mapping confidence…"
+
+    if (autoTimer.current) clearInterval(autoTimer.current)
+    autoTimer.current = setInterval(() => {
+      const elapsed = Date.now() - start
+      const progress = Math.min(100, Math.round((elapsed / duration) * 100))
+      setAutoProgress(progress)
+      setAutoStatus(statusFor(progress))
+      const revealCount = Math.min(queue.length, Math.floor((progress / 100) * queue.length))
+      setRecommendations(queue.slice(0, revealCount))
+      if (elapsed >= duration) {
+        if (autoTimer.current) clearInterval(autoTimer.current)
+        autoTimer.current = null
+        setRecommendations(queue)
+        setAutoProgress(100)
+        setAutoRunning(false)
+        setAutoStatus("")
+        setAssistantNote(doneNote)
+      }
+    }, 300)
+  }
+
   // Auto-normalize simulates Genie profiling the schema over ~20s, revealing the
   // recommended mappings progressively with a status + progress indicator.
   const runAutoNormalize = () => {
@@ -1439,46 +1496,37 @@ export function LakewatchCreateNormalizerStudio({
       setAssistantNote("All required and recommended fields are already mapped.")
       return
     }
+    runProgressive(
+      queue,
+      `Auto-normalizing ${source.name} → ${target.name}…`,
+      `Genie found ${queue.length} recommended mappings from the ${source.name} schema. Review and accept below.`
+    )
+  }
 
-    const sourceName = source.name
-    const targetName = target.name
-    setRecommendations([])
-    setAutoRunning(true)
-    setAutoProgress(0)
-    setAutoStatus("Scanning source schema…")
-    setAssistantNote(`Auto-normalizing ${sourceName} → ${targetName}…`)
-
-    const DURATION = 20000
-    const start = Date.now()
-    const statusFor = (p: number) =>
-      p < 20
-        ? "Scanning source schema…"
-        : p < 45
-          ? "Profiling field values…"
-          : p < 75
-            ? "Matching to OCSF fields…"
-            : "Scoring mapping confidence…"
-
-    if (autoTimer.current) clearInterval(autoTimer.current)
-    autoTimer.current = setInterval(() => {
-      const elapsed = Date.now() - start
-      const progress = Math.min(100, Math.round((elapsed / DURATION) * 100))
-      setAutoProgress(progress)
-      setAutoStatus(statusFor(progress))
-      const revealCount = Math.min(queue.length, Math.floor((progress / 100) * queue.length))
-      setRecommendations(queue.slice(0, revealCount))
-      if (elapsed >= DURATION) {
-        if (autoTimer.current) clearInterval(autoTimer.current)
-        autoTimer.current = null
-        setRecommendations(queue)
-        setAutoProgress(100)
-        setAutoRunning(false)
-        setAutoStatus("")
-        setAssistantNote(
-          `Genie found ${queue.length} recommended mappings from the ${sourceName} schema. Review and accept below.`
-        )
-      }
-    }, 300)
+  // Apply a suggested normalizer template: seed recommendations from the
+  // template's field mappings and stream them in like Auto-normalize.
+  const applyTemplate = (template: NormalizerBlueprint) => {
+    if (!source || !target || autoRunning) return
+    const queue: Recommendation[] = template.mappings
+      .filter((mapping) => mapping.origin !== "system" && !mappedTargets.has(mapping.target))
+      .map((mapping, index) => ({
+        id: `template-${mapping.target}`,
+        source: mapping.expression,
+        target: mapping.target,
+        expression: mapping.expression,
+        confidence: 97 - index,
+        rationale: `Mapped from the “${template.displayName}” template.`,
+      }))
+    if (queue.length === 0) {
+      setAssistantNote("Every field from this template is already mapped.")
+      return
+    }
+    runProgressive(
+      queue,
+      `Applying “${template.displayName}”…`,
+      `Applied ${queue.length} mappings from “${template.displayName}”. Review and accept below, or refine with Genie.`,
+      9000
+    )
   }
 
   const submitPrompt = () => {
@@ -1693,6 +1741,7 @@ export function LakewatchCreateNormalizerStudio({
           <div className="flex flex-col gap-4 p-4">
             <Select
               value={targetId || undefined}
+              disabled={lockDestination}
               onValueChange={(value) => {
                 setTargetId(value)
                 resetForContext(sourceId, value)
@@ -1866,6 +1915,36 @@ export function LakewatchCreateNormalizerStudio({
                 <p className="text-sm text-foreground">{assistantNote}</p>
               </div>
             </div>
+
+            {ready && !autoRunning && recommendations.length === 0 && coverage < 100 ? (
+              source && source.kind === "parsed" && sourceTemplate ? (
+                <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <DbIcon icon={SparkleIcon} color="ai" size={16} className="mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">Suggested template</p>
+                      <p className="text-hint text-muted-foreground">
+                        <span className="text-foreground">{sourceTemplate.displayName}</span> matches{" "}
+                        {source.name}. Apply it to auto-map this source into {target?.name}.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <Button variant="primary" size="xs" onClick={() => applyTemplate(sourceTemplate)}>
+                      <DbIcon icon={SparkleIcon} color="ai" size={16} />
+                      Apply template
+                    </Button>
+                  </div>
+                </div>
+              ) : source ? (
+                <div className="rounded-md border border-border bg-muted/40 p-3">
+                  <p className="text-hint text-muted-foreground">
+                    No normalization template exists for this source. Start from scratch — run
+                    Auto-normalize or map fields manually.
+                  </p>
+                </div>
+              ) : null
+            ) : null}
 
             <div className="flex items-center justify-between">
               <div>

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import type { PrototypeVariation } from "@/lib/usePrototypeVariation"
 import {
   GridIcon,
   DatasourceNavIcon,
@@ -46,6 +47,7 @@ export type LakewatchNavId =
   | "schemas"
   | "normalizers"
   | "data-models"
+  | "normalized-data"
   | "detection"
   | "settings"
   | "security-cases"
@@ -57,8 +59,8 @@ interface LakewatchSidebarProps {
   open?: boolean
   activeItem?: LakewatchNavId
   className?: string
-  prototypeVariation?: "p0" | "p1"
-  onPrototypeVariationChange?: (variation: "p0" | "p1") => void
+  prototypeVariation?: PrototypeVariation
+  onPrototypeVariationChange?: (variation: PrototypeVariation) => void
   p1Unlocked?: boolean
   onUnlockP1?: (password: string) => boolean
 }
@@ -137,9 +139,12 @@ export function LakewatchSidebar({
   const [passwordOpen, setPasswordOpen] = React.useState(false)
   const [password, setPassword] = React.useState("")
   const [passwordError, setPasswordError] = React.useState(false)
+  const [pendingVariation, setPendingVariation] =
+    React.useState<PrototypeVariation>("p1a")
 
-  const handleVariationChange = (value: "p0" | "p1") => {
-    if (value === "p1" && !p1Unlocked) {
+  const handleVariationChange = (value: PrototypeVariation) => {
+    if (value !== "p0" && !p1Unlocked) {
+      setPendingVariation(value)
       setPassword("")
       setPasswordError(false)
       setPasswordOpen(true)
@@ -154,7 +159,7 @@ export function LakewatchSidebar({
       setPasswordOpen(false)
       setPassword("")
       setPasswordError(false)
-      onPrototypeVariationChange?.("p1")
+      onPrototypeVariationChange?.(pendingVariation)
     } else {
       setPasswordError(true)
     }
@@ -199,13 +204,24 @@ export function LakewatchSidebar({
         <NavRow href="/lakewatch/observables" icon={VisibleIcon} active={activeItem === "observables"}>
           Observables
         </NavRow>
-        <NavRow
-          href="/lakewatch/data-models"
-          icon={DataModelNavIcon}
-          active={activeItem === "data-models"}
-        >
-          Data models
-        </NavRow>
+        {prototypeVariation === "p1a" ? (
+          <NavRow
+            href="/lakewatch/data-models"
+            icon={DataModelNavIcon}
+            active={activeItem === "data-models"}
+          >
+            Data models
+          </NavRow>
+        ) : null}
+        {prototypeVariation === "p1b" ? (
+          <NavRow
+            href="/lakewatch/normalized-data"
+            icon={DataModelNavIcon}
+            active={activeItem === "normalized-data"}
+          >
+            Normalized data
+          </NavRow>
+        ) : null}
 
         <div className="pt-2">
           <SectionLabel>Configure</SectionLabel>
@@ -231,7 +247,7 @@ export function LakewatchSidebar({
         >
           Parsers
         </NavRow>
-        {prototypeVariation === "p1" ? (
+        {prototypeVariation === "p1a" ? (
           <NavRow
             href="/lakewatch/normalizers"
             icon={NormalizersNavIcon}
@@ -267,14 +283,17 @@ export function LakewatchSidebar({
       <div className="shrink-0 px-3 pb-3 pt-2">
         <SegmentedControl
           value={prototypeVariation}
-          onValueChange={(value) => handleVariationChange(value as "p0" | "p1")}
+          onValueChange={(value) => handleVariationChange(value as PrototypeVariation)}
           className="w-full"
         >
           <SegmentedItem value="p0" className="flex-1">
             P0
           </SegmentedItem>
-          <SegmentedItem value="p1" className="flex-1">
-            P1 (WIP)
+          <SegmentedItem value="p1a" className="flex-1">
+            P1A (WIP)
+          </SegmentedItem>
+          <SegmentedItem value="p1b" className="flex-1">
+            P1B (WIP)
           </SegmentedItem>
         </SegmentedControl>
       </div>
@@ -284,7 +303,7 @@ export function LakewatchSidebar({
           <DialogHeader className="gap-1.5">
             <DialogTitle>Enter password</DialogTitle>
             <DialogDescription>
-              The P1 prototype is password protected.
+              The P1 prototypes are password protected.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="gap-2">

@@ -55,7 +55,7 @@ import {
   LakewatchWarehouseSelector,
   WarehouseStatusIndicator,
 } from "@/components/lakewatch/LakewatchWarehouseSelector"
-import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
+import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
@@ -2011,7 +2011,7 @@ export function LakewatchDatasourceDetailView() {
   const searchParams = useSearchParams()
   const sourceName = decodeURIComponent(params.sourceId ?? "lakewatch-account-us-west-2")
   const [variation] = usePrototypeVariation()
-  const isP1 = variation === "p1"
+  const isP1 = isAnyP1(variation)
 
   // When arriving from a Lakeflow Connect (API connector) add flow, the source
   // type and parsers are driven by the chosen connector rather than the S3

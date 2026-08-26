@@ -22,7 +22,7 @@ import {
   useIntegrationTemplates,
 } from "@/components/lakewatch/datasources-new/IntegrationTemplatesField"
 import { IngestionDlqAuthoringSummary } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
-import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
+import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import {
   RawDataPreview,
   RawDataPreviewSkeleton,
@@ -227,7 +227,7 @@ export function LakewatchLakeflowConnectWizardView({
 }) {
   const router = useRouter()
   const [variation] = usePrototypeVariation()
-  const isP1 = variation === "p1"
+  const isP1 = isAnyP1(variation)
   const label = CONNECT_SOURCES[source]
   const [connectionRows, setConnectionRows] = React.useState<ConnectionRow[]>(() =>
     buildConnectionRows(source)

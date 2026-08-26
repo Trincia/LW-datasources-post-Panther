@@ -32,7 +32,7 @@ import {
   STAGE_META,
   topFailingStage,
 } from "@/components/lakewatch/datasources-new/ingestionDlq"
-import { usePrototypeVariation } from "@/lib/usePrototypeVariation"
+import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { cn } from "@/lib/utils"
 
 type DatasourceRow = {
@@ -223,7 +223,7 @@ function DlqIndicator({ sourceId }: { sourceId: string }) {
 export function LakewatchDatasourcesOverviewView() {
   const [filter, setFilter] = React.useState("")
   const [variation] = usePrototypeVariation()
-  const isP1 = variation === "p1"
+  const isP1 = isAnyP1(variation)
 
   const filtered = React.useMemo(() => {
     const q = filter.trim().toLowerCase()
