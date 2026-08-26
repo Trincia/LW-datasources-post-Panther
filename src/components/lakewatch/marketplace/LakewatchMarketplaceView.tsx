@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 
 import { CatalogIcon, DetectionNavIcon, SchemaIcon, SearchIcon } from "@/components/icons"
 import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +38,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  connectedDatasource,
   DETECTION_RULES,
   type DetectionRule,
   type DetectionSeverity,
@@ -88,10 +87,7 @@ function DisabledTab({ label, tooltip }: { label: string; tooltip: string }) {
 
 export function LakewatchMarketplaceView() {
   const [query, setQuery] = React.useState("")
-  const [importTarget, setImportTarget] = React.useState<{
-    rule: DetectionRule
-    available: boolean
-  } | null>(null)
+  const [importRule, setImportRule] = React.useState<DetectionRule | null>(null)
 
   const rows = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -139,27 +135,26 @@ export function LakewatchMarketplaceView() {
 
         <TabsContent value="detection-rules" className="mt-4 min-h-0 flex-1">
           <div className="min-h-0 overflow-x-auto">
-            <Table className="min-w-[1180px] table-fixed">
+            <Table className="min-w-[1320px] table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[24%]">Name</TableHead>
+                  <TableHead className="w-[20%]">Name</TableHead>
                   <TableHead className="w-[11%]">Associated parser</TableHead>
-                  <TableHead className="w-[9%]">Severity</TableHead>
-                  <TableHead className="w-[13%]">MITRE tactic</TableHead>
-                  <TableHead className="w-[15%]">MITRE technique</TableHead>
-                  <TableHead className="w-[8%]">Technique ID</TableHead>
-                  <TableHead className="w-[14%]">Content pack</TableHead>
+                  <TableHead className="w-[13%]">Connected datasource</TableHead>
+                  <TableHead className="w-[8%]">Severity</TableHead>
+                  <TableHead className="w-[11%]">MITRE tactic</TableHead>
+                  <TableHead className="w-[13%]">MITRE technique</TableHead>
+                  <TableHead className="w-[7%]">Technique ID</TableHead>
+                  <TableHead className="w-[11%]">Content pack</TableHead>
                   <TableHead className="w-[6%] text-right">{""}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((rule, index) => (
+                {rows.map((rule) => (
                   <DetectionRuleRow
                     key={rule.name}
                     rule={rule}
-                    onImport={() =>
-                      setImportTarget({ rule, available: index % 2 === 0 })
-                    }
+                    onImport={() => setImportRule(rule)}
                   />
                 ))}
               </TableBody>
@@ -168,17 +163,10 @@ export function LakewatchMarketplaceView() {
         </TabsContent>
       </Tabs>
 
-      <Dialog
-        open={Boolean(importTarget)}
-        onOpenChange={(open) => !open && setImportTarget(null)}
-      >
+      <Dialog open={Boolean(importRule)} onOpenChange={(open) => !open && setImportRule(null)}>
         <DialogContent className="sm:max-w-xl">
-          {importTarget ? (
-            <ImportDialogBody
-              rule={importTarget.rule}
-              available={importTarget.available}
-              onDone={() => setImportTarget(null)}
-            />
+          {importRule ? (
+            <ImportDialogBody rule={importRule} onDone={() => setImportRule(null)} />
           ) : null}
         </DialogContent>
       </Dialog>
@@ -186,39 +174,15 @@ export function LakewatchMarketplaceView() {
   )
 }
 
-type DetectionStatus = "detecting" | "available" | "unavailable"
-
-function ImportDialogBody({
-  rule,
-  available,
-  onDone,
-}: {
-  rule: DetectionRule
-  available: boolean
-  onDone: () => void
-}) {
+function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () => void }) {
   const [catalog, setCatalog] = React.useState("sec_dev")
   const [schema, setSchema] = React.useState("detection_rules")
   const [name, setName] = React.useState(rule.name)
-  const [status, setStatus] = React.useState<DetectionStatus>("detecting")
-
-  React.useEffect(() => {
-    setStatus("detecting")
-    const timer = window.setTimeout(() => {
-      setStatus(available ? "available" : "unavailable")
-    }, 2000)
-    return () => window.clearTimeout(timer)
-  }, [rule, available])
-
-  const blocked = status === "unavailable"
-  const canImport =
-    status === "available" && catalog.trim() && schema.trim() && name.trim()
 
   return (
     <>
       <DialogHeader className="gap-3">
         <DialogTitle>Import</DialogTitle>
-        <DetectionStatusRow status={status} parser={rule.parser} />
         <DialogDescription>
           The following resources will be added to your team content in Lakewatch. If you already
           have a resource with the same name, the new content will be automatically renamed. You can
@@ -226,13 +190,8 @@ function ImportDialogBody({
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="gap-2">
-        <Label className={cn(blocked && "opacity-40")}>Resource</Label>
-        <div
-          className={cn(
-            "flex items-center gap-1 rounded-md border border-border px-2 py-1.5",
-            blocked && "pointer-events-none opacity-40"
-          )}
-        >
+        <Label>Resource</Label>
+        <div className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5">
           <PathSelect
             icon={<CatalogIcon size={16} className="shrink-0 text-muted-foreground" />}
             value={catalog}
@@ -240,7 +199,6 @@ function ImportDialogBody({
             options={CATALOG_OPTIONS}
             ariaLabel="Catalog"
             className="w-[26%]"
-            disabled={blocked}
           />
           <span className="text-muted-foreground">.</span>
           <PathSelect
@@ -250,7 +208,6 @@ function ImportDialogBody({
             options={SCHEMA_OPTIONS}
             ariaLabel="Schema"
             className="w-[30%]"
-            disabled={blocked}
           />
           <span className="text-muted-foreground">.</span>
           <PathSegment
@@ -259,7 +216,6 @@ function ImportDialogBody({
             onChange={setName}
             ariaLabel="Resource name"
             className="min-w-0 flex-1"
-            disabled={blocked}
           />
         </div>
       </DialogBody>
@@ -272,7 +228,7 @@ function ImportDialogBody({
         <Button
           variant="primary"
           size="sm"
-          disabled={!canImport}
+          disabled={!catalog.trim() || !schema.trim() || !name.trim()}
           onClick={() => {
             toast.success(`Imported ${catalog}.${schema}.${name}`)
             onDone()
@@ -282,45 +238,6 @@ function ImportDialogBody({
         </Button>
       </DialogFooter>
     </>
-  )
-}
-
-function DetectionStatusRow({
-  status,
-  parser,
-}: {
-  status: DetectionStatus
-  parser: string
-}) {
-  if (status === "unavailable") {
-    return (
-      <Alert variant="warning">
-        <TriangleAlert />
-        <AlertDescription>
-          Your workspace doesn&apos;t have a datasource with the required parser{" "}
-          <span className="font-semibold">{parser}</span> to use this detection rule and can&apos;t
-          import it at this time.
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (status === "available") {
-    return (
-      <div className="flex items-center gap-2 text-sm text-foreground">
-        <CheckCircle2 className="h-4 w-4 text-[var(--success)]" />
-        <span>
-          Required datasource parser <span className="font-semibold">{parser}</span> is available.
-        </span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      <span>Detecting datasources with required parser…</span>
-    </div>
   )
 }
 
@@ -396,6 +313,9 @@ function PathSelect({
 }
 
 function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: () => void }) {
+  const datasource = connectedDatasource(rule)
+  const canImport = datasource !== null
+
   return (
     <TableRow className="h-12">
       <TableCell>
@@ -407,6 +327,15 @@ function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: (
         <Badge variant="charcoal" className="rounded-full px-2 font-normal dark:bg-grey-400">
           {rule.parser}
         </Badge>
+      </TableCell>
+      <TableCell>
+        {datasource ? (
+          <span className="block truncate text-foreground" title={datasource}>
+            {datasource}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">None</span>
+        )}
       </TableCell>
       <TableCell>
         <Badge variant={SEVERITY_BADGE[rule.severity]}>{rule.severity}</Badge>
@@ -424,9 +353,25 @@ function DetectionRuleRow({ rule, onImport }: { rule: DetectionRule; onImport: (
         </span>
       </TableCell>
       <TableCell className="text-right">
-        <Button variant="default" size="xs" onClick={onImport}>
-          Import
-        </Button>
+        {canImport ? (
+          <Button variant="default" size="xs" onClick={onImport}>
+            Import
+          </Button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">
+                <Button variant="default" size="xs" disabled className="pointer-events-none">
+                  Import
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Can&apos;t import — no datasource with the {rule.parser} parser is connected to this
+              workspace.
+            </TooltipContent>
+          </Tooltip>
+        )}
       </TableCell>
     </TableRow>
   )

@@ -15,6 +15,31 @@ export type DetectionRule = {
   pack: string
 }
 
+// Realistic datasource instance name that would produce each parser's events.
+const PARSER_DATASOURCE: Record<string, string> = {
+  "Databricks.Audit": "databricks-audit-prod",
+  "Okta.SystemLog": "okta-corp",
+  "AWS.CloudTrail": "aws-cloudtrail-org",
+  "AWS.GuardDuty": "aws-guardduty-prod",
+  "AWS.VPCFlow": "aws-vpcflow-prod",
+  "AzureAD.SignInLogs": "entra-signin-logs",
+  "GCP.AuditLog": "gcp-audit-org",
+  "GitHub.AuditLog": "github-enterprise",
+  "Kubernetes.Audit": "eks-audit-prod",
+  "Slack.AuditLogs": "slack-enterprise",
+}
+
+/**
+ * Connected datasource for a rule's parser, or `null` when no datasource in the
+ * workspace is wired to that parser. Deterministic so ~20% of rules return null.
+ */
+export function connectedDatasource(rule: DetectionRule): string | null {
+  let hash = 0
+  for (const char of rule.name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  if (hash % 5 === 0) return null
+  return PARSER_DATASOURCE[rule.parser] ?? null
+}
+
 export const DETECTION_RULES: DetectionRule[] = [
   {
     name: "acl_controls_disabled",
