@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { LakewatchAppShell } from "@/components/lakewatch"
 import { LakewatchDetectionRulesView } from "@/components/lakewatch/detection-rules/LakewatchDetectionRulesView"
 
@@ -11,7 +13,9 @@ export default function LakewatchDetectionRulesPage() {
       userInitial="J"
       mainClassName="relative flex flex-col overflow-hidden"
     >
-      <LakewatchDetectionRulesView />
+      <Suspense fallback={null}>
+        <LakewatchDetectionRulesView />
+      </Suspense>
     </LakewatchAppShell>
   )
 }
