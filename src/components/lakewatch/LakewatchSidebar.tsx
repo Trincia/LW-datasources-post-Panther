@@ -24,7 +24,6 @@ import {
   GridIcon,
   DatasourceNavIcon,
   SchemasNavIcon,
-  NormalizersNavIcon,
   DataModelNavIcon,
   DetectionNavIcon,
   ContentLibraryNavIcon,
@@ -141,7 +140,7 @@ export function LakewatchSidebar({
   const [password, setPassword] = React.useState("")
   const [passwordError, setPasswordError] = React.useState(false)
   const [pendingVariation, setPendingVariation] =
-    React.useState<PrototypeVariation>("p1a")
+    React.useState<PrototypeVariation>("p1")
 
   const handleVariationChange = (value: PrototypeVariation) => {
     if (value !== "p0" && !p1Unlocked) {
@@ -209,16 +208,7 @@ export function LakewatchSidebar({
         <NavRow href="/lakewatch/observables" icon={VisibleIcon} active={activeItem === "observables"}>
           Observables
         </NavRow>
-        {prototypeVariation === "p1a" ? (
-          <NavRow
-            href="/lakewatch/data-models"
-            icon={DataModelNavIcon}
-            active={activeItem === "data-models"}
-          >
-            Data models
-          </NavRow>
-        ) : null}
-        {prototypeVariation === "p1b" ? (
+        {prototypeVariation === "p1" ? (
           <NavRow
             href="/lakewatch/normalized-data"
             icon={DataModelNavIcon}
@@ -252,15 +242,6 @@ export function LakewatchSidebar({
         >
           Parsers
         </NavRow>
-        {prototypeVariation === "p1a" ? (
-          <NavRow
-            href="/lakewatch/normalizers"
-            icon={NormalizersNavIcon}
-            active={activeItem === "normalizers"}
-          >
-            Normalizers
-          </NavRow>
-        ) : null}
         <NavRow
           href="/lakewatch/system-cases"
           icon={WarningIcon}
@@ -294,11 +275,8 @@ export function LakewatchSidebar({
           <SegmentedItem value="p0" className="flex-1">
             P0
           </SegmentedItem>
-          <SegmentedItem value="p1a" className="flex-1">
-            P1A (WIP)
-          </SegmentedItem>
-          <SegmentedItem value="p1b" className="flex-1">
-            P1B (WIP)
+          <SegmentedItem value="p1" className="flex-1">
+            P1
           </SegmentedItem>
         </SegmentedControl>
       </div>

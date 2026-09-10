@@ -52,6 +52,7 @@ import {
   getRuleDetail,
   isInstalledInWorkspace,
   type DetectionRule,
+  type DetectionRuleDetail,
   type DetectionSeverity,
 } from "@/components/lakewatch/marketplace/detectionRules"
 import {
@@ -70,6 +71,15 @@ const SEVERITY_BADGE: Record<
   Medium: "lemon",
   Low: "secondary",
   Informational: "teal",
+}
+
+const FIDELITY_BADGE: Record<
+  DetectionRuleDetail["fidelity"],
+  React.ComponentProps<typeof Badge>["variant"]
+> = {
+  High: "lime",
+  Medium: "lemon",
+  Low: "charcoal",
 }
 
 // --- Detection rules facet options (derived once from the catalog) ----------
@@ -616,7 +626,7 @@ export function LakewatchMarketplaceView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-start justify-between gap-4">
-        <h1 className={PAGE_TITLE_SEMIBOLD}>Marketplace</h1>
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Content library</h1>
       </div>
 
       <Tabs defaultValue="detection-rules" className="mt-5 flex min-h-0 flex-1 flex-col">
@@ -771,17 +781,19 @@ export function LakewatchMarketplaceView() {
   )
 }
 
-function DetectionRuleDetailPanel({
+export function DetectionRuleDetailPanel({
   rule,
   installed,
   onImport,
+  datasources: datasourceOverride,
 }: {
   rule: DetectionRule
   installed: boolean
   onImport: () => void
+  datasources?: string[]
 }) {
   const detail = getRuleDetail(rule)
-  const datasources = connectedDatasources(rule)
+  const datasources = datasourceOverride ?? connectedDatasources(rule)
   const canImport = datasources.length > 0 && !installed
   const mitre = rule.tactic && rule.technique ? `${rule.tactic} / ${rule.technique}` : null
 
@@ -854,8 +866,16 @@ function DetectionRuleDetailPanel({
         </DetailSection>
 
         <div className="grid grid-cols-3 gap-4">
-          <DetailField label="Severity" value={rule.severity} />
-          <DetailField label="Fidelity" value={detail.fidelity} />
+          <DetailBadgeField
+            label="Severity"
+            value={rule.severity}
+            variant={SEVERITY_BADGE[rule.severity]}
+          />
+          <DetailBadgeField
+            label="Fidelity"
+            value={detail.fidelity}
+            variant={FIDELITY_BADGE[detail.fidelity]}
+          />
           <DetailField label="Category" value={detail.category} />
         </div>
 
@@ -866,7 +886,9 @@ function DetectionRuleDetailPanel({
                 {mitre}
               </Badge>
               {rule.techniqueId ? (
-                <span className="text-xs text-muted-foreground">{rule.techniqueId}</span>
+                <Badge variant="secondary" className="font-normal">
+                  {rule.techniqueId}
+                </Badge>
               ) : null}
             </div>
           ) : (
@@ -904,6 +926,25 @@ function DetailField({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col gap-1">
       <span className="font-semibold text-foreground">{label}</span>
       <span className="text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function DetailBadgeField({
+  label,
+  value,
+  variant,
+}: {
+  label: string
+  value: string
+  variant: React.ComponentProps<typeof Badge>["variant"]
+}) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className="font-semibold text-foreground">{label}</span>
+      <Badge variant={variant} className="font-normal">
+        {value}
+      </Badge>
     </div>
   )
 }

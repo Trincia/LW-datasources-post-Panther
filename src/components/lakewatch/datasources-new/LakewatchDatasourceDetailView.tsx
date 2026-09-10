@@ -56,6 +56,8 @@ import {
   type DetectionRuleListItem,
   type DetectionSeverity,
 } from "@/components/lakewatch/detection-rules/detectionRulesList"
+import { DetectionRuleDetailPanel } from "@/components/lakewatch/marketplace/LakewatchMarketplaceView"
+import type { DetectionRule } from "@/components/lakewatch/marketplace/detectionRules"
 import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
@@ -86,6 +88,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Alert, AlertTitle } from "@/components/ui/alert"
 import { Empty } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -108,6 +111,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import {
   Table,
   TableBody,
@@ -2093,6 +2097,9 @@ function DatasourceDetectionRulesTab({
   const [availableRules, setAvailableRules] = React.useState(
     initialRules.available
   )
+  const [detailRule, setDetailRule] = React.useState<DetectionRuleListItem | null>(
+    null
+  )
 
   const importRule = (rule: DetectionRuleListItem) => {
     setAvailableRules((current) => current.filter((item) => item.id !== rule.id))
@@ -2139,6 +2146,7 @@ function DatasourceDetectionRulesTab({
             rules={availableRules}
             mode="available"
             onImport={importRule}
+            onOpenRule={setDetailRule}
           />
         ) : (
           <Empty
@@ -2148,8 +2156,48 @@ function DatasourceDetectionRulesTab({
           />
         )}
       </section>
+
+      <Sheet
+        open={Boolean(detailRule)}
+        onOpenChange={(open) => !open && setDetailRule(null)}
+      >
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[600px]">
+          {detailRule ? (
+            <DetectionRuleDetailPanel
+              rule={toCatalogDetectionRule(detailRule)}
+              installed={false}
+              datasources={[datasourceName]}
+              onImport={() => {
+                importRule(detailRule)
+                setDetailRule(null)
+              }}
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   )
+}
+
+const PARSER_BY_RULE_LOCATION: Record<string, string> = {
+  "Slack Audit Logs": "Slack.AuditLogs",
+  "Okta Logs": "Okta.SystemLog",
+  "AWS CloudTrail": "AWS.CloudTrail",
+  "VPC Flow Logs": "AWS.VPCFlow",
+  "AWS GuardDuty": "AWS.GuardDuty",
+  "GitHub Audit Log": "GitHub.AuditLog",
+}
+
+function toCatalogDetectionRule(rule: DetectionRuleListItem): DetectionRule {
+  return {
+    name: rule.name,
+    parser: PARSER_BY_RULE_LOCATION[rule.location] ?? rule.location,
+    severity: rule.severity,
+    tactic: rule.category,
+    technique: "",
+    techniqueId: "",
+    pack: `${rule.location} detections`,
+  }
 }
 
 function DatasourceDetectionRulesTable({
@@ -2157,11 +2205,13 @@ function DatasourceDetectionRulesTable({
   mode,
   onActiveChange,
   onImport,
+  onOpenRule,
 }: {
   rules: DetectionRuleListItem[]
   mode: "current" | "available"
   onActiveChange?: (id: string, active: boolean) => void
   onImport?: (rule: DetectionRuleListItem) => void
+  onOpenRule?: (rule: DetectionRuleListItem) => void
 }) {
   return (
     <Table>
@@ -2192,7 +2242,14 @@ function DatasourceDetectionRulesTable({
                   <Link href={`/lakewatch/detection/${rule.id}`}>{rule.name}</Link>
                 </Button>
               ) : (
-                <span className="font-semibold text-foreground">{rule.name}</span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto justify-start p-0 !px-0 font-semibold"
+                  onClick={() => onOpenRule?.(rule)}
+                >
+                  {rule.name}
+                </Button>
               )}
             </TableCell>
             <TableCell className="max-w-[360px] whitespace-normal text-foreground">
@@ -2397,6 +2454,15 @@ export function LakewatchDatasourceDetailView() {
   const [nullTimestampCheck, setNullTimestampCheck] = React.useState(false)
   const [toolbarDirty, setToolbarDirty] = React.useState(false)
   const [runAs, setRunAs] = React.useState("beau.trincia@databricks.com")
+  const [activeTab, setActiveTab] = React.useState(() => {
+    const tab = searchParams.get("tab")
+    if (isP1 && (tab === "dlq" || tab === "normalize")) return tab
+    return "overview"
+  })
+  const availableRulesCount = React.useMemo(
+    () => getDatasourceRuleSet(sourceName, connectorKey).available.length,
+    [sourceName, connectorKey]
+  )
   const healthEnabled =
     volumeCheck ||
     latencyCheck ||
@@ -2457,13 +2523,34 @@ export function LakewatchDatasourceDetailView() {
         </div>
       </div>
 
+      {availableRulesCount > 0 && activeTab !== "detection-rules" ? (
+        <Alert
+          className="mt-5"
+          rightAction={
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setActiveTab("detection-rules")}
+            >
+              View available rules
+            </Button>
+          }
+        >
+          <InfoSmallIcon className="h-4 w-4" />
+          <AlertTitle>
+            {availableRulesCount}{" "}
+            {availableRulesCount === 1
+              ? "detection rule is"
+              : "detection rules are"}{" "}
+            available for this datasource
+          </AlertTitle>
+        </Alert>
+      ) : null}
+
       <Tabs
-        defaultValue={
-          isP1 && (searchParams.get("tab") === "dlq" || searchParams.get("tab") === "normalize")
-            ? (searchParams.get("tab") as string)
-            : "overview"
-        }
-        className="mt-5"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className={availableRulesCount > 0 && activeTab !== "detection-rules" ? "mt-4" : "mt-5"}
       >
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>

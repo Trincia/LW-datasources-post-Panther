@@ -3,7 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import {
+  ChevronDownIcon,
   ColumnsIcon,
+  ContentLibraryNavIcon,
   PlusIcon,
   SearchIcon,
 } from "@/components/icons"
@@ -22,6 +24,12 @@ import {
 } from "@/components/lakewatch/detection-rules/detectionRulesList"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Empty } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -201,10 +209,32 @@ export function LakewatchDetectionRulesView() {
       <div className="flex items-start justify-between gap-4">
         <h1 className={PAGE_TITLE_SEMIBOLD}>Detection rules</h1>
         <div className="flex shrink-0 items-center gap-2.5">
-          <Button variant="primary" size="sm">
-            <PlusIcon size={16} />
-            Create detection rule
-          </Button>
+          <div className="flex">
+            <Button variant="primary" size="sm" className="rounded-r-none">
+              <PlusIcon size={16} />
+              Create detection rule
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="primary"
+                  size="icon-sm"
+                  className="rounded-l-none border-l border-primary-foreground/30"
+                  aria-label="More detection rule actions"
+                >
+                  <ChevronDownIcon size={16} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link href="/lakewatch/marketplace">
+                    <ContentLibraryNavIcon size={16} />
+                    Import from Content library
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
