@@ -1,10 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { ChevronDown, X } from "lucide-react"
 
-import { CatalogIcon, DetectionNavIcon, SchemaIcon, SearchIcon } from "@/components/icons"
+import {
+  DatabaseIcon,
+  FolderIcon,
+  SearchIcon,
+  TargetIcon,
+} from "@/components/icons"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -59,8 +64,9 @@ import {
   MITRE_ENTERPRISE_TACTICS,
   MITRE_ENTERPRISE_VERSION,
 } from "@/components/lakewatch/marketplace/mitreEnterprise"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
+
+const IMPORTED_RULES_STORAGE_KEY = "lakewatch-imported-detection-rules"
 
 const SEVERITY_BADGE: Record<
   DetectionSeverity,
@@ -476,8 +482,10 @@ export function MitreTacticFilter({
 }
 
 export function LakewatchMarketplaceView() {
+  const router = useRouter()
   const [query, setQuery] = React.useState("")
-  const [importRule, setImportRule] = React.useState<DetectionRule | null>(null)
+  const [importRules, setImportRules] = React.useState<DetectionRule[]>([])
+  const [successRules, setSuccessRules] = React.useState<DetectionRule[]>([])
   const [detailRule, setDetailRule] = React.useState<DetectionRule | null>(null)
 
   const [severities, setSeverities] = React.useState<string[]>([])
@@ -488,6 +496,9 @@ export function LakewatchMarketplaceView() {
   const [installedOnly, setInstalledOnly] = React.useState(false)
   const [installedNames, setInstalledNames] = React.useState(
     () => new Set(INITIAL_INSTALLED_NAMES)
+  )
+  const [selectedNames, setSelectedNames] = React.useState<Set<string>>(
+    () => new Set()
   )
 
   const activeCount =
@@ -576,6 +587,70 @@ export function LakewatchMarketplaceView() {
     () => facetFiltered.filter((rule) => matchesSearch(rule, searchQuery)),
     [facetFiltered, searchQuery]
   )
+  const selectableRows = React.useMemo(
+    () =>
+      rows.filter(
+        (rule) =>
+          connectedDatasources(rule).length > 0 &&
+          !installedNames.has(rule.name)
+      ),
+    [installedNames, rows]
+  )
+  const allVisibleSelected =
+    selectableRows.length > 0 &&
+    selectableRows.every((rule) => selectedNames.has(rule.name))
+  const someVisibleSelected =
+    !allVisibleSelected &&
+    selectableRows.some((rule) => selectedNames.has(rule.name))
+
+  const setRuleSelected = React.useCallback(
+    (name: string, selected: boolean) => {
+      setSelectedNames((current) => {
+        const next = new Set(current)
+        if (selected) next.add(name)
+        else next.delete(name)
+        return next
+      })
+    },
+    []
+  )
+
+  const setAllVisibleSelected = (selected: boolean) => {
+    setSelectedNames((current) => {
+      const next = new Set(current)
+      selectableRows.forEach((rule) => {
+        if (selected) next.add(rule.name)
+        else next.delete(rule.name)
+      })
+      return next
+    })
+  }
+
+  const importSelectedRules = () => {
+    setImportRules(
+      DETECTION_RULES.filter((rule) => selectedNames.has(rule.name))
+    )
+  }
+
+  const finishImport = (rules: DetectionRule[]) => {
+    setInstalledNames(
+      (current) => new Set([...current, ...rules.map((rule) => rule.name)])
+    )
+    setSelectedNames(new Set())
+    setImportRules([])
+    setDetailRule(null)
+    window.sessionStorage.setItem(
+      IMPORTED_RULES_STORAGE_KEY,
+      JSON.stringify(rules)
+    )
+    setSuccessRules(rules)
+  }
+
+  const viewImportedRules = () => {
+    const names = successRules.map((rule) => rule.name).join("|")
+    setSuccessRules([])
+    router.push(`/lakewatch/detection?imported=${encodeURIComponent(names)}`)
+  }
 
   const parserOptions = React.useMemo(
     () =>
@@ -700,21 +775,48 @@ export function LakewatchMarketplaceView() {
             <span className="ml-1 text-sm text-muted-foreground">
               {rows.length} {rows.length === 1 ? "result" : "results"}
             </span>
-            {activeCount > 0 ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="ml-auto h-8 px-2"
-                onClick={clearAll}
-              >
-                Clear all
-              </Button>
-            ) : null}
+            <div className="ml-auto flex items-center gap-2">
+              {selectedNames.size >= 2 || allVisibleSelected ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={importSelectedRules}
+                >
+                  Import ({selectedNames.size})
+                </Button>
+              ) : null}
+              {activeCount > 0 ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={clearAll}
+                >
+                  Clear all
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="min-h-0 overflow-x-auto">
             <Table className="min-w-[1320px] table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-9">
+                    <Checkbox
+                      checked={
+                        allVisibleSelected
+                          ? true
+                          : someVisibleSelected
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={(checked) =>
+                        setAllVisibleSelected(checked === true)
+                      }
+                      disabled={selectableRows.length === 0}
+                      aria-label="Select all importable detection rules"
+                    />
+                  </TableHead>
                   <TableHead className="w-[20%]">Name</TableHead>
                   <TableHead className="w-[11%]">Associated parser</TableHead>
                   <TableHead className="w-[13%]">Connected datasource</TableHead>
@@ -731,9 +833,13 @@ export function LakewatchMarketplaceView() {
                   <DetectionRuleRow
                     key={rule.name}
                     rule={rule}
-                    onImport={() => setImportRule(rule)}
+                    onImport={() => setImportRules([rule])}
                     onOpen={() => setDetailRule(rule)}
                     installed={installedNames.has(rule.name)}
+                    selected={selectedNames.has(rule.name)}
+                    onSelectedChange={(selected) =>
+                      setRuleSelected(rule.name, selected)
+                    }
                     onToggleSeverity={(value) => toggleValue(setSeverities, value)}
                     onToggleParser={(value) => toggleValue(setParsers, value)}
                     onToggleTechniqueId={(value) => toggleValue(setTechniqueIds, value)}
@@ -748,20 +854,47 @@ export function LakewatchMarketplaceView() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={Boolean(importRule)} onOpenChange={(open) => !open && setImportRule(null)}>
-        <DialogContent className="sm:max-w-xl">
-          {importRule ? (
-            <ImportDialogBody
-              rule={importRule}
-              onDone={() => {
-                setInstalledNames((current) => {
-                  const next = new Set(current)
-                  next.add(importRule.name)
-                  return next
-                })
-                setImportRule(null)
-              }}
+      <Dialog
+        open={importRules.length > 0}
+        onOpenChange={(open) => !open && setImportRules([])}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
+          {importRules.length > 0 ? (
+            <ImportRulesDialogBody
+              rules={importRules}
+              onDone={() => finishImport(importRules)}
             />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={successRules.length > 0}
+        onOpenChange={(open) => !open && setSuccessRules([])}
+      >
+        <DialogContent className="sm:max-w-md">
+          {successRules.length > 0 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Import complete</DialogTitle>
+                <DialogDescription>
+                  {successRules.length === 1
+                    ? "1 rule has been successfully imported. This rule is not yet enabled."
+                    : `${successRules.length} rules have been successfully imported. These rules are not yet enabled.`}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="default" size="sm">
+                    Done
+                  </Button>
+                </DialogClose>
+                <Button variant="primary" size="sm" onClick={viewImportedRules}>
+                  View &amp; enable{" "}
+                  {successRules.length === 1 ? "rule" : "rules"}
+                </Button>
+              </DialogFooter>
+            </>
           ) : null}
         </DialogContent>
       </Dialog>
@@ -772,7 +905,7 @@ export function LakewatchMarketplaceView() {
             <DetectionRuleDetailPanel
               rule={detailRule}
               installed={installedNames.has(detailRule.name)}
-              onImport={() => setImportRule(detailRule)}
+              onImport={() => setImportRules([detailRule])}
             />
           ) : null}
         </SheetContent>
@@ -967,86 +1100,178 @@ function CodeBlock({ code }: { code: string }) {
   )
 }
 
-function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () => void }) {
-  const [catalog, setCatalog] = React.useState("sec_dev")
-  const [schema, setSchema] = React.useState("detection_rules")
-  const [name, setName] = React.useState(rule.name)
-  const datasources = connectedDatasources(rule)
-  const needsAssignment = datasources.length > 1
-  const [assignedDatasource, setAssignedDatasource] = React.useState("")
+const IMPORT_TABLES: Record<string, { label: string; table: string }> = {
+  "AWS.CloudTrail": {
+    label: "AWS CloudTrail events",
+    table: "aws_cloudtrail",
+  },
+  "AWS.GuardDuty": {
+    label: "AWS GuardDuty findings",
+    table: "aws_guardduty_findings",
+  },
+  "AWS.VPCFlow": {
+    label: "AWS VPC Flow events",
+    table: "aws_vpc_flow",
+  },
+  "Databricks.Audit": {
+    label: "Databricks audit events",
+    table: "databricks_audit",
+  },
+  "GitHub.AuditLog": {
+    label: "GitHub audit events",
+    table: "github_audit_log",
+  },
+  "Okta.SystemLog": {
+    label: "Okta system events",
+    table: "okta_system_log",
+  },
+  "Slack.AuditLogs": {
+    label: "Slack audit events",
+    table: "slack_audit_logs",
+  },
+}
 
-  const canImport =
-    Boolean(catalog.trim() && schema.trim() && name.trim()) &&
-    (!needsAssignment || Boolean(assignedDatasource))
+function ImportRulesDialogBody({
+  rules,
+  onDone,
+}: {
+  rules: DetectionRule[]
+  onDone: () => void
+}) {
+  const [schema, setSchema] = React.useState("default")
+  const tables = Array.from(
+    new Map(
+      rules.map((rule) => {
+        const definition = IMPORT_TABLES[rule.parser] ?? {
+          label: `${rule.parser} events`,
+          table: rule.parser.toLowerCase().replaceAll(".", "_"),
+        }
+        return [rule.parser, definition] as const
+      })
+    ).values()
+  )
+  const ruleLabel = rules.length === 1 ? "rule" : "rules"
 
   return (
     <>
-      <DialogHeader className="gap-3">
-        <DialogTitle>Import</DialogTitle>
-        <DialogDescription>
-          The following resources will be added to your team content in Lakewatch. If you already
-          have a resource with the same name, the new content will be automatically renamed. You can
-          change resource names later.
-        </DialogDescription>
+      <DialogHeader>
+        <DialogTitle>
+          Import {rules.length} {ruleLabel}
+        </DialogTitle>
       </DialogHeader>
-      <DialogBody className="gap-4">
-        {needsAssignment ? (
-          <div className="flex flex-col gap-2">
-            <Label>Select the datasource to assign this rule to</Label>
-            <RadioGroup
-              value={assignedDatasource}
-              onValueChange={setAssignedDatasource}
-              className="gap-0 overflow-hidden rounded-md border border-border"
-            >
-              {datasources.map((ds, index) => (
-                <label
-                  key={ds}
-                  htmlFor={`ds-${index}`}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2 px-3 py-2.5",
-                    index > 0 && "border-t border-border",
-                    assignedDatasource === ds && "bg-primary/5"
-                  )}
-                >
-                  <RadioGroupItem id={`ds-${index}`} value={ds} />
-                  <CatalogIcon size={16} className="shrink-0 text-muted-foreground" />
-                  <span className="text-sm text-foreground">{ds}</span>
-                </label>
-              ))}
-            </RadioGroup>
+
+      <DialogBody className="gap-6">
+        <div>
+          <div className="grid max-w-lg grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
+              <Label>Catalog</Label>
+              <Button
+                variant="default"
+                size="sm"
+                className="justify-start"
+                disabled
+              >
+                <DatabaseIcon size={16} />
+                lakewatch_v2
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Schema</Label>
+              <Select value={schema} onValueChange={setSchema}>
+                <SelectTrigger>
+                  <span className="flex items-center gap-2">
+                    <DatabaseIcon size={16} className="text-muted-foreground" />
+                    <SelectValue />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">default</SelectItem>
+                  <SelectItem value="detection_rules">
+                    detection_rules
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        ) : null}
-        <div className="flex flex-col gap-2">
-        <Label>Resource</Label>
-        <div className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5">
-          <PathSelect
-            icon={<CatalogIcon size={16} className="shrink-0 text-muted-foreground" />}
-            value={catalog}
-            onChange={setCatalog}
-            options={CATALOG_OPTIONS}
-            ariaLabel="Catalog"
-            className="w-[26%]"
-          />
-          <span className="text-muted-foreground">.</span>
-          <PathSelect
-            icon={<SchemaIcon size={16} className="shrink-0 text-muted-foreground" />}
-            value={schema}
-            onChange={setSchema}
-            options={SCHEMA_OPTIONS}
-            ariaLabel="Schema"
-            className="w-[30%]"
-          />
-          <span className="text-muted-foreground">.</span>
-          <PathSegment
-            icon={<DetectionNavIcon size={16} className="shrink-0 text-muted-foreground" />}
-            value={name}
-            onChange={setName}
-            ariaLabel="Resource name"
-            className="min-w-0 flex-1"
-          />
+          <p className="mt-2 text-muted-foreground">
+            The default location where all rules are installed. You can change
+            it for each rule below.
+          </p>
         </div>
-        </div>
+
+        <section className="flex flex-col gap-2">
+          <div>
+            <h3 className="font-semibold text-foreground">SQL tables</h3>
+            <p className="text-muted-foreground">
+              Set the tables used by the rules you&apos;re importing. Expand a
+              rule below to override its tables.
+            </p>
+          </div>
+          {tables.map((table) => (
+            <div
+              key={table.table}
+              className="grid items-center gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]"
+            >
+              <Label>{table.label}</Label>
+              <div className="flex">
+                <Input
+                  value={`lakewatch_v2.${schema}.${table.table}`}
+                  readOnly
+                  aria-label={`${table.label} table`}
+                  className="rounded-r-none"
+                />
+                <Button
+                  variant="default"
+                  size="icon-sm"
+                  className="-ml-px rounded-l-none"
+                  aria-label={`Browse for ${table.label} table`}
+                >
+                  <FolderIcon size={16} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h3 className="font-semibold text-foreground">
+            Rules to import ({rules.length})
+          </h3>
+          <Accordion
+            type="multiple"
+            className="overflow-hidden rounded-md border border-border"
+          >
+            {rules.map((rule) => (
+              <AccordionItem key={rule.name} value={rule.name}>
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <TargetIcon
+                      size={16}
+                      className="shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate font-semibold text-foreground">
+                      {rule.name}
+                    </span>
+                    <span className="truncate text-muted-foreground">
+                      {rule.pack}
+                    </span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-4">
+                  <div className="flex flex-col gap-2">
+                    <Label>Install location</Label>
+                    <Input
+                      value={`lakewatch_v2.${schema}.${rule.name}`}
+                      readOnly
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </section>
       </DialogBody>
+
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="default" size="sm">
@@ -1056,88 +1281,12 @@ function ImportDialogBody({ rule, onDone }: { rule: DetectionRule; onDone: () =>
         <Button
           variant="primary"
           size="sm"
-          disabled={!canImport}
-          onClick={() => {
-            const target = needsAssignment ? ` to ${assignedDatasource}` : ""
-            toast.success(`Imported ${catalog}.${schema}.${name}${target}`)
-            onDone()
-          }}
+          onClick={onDone}
         >
           Import
         </Button>
       </DialogFooter>
     </>
-  )
-}
-
-const CATALOG_OPTIONS = ["sec_dev", "sec_prod", "main"]
-const SCHEMA_OPTIONS = ["detection_rules", "default", "security_content"]
-
-function PathSegment({
-  icon,
-  value,
-  onChange,
-  ariaLabel,
-  className,
-  disabled,
-}: {
-  icon: React.ReactNode
-  value: string
-  onChange: (value: string) => void
-  ariaLabel: string
-  className?: string
-  disabled?: boolean
-}) {
-  return (
-    <div className={cn("flex items-center gap-1.5", className)}>
-      {icon}
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        className="h-7 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-      />
-    </div>
-  )
-}
-
-function PathSelect({
-  icon,
-  value,
-  onChange,
-  options,
-  ariaLabel,
-  className,
-  disabled,
-}: {
-  icon: React.ReactNode
-  value: string
-  onChange: (value: string) => void
-  options: string[]
-  ariaLabel: string
-  className?: string
-  disabled?: boolean
-}) {
-  return (
-    <div className={cn("flex items-center gap-1.5", className)}>
-      {icon}
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger
-          aria-label={ariaLabel}
-          className="h-7 w-full min-w-0 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
   )
 }
 
@@ -1182,6 +1331,8 @@ function DetectionRuleRow({
   rule,
   onImport,
   onOpen,
+  selected,
+  onSelectedChange,
   onToggleSeverity,
   onToggleParser,
   onToggleTechniqueId,
@@ -1193,6 +1344,8 @@ function DetectionRuleRow({
   rule: DetectionRule
   onImport: () => void
   onOpen: () => void
+  selected: boolean
+  onSelectedChange: (selected: boolean) => void
   onToggleSeverity: (value: string) => void
   onToggleParser: (value: string) => void
   onToggleTechniqueId: (value: string) => void
@@ -1206,6 +1359,14 @@ function DetectionRuleRow({
 
   return (
     <TableRow className="h-12">
+      <TableCell>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(checked) => onSelectedChange(checked === true)}
+          disabled={!canImport}
+          aria-label={`Select ${rule.name} for import`}
+        />
+      </TableCell>
       <TableCell>
         <button
           type="button"

@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 const OVERVIEW_ROWS = Array.from({ length: 5 }, (_, index) => ({
   id: index,
@@ -69,34 +69,35 @@ export function LakewatchOverviewView() {
         </DropdownMenu>
       </div>
 
-      <section className="mx-auto mt-2 flex w-full max-w-3xl flex-col items-center gap-2">
+      <section className="mx-auto mt-2 flex w-full max-w-[710px] flex-col items-center gap-2">
         <h1 className={`${PAGE_TITLE_SEMIBOLD} text-center`}>
           What do you want to build or investigate with your data?
         </h1>
         <form
-          className="relative w-full"
+          className="bg-ai-gradient relative h-15 w-full rounded-md p-px shadow-[var(--shadow-db-sm)]"
           onSubmit={(event) => event.preventDefault()}
         >
-          <Input
+          <Textarea
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder="Ask Genie anything about your security data..."
             aria-label="Ask Genie about your security data"
-            className="h-14 rounded-md border-primary pr-12 shadow-[var(--shadow-db-sm)]"
+            rows={2}
+            className="h-full min-h-0 resize-none rounded-md border-0 bg-background px-3 py-2 pb-8 text-sm shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-background"
           />
           <Button
             type="submit"
             variant="ghost"
             size="icon-xs"
             aria-label="Send to Genie"
-            className="absolute right-2 top-1/2 -translate-y-1/2"
+            className="absolute bottom-2 right-2"
           >
             <SendIcon size={16} className="text-muted-foreground" />
           </Button>
         </form>
       </section>
 
-      <div className="mt-2 grid gap-4 xl:grid-cols-2">
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <TrendCard
           title="Datasources"
           summary="10 total datasources"

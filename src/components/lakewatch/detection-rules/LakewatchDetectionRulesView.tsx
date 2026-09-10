@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import {
   ChevronDownIcon,
   ColumnsIcon,
@@ -15,6 +16,7 @@ import {
   MitreTacticFilter,
 } from "@/components/lakewatch/marketplace/LakewatchMarketplaceView"
 import { MITRE_ENTERPRISE_TACTICS } from "@/components/lakewatch/marketplace/mitreEnterprise"
+import type { DetectionRule } from "@/components/lakewatch/marketplace/detectionRules"
 import { DETECTION_RULE_DETAILS } from "@/components/lakewatch/detection-rules/detectionRuleDetails"
 import {
   DETECTION_RULES_LIST,
@@ -66,6 +68,37 @@ const ANNOTATION_BADGE: Record<string, React.ComponentProps<typeof Badge>["varia
   prod: "indigo",
   "soc-priority": "coral",
   "compliance:hipaa": "purple",
+  imported: "teal",
+}
+
+const IMPORTED_RULES_STORAGE_KEY = "lakewatch-imported-detection-rules"
+
+const PARSER_LOCATION: Record<string, string> = {
+  "AWS.CloudTrail": "AWS CloudTrail",
+  "AWS.GuardDuty": "AWS GuardDuty",
+  "AWS.VPCFlow": "VPC Flow Logs",
+  "Databricks.Audit": "Databricks Audit Logs",
+  "GitHub.AuditLog": "GitHub Audit Log",
+  "Okta.SystemLog": "Okta Logs",
+  "Slack.AuditLogs": "Slack Audit Logs",
+}
+
+function importedListItem(rule: DetectionRule): DetectionRuleListItem {
+  return {
+    id: `imported-${rule.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    name: rule.name,
+    location: PARSER_LOCATION[rule.parser] ?? rule.parser,
+    description: `Imported from the ${rule.pack} content pack.`,
+    severity: rule.severity,
+    lastModified: "Just now",
+    category: rule.tactic || "Detection",
+    fidelity:
+      rule.severity === "Critical" || rule.severity === "High"
+        ? "High"
+        : "Medium",
+    annotations: ["imported"],
+    active: false,
+  }
 }
 
 function distinctSorted(values: string[]) {
@@ -112,6 +145,17 @@ const RULE_MITRE_IDS = new Map(
 )
 
 export function LakewatchDetectionRulesView() {
+  const searchParams = useSearchParams()
+  const importedNames = React.useMemo(
+    () =>
+      new Set(
+        (searchParams.get("imported") ?? "")
+          .split("|")
+          .map((name) => name.trim())
+          .filter(Boolean)
+      ),
+    [searchParams]
+  )
   const [filter, setFilter] = React.useState("")
   const [rules, setRules] = React.useState(DETECTION_RULES_LIST)
   const [severities, setSeverities] = React.useState<string[]>([])
@@ -121,6 +165,26 @@ export function LakewatchDetectionRulesView() {
   const [annotations, setAnnotations] = React.useState<string[]>([])
   const [statuses, setStatuses] = React.useState<string[]>([])
   const [mitreTechniqueIds, setMitreTechniqueIds] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    if (importedNames.size === 0) return
+    try {
+      const stored = JSON.parse(
+        window.sessionStorage.getItem(IMPORTED_RULES_STORAGE_KEY) ?? "[]"
+      ) as DetectionRule[]
+      const imported = stored
+        .filter((rule) => importedNames.has(rule.name))
+        .map(importedListItem)
+      setRules((current) => [
+        ...imported,
+        ...current.filter(
+          (rule) => !imported.some((item) => item.name === rule.name)
+        ),
+      ])
+    } catch {
+      // Ignore malformed prototype session data and keep the seeded rule list.
+    }
+  }, [importedNames])
 
   const activeFilterCount =
     severities.length +
@@ -144,6 +208,7 @@ export function LakewatchDetectionRulesView() {
   const filtered = React.useMemo(() => {
     const q = filter.trim().toLowerCase()
     return rules.filter((rule) => {
+      if (importedNames.size > 0 && !importedNames.has(rule.name)) return false
       const detail = RULE_DETAILS.get(rule.id)
       const haystack = [
         rule.name,
@@ -196,6 +261,7 @@ export function LakewatchDetectionRulesView() {
     annotations,
     statuses,
     mitreTechniqueIds,
+    importedNames,
   ])
 
   const toggleActive = (id: string, active: boolean) => {

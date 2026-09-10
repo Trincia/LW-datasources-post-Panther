@@ -26,6 +26,7 @@ import {
   CalendarRangeIcon,
   ForkIcon,
   InfoSmallIcon,
+  MegaphoneIcon,
   NotebookIcon,
   SearchIcon,
   TableIcon,
@@ -2459,6 +2460,7 @@ export function LakewatchDatasourceDetailView() {
     if (isP1 && (tab === "dlq" || tab === "normalize")) return tab
     return "overview"
   })
+  const [rulesBannerDismissed, setRulesBannerDismissed] = React.useState(false)
   const availableRulesCount = React.useMemo(
     () => getDatasourceRuleSet(sourceName, connectorKey).available.length,
     [sourceName, connectorKey]
@@ -2523,20 +2525,24 @@ export function LakewatchDatasourceDetailView() {
         </div>
       </div>
 
-      {availableRulesCount > 0 && activeTab !== "detection-rules" ? (
+      {availableRulesCount > 0 &&
+      activeTab !== "detection-rules" &&
+      !rulesBannerDismissed ? (
         <Alert
-          className="mt-5"
+          className="mt-5 items-center border-primary bg-primary p-2 text-primary-foreground [&>svg]:text-primary-foreground"
+          onDismiss={() => setRulesBannerDismissed(true)}
           rightAction={
             <Button
               variant="default"
               size="sm"
+              className="border-primary-foreground/40 bg-transparent text-primary-foreground hover:border-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
               onClick={() => setActiveTab("detection-rules")}
             >
               View available rules
             </Button>
           }
         >
-          <InfoSmallIcon className="h-4 w-4" />
+          <MegaphoneIcon size={16} />
           <AlertTitle>
             {availableRulesCount}{" "}
             {availableRulesCount === 1
@@ -2550,7 +2556,13 @@ export function LakewatchDatasourceDetailView() {
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        className={availableRulesCount > 0 && activeTab !== "detection-rules" ? "mt-4" : "mt-5"}
+        className={
+          availableRulesCount > 0 &&
+          activeTab !== "detection-rules" &&
+          !rulesBannerDismissed
+            ? "mt-4"
+            : "mt-5"
+        }
       >
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
