@@ -15,7 +15,6 @@ import {
 } from "lucide-react"
 
 import { ChevronDownIcon, TableIcon } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import {
   IntegrationTemplatePanel,
   IntegrationTemplatesField,
@@ -484,7 +483,6 @@ export function LakewatchLakeflowConnectWizardView({
             />
           </div>
         </div>
-        <LakewatchDataControls />
       </div>
 
       <div

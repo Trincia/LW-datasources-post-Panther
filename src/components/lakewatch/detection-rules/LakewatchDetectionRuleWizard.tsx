@@ -8,7 +8,6 @@ import { Check, Code2, Database, UserRound } from "lucide-react"
 import { InfoIcon } from "@/components/icons"
 import { getDetectionRule } from "@/components/lakewatch/detection-rules/detectionRuleDetails"
 import type { DetectionSeverity } from "@/components/lakewatch/detection-rules/detectionRulesList"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   Breadcrumb,
@@ -105,7 +104,6 @@ export function LakewatchDetectionRuleWizard() {
           </Breadcrumb>
           <h1 className={PAGE_TITLE_SEMIBOLD}>Edit detection rule</h1>
         </div>
-        <LakewatchDataControls />
       </div>
 
       <div className="mt-5 grid min-h-0 flex-1 gap-8 lg:grid-cols-[220px_minmax(0,920px)] lg:justify-center">

@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { PrototypeVariation } from "@/lib/usePrototypeVariation"
+import { LakewatchCatalogSelector } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import {
   GridIcon,
   DatasourceNavIcon,
@@ -26,6 +27,7 @@ import {
   NormalizersNavIcon,
   DataModelNavIcon,
   DetectionNavIcon,
+  ContentLibraryNavIcon,
   GearIcon,
   LakewatchAlertIcon,
   WarningIcon,
@@ -35,7 +37,6 @@ import {
   BarChartIcon,
   NotebookIcon,
   NewWindowIcon,
-  StorefrontIcon,
   GenieCodeIcon,
 } from "@/components/icons"
 
@@ -174,6 +175,10 @@ export function LakewatchSidebar({
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-1.5 py-2">
+        <div className="mb-2 flex flex-col gap-1">
+          <span className="px-3 text-hint text-muted-foreground">Catalog</span>
+          <LakewatchCatalogSelector />
+        </div>
         <NavRow href="/lakewatch" icon={GridIcon} active={activeItem === "overview"}>
           Overview
         </NavRow>
@@ -182,10 +187,10 @@ export function LakewatchSidebar({
         </NavRow>
         <NavRow
           href="/lakewatch/marketplace"
-          icon={StorefrontIcon}
+          icon={ContentLibraryNavIcon}
           active={activeItem === "marketplace"}
         >
-          Marketplace
+          Content library
         </NavRow>
 
         <div className="pt-2">

@@ -51,6 +51,14 @@ export function connectedDatasources(rule: DetectionRule): string[] {
   return single ? [single] : []
 }
 
+/** A subset of catalog rules that are already imported into this workspace. */
+export function isInstalledInWorkspace(rule: DetectionRule): boolean {
+  if (connectedDatasources(rule).length === 0) return false
+  let hash = 0
+  for (const char of rule.name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return hash % 4 === 0
+}
+
 // ---------------------------------------------------------------------------
 // Rule detail (drawer content), derived accurately from each rule's fields.
 // ---------------------------------------------------------------------------

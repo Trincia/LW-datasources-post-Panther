@@ -26,19 +26,22 @@ export function LakewatchCatalogSelector({ className }: { className?: string }) 
         <Button
           variant="default"
           size="sm"
-          className={cn("min-w-[213px] justify-between gap-2 font-normal", className)}
+          className={cn(
+            "w-full min-w-0 justify-between gap-2 border-muted-foreground font-normal hover:border-muted-foreground",
+            className
+          )}
           aria-label={`Catalog: ${catalog}`}
         >
-          <span className="flex items-center gap-2">
-            <CatalogIcon size={16} className="text-muted-foreground" aria-hidden />
-            <span className="text-foreground">{catalog}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <CatalogIcon size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+            <span className="truncate text-foreground">{catalog}</span>
           </span>
-          <ChevronDownIcon size={16} className="text-muted-foreground" />
+          <ChevronDownIcon size={16} className="shrink-0 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="w-[213px] border-[#083253] bg-[#02223d] text-white"
+        className="w-[var(--radix-dropdown-menu-trigger-width)] border-[#083253] bg-[#02223d] text-white"
       >
         <DropdownMenuRadioGroup value={catalog} onValueChange={setCatalog}>
           {CATALOG_OPTIONS.map((option) => (

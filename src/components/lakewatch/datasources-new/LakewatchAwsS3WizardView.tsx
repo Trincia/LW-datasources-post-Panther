@@ -25,10 +25,10 @@ import {
   ChevronRightIcon,
   DatasourceNavIcon,
   FolderIcon,
+  NewWindowIcon,
   SchemaIcon,
   TableIcon,
 } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PreviewSkeleton } from "@/components/lakewatch/PreviewSkeleton"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import {
@@ -55,6 +55,16 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Command,
   CommandEmpty,
@@ -363,6 +373,73 @@ const DATA_FORMATS = [
 
 const SAMPLE_DATASOURCE_NAME = "lakewatch-account-us-west-2"
 
+const S3_LOCATION_OPTIONS = [
+  "s3://lakewatch-data/",
+  "s3://production-cloudtrail/",
+  "s3://security-data/",
+  "s3://dbstorage-staging-jyz3d/uc/479ca28e-339d-418f-933f-6b7ac9251944/94513f1f-6ee7-4165-b864-e64af7eda3d8",
+  "s3://aws-cloudtrail-logs-905418055418-719340f6/",
+  "s3://sig-query-test-bucket/",
+  "s3://dk-zerobus/",
+  "s3://lakewatch-demo-logs-kdubbs/cisco-asa",
+  "s3://cyber-demo-data/",
+  "s3://lakewatch-sentinel-data/",
+  "s3://lw-external-location-us-west-2/",
+  "s3://npm-scanner-results-187901811700/results",
+  "s3://zeeklogs-1337/",
+]
+
+type S3FolderNode = {
+  name: string
+  children?: S3FolderNode[]
+}
+
+const S3_FOLDER_TREE: Record<string, S3FolderNode[]> = {
+  "s3://lakewatch-data/": [
+    { name: "1password", children: [{ name: "events" }, { name: "audit" }] },
+    { name: "akamai" },
+    { name: "apache-http" },
+    { name: "aws-network-firewall" },
+    { name: "aws-vpc-flowlogs" },
+    { name: "aws-wafv2" },
+    { name: "aws_guardduty" },
+    { name: "azure-aaduseriskevents" },
+    { name: "cloudtrail" },
+    { name: "okta" },
+    { name: "slack" },
+  ],
+  "s3://production-cloudtrail/": [
+    { name: "AWSLogs", children: [{ name: "123456789012" }, { name: "o-abcd123" }] },
+    { name: "config" },
+  ],
+  "s3://security-data/": [
+    { name: "vpc-flow" },
+    { name: "guardduty" },
+    { name: "waf" },
+  ],
+}
+
+function withTrailingSlash(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+  return trimmed.endsWith("/") ? trimmed : `${trimmed}/`
+}
+
+function joinS3Path(location: string, prefix: string) {
+  const root = withTrailingSlash(location)
+  const relative = prefix.replace(/^\/+/, "").replace(/\/+$/, "")
+  if (!root) return relative
+  return relative ? `${root}${relative}` : root
+}
+
+function joinS3File(location: string, prefix: string, fileName: string) {
+  const base = joinS3Path(location, prefix)
+  const name = fileName.replace(/^\/+/, "")
+  if (!base) return name
+  if (!name) return base
+  return base.endsWith("/") ? `${base}${name}` : `${base}/${name}`
+}
+
 export function WizardDatasourceNameField({
   catalog,
   onCatalogChange,
@@ -425,6 +502,322 @@ export function WizardDatasourceNameField({
         </div>
       </div>
     </div>
+  )
+}
+
+function S3LocationCombobox({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [menuWidth, setMenuWidth] = React.useState<number>()
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const validation = useValidationState(value)
+  const query = value.trim().toLowerCase()
+  const options = S3_LOCATION_OPTIONS.filter(
+    (option) => !query || option.toLowerCase().includes(query)
+  )
+
+  const updateMenuWidth = () => {
+    setMenuWidth(containerRef.current?.offsetWidth)
+  }
+
+  React.useEffect(() => {
+    updateMenuWidth()
+    window.addEventListener("resize", updateMenuWidth)
+    return () => window.removeEventListener("resize", updateMenuWidth)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative min-w-0 flex-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div className="relative w-full">
+            <Input
+              role="combobox"
+              aria-expanded={open}
+              aria-autocomplete="list"
+              aria-label="S3 source location"
+              value={value}
+              placeholder="Select or enter an S3 location"
+              autoComplete="off"
+              onChange={(event) => {
+                onValueChange(event.target.value)
+                setOpen(true)
+              }}
+              onFocus={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              onClick={() => {
+                updateMenuWidth()
+                setOpen(true)
+              }}
+              className="pr-16"
+            />
+            <span className="pointer-events-none absolute top-1/2 right-8 flex size-4 -translate-y-1/2 items-center justify-center">
+              {validation === "validating" ? (
+                <LoaderCircle
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-label="Validating"
+                />
+              ) : validation === "verified" ? (
+                <CheckCircleIcon
+                  className="h-4 w-4 text-[var(--success)]"
+                  ariaLabel="Verified"
+                />
+              ) : null}
+            </span>
+            <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="p-0"
+          style={menuWidth ? { width: menuWidth } : undefined}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <Command shouldFilter={false}>
+            <CommandList className="max-h-[264px]">
+              <CommandEmpty>No locations found</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option}
+                    value={option}
+                    onSelect={() => {
+                      onValueChange(option)
+                      setOpen(false)
+                    }}
+                  >
+                    {option}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+            <div className="border-t border-border p-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between gap-1.5 text-primary"
+                onClick={() => setOpen(false)}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  Add new Unity Catalog external location
+                </span>
+                <NewWindowIcon size={16} />
+              </Button>
+            </div>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
+function folderMatches(node: S3FolderNode, query: string): boolean {
+  if (!query) return true
+  if (node.name.toLowerCase().includes(query)) return true
+  return Boolean(node.children?.some((child) => folderMatches(child, query)))
+}
+
+function BrowseExternalLocationDialog({
+  open,
+  onOpenChange,
+  location,
+  prefix,
+  onSelect,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  location: string
+  prefix: string
+  onSelect: (location: string, prefix: string) => void
+}) {
+  const [browseLocation, setBrowseLocation] = React.useState(
+    withTrailingSlash(location) || S3_LOCATION_OPTIONS[0]
+  )
+  const [selectedPrefix, setSelectedPrefix] = React.useState(
+    prefix.replace(/^\/+|\/+$/g, "")
+  )
+  const [filter, setFilter] = React.useState("")
+  const [expanded, setExpanded] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    if (!open) return
+    const nextLocation = withTrailingSlash(location) || S3_LOCATION_OPTIONS[0]
+    setBrowseLocation(nextLocation)
+    setSelectedPrefix(prefix.replace(/^\/+|\/+$/g, ""))
+    setFilter("")
+    setExpanded(
+      prefix
+        .replace(/^\/+|\/+$/g, "")
+        .split("/")
+        .filter(Boolean)
+        .reduce<string[]>((paths, segment) => {
+          const next = paths.length
+            ? `${paths[paths.length - 1]}/${segment}`
+            : segment
+          return [...paths, next]
+        }, [])
+        .slice(0, -1)
+    )
+  }, [open, location, prefix])
+
+  const folders = S3_FOLDER_TREE[browseLocation] ?? []
+  const query = filter.trim().toLowerCase()
+  const visibleFolders = query
+    ? folders.filter((folder) => folderMatches(folder, query))
+    : folders
+  const selectedPath = joinS3Path(browseLocation, selectedPrefix)
+
+  const toggleFolder = (path: string) => {
+    setSelectedPrefix((current) => (current === path ? "" : path))
+  }
+
+  const toggleExpanded = (path: string) => {
+    setExpanded((current) =>
+      current.includes(path)
+        ? current.filter((item) => item !== path)
+        : [...current, path]
+    )
+  }
+
+  const renderNodes = (nodes: S3FolderNode[], parentPath = "", depth = 0) =>
+    nodes.map((node) => {
+      const path = parentPath ? `${parentPath}/${node.name}` : node.name
+      const hasChildren = Boolean(node.children?.length)
+      const isExpanded = query ? true : expanded.includes(path)
+      const childMatches = node.children?.filter((child) =>
+        folderMatches(child, query)
+      )
+
+      return (
+        <div key={path}>
+          <div
+            className="flex h-8 items-center gap-2 border-b border-border px-2"
+            style={{ paddingLeft: 8 + depth * 16 }}
+          >
+            <Checkbox
+              checked={selectedPrefix === path}
+              onCheckedChange={() => toggleFolder(path)}
+              aria-label={`Select ${node.name}`}
+            />
+            {hasChildren ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${node.name}`}
+                onClick={() => toggleExpanded(path)}
+              >
+                {isExpanded ? (
+                  <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
+            ) : (
+              <span className="inline-flex size-6 items-center justify-center">
+                <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50" />
+              </span>
+            )}
+            <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate text-sm text-foreground">{node.name}</span>
+          </div>
+          {hasChildren && isExpanded
+            ? renderNodes(childMatches ?? node.children ?? [], path, depth + 1)
+            : null}
+        </div>
+      )
+    })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="gap-0 p-0 sm:max-w-[720px]">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <DialogTitle>Browse external location</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="gap-3 px-6 pb-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>External location *</Label>
+            <p className="text-hint text-muted-foreground">
+              Choose an external location, then select its root or one folder.
+            </p>
+            <Select
+              value={browseLocation}
+              onValueChange={(value) => {
+                setBrowseLocation(value)
+                setSelectedPrefix("")
+                setExpanded([])
+              }}
+            >
+              <SelectTrigger className="w-fit min-w-[240px]" aria-label="External location">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {S3_LOCATION_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="relative">
+            <Filter className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Type to filter"
+              className="pl-9"
+              aria-label="Filter folders"
+            />
+          </div>
+          <div className="overflow-hidden rounded-md border border-border">
+            <div className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground">
+              Source data
+            </div>
+            <div className="max-h-[320px] overflow-y-auto">
+              {visibleFolders.length ? (
+                renderNodes(visibleFolders)
+              ) : (
+                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  No folders match this filter.
+                </p>
+              )}
+            </div>
+          </div>
+          <p className="text-hint text-muted-foreground">
+            Selected: {selectedPath}
+          </p>
+        </DialogBody>
+        <DialogFooter className="px-6 py-4">
+          <DialogClose asChild>
+            <Button type="button" variant="default" size="sm">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              onSelect(browseLocation, selectedPrefix)
+              onOpenChange(false)
+            }}
+          >
+            Select
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1979,6 +2372,8 @@ export function LakewatchAwsS3WizardView({
   const isP1 = isAnyP1(variation)
   const [activeStep, setActiveStep] = React.useState(1)
   const [sourceLocation, setSourceLocation] = React.useState("")
+  const [pathPrefix, setPathPrefix] = React.useState("")
+  const [browseOpen, setBrowseOpen] = React.useState(false)
   const [viewTableName, setViewTableName] = React.useState("")
   const [primaryKeyColumns, setPrimaryKeyColumns] = React.useState<string[]>([""])
   const [catalogPickerOpen, setCatalogPickerOpen] = React.useState(false)
@@ -2120,8 +2515,20 @@ export function LakewatchAwsS3WizardView({
   // data preview header (existing-table uses an inline "View table name" instead).
   const showHeaderPreviewLocation = isS3 || (isSimpleWizard && !isExistingTable)
   const sourceLocationLabel = isS3 ? "S3 source location" : "Source location"
+  const sourcePathWithPrefix = joinS3Path(sourceLocation, pathPrefix) || sourceLocation
+  const hasSourceAndPrefix = Boolean(
+    isS3 && sourceLocation.trim() && pathPrefix.trim()
+  )
+  const sampleFileFromLocation = (sample: string) => {
+    if (!hasSourceAndPrefix) return sample
+    const base = joinS3Path(sourceLocation, pathPrefix)
+    if (sample.startsWith(base)) {
+      return sample.slice(base.endsWith("/") ? base.length : base.length + 1)
+    }
+    return sample.includes("/") ? sample.split("/").pop() ?? "" : sample
+  }
   const activePreviewLocation =
-    previewMode === "sample" ? dataSampleLocation : sourceLocation
+    previewMode === "sample" ? dataSampleLocation : sourcePathWithPrefix
   // The active location doubles as the preview name once a preview is loading/ready.
   const previewHeaderName = showSplitPreview
     ? "Data preview"
@@ -2207,8 +2614,10 @@ export function LakewatchAwsS3WizardView({
     const nextMode = draftPreviewMode
     const nextSample =
       nextMode === "sample"
-        ? draftSample.trim() || previewSampleFill
-        : sourceLocation
+        ? hasSourceAndPrefix
+          ? joinS3File(sourceLocation, pathPrefix, draftSample.trim())
+          : draftSample.trim() || previewSampleFill
+        : sourcePathWithPrefix
     setPreviewMode(nextMode)
     if (nextMode === "sample") {
       setDataSampleLocation(nextSample)
@@ -2242,6 +2651,7 @@ export function LakewatchAwsS3WizardView({
     }
   }, [
     sourceLocation,
+    pathPrefix,
     dataFormat,
     previewMode,
     dataSampleLocation,
@@ -2310,8 +2720,12 @@ export function LakewatchAwsS3WizardView({
                         setPreviewConfigOpen(open)
                         if (open) {
                           setDraftPreviewMode(previewMode)
-                          setDraftSample(
+                          const current =
                             previewMode === "sample" ? dataSampleLocation : ""
+                          setDraftSample(
+                            hasSourceAndPrefix
+                              ? sampleFileFromLocation(current)
+                              : current
                           )
                         }
                       }}
@@ -2376,24 +2790,49 @@ export function LakewatchAwsS3WizardView({
                                   Preview with sample location
                                 </span>
                                 {draftPreviewMode === "sample" ? (
-                                  <ValidatedInput
-                                    aria-label="Sample location"
-                                    value={draftSample}
-                                    onChange={(event) =>
-                                      setDraftSample(event.target.value)
-                                    }
-                                    onFocus={() =>
-                                      setDraftSample(
-                                        (current) => current || previewSampleFill
-                                      )
-                                    }
-                                    onClick={() =>
-                                      setDraftSample(
-                                        (current) => current || previewSampleFill
-                                      )
-                                    }
-                                    placeholder={previewSamplePlaceholder}
-                                  />
+                                  hasSourceAndPrefix ? (
+                                    <div className="flex flex-col gap-2">
+                                      <div
+                                        className="flex h-8 items-center truncate rounded border border-input bg-muted px-3 text-sm text-muted-foreground"
+                                        title={sourceLocation}
+                                      >
+                                        {sourceLocation}
+                                      </div>
+                                      <div
+                                        className="flex h-8 items-center truncate rounded border border-input bg-muted px-3 text-sm text-muted-foreground"
+                                        title={pathPrefix}
+                                      >
+                                        {pathPrefix}
+                                      </div>
+                                      <Input
+                                        aria-label="Sample file name"
+                                        value={draftSample}
+                                        onChange={(event) =>
+                                          setDraftSample(event.target.value)
+                                        }
+                                        placeholder="sample.json"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <ValidatedInput
+                                      aria-label="Sample location"
+                                      value={draftSample}
+                                      onChange={(event) =>
+                                        setDraftSample(event.target.value)
+                                      }
+                                      onFocus={() =>
+                                        setDraftSample(
+                                          (current) => current || previewSampleFill
+                                        )
+                                      }
+                                      onClick={() =>
+                                        setDraftSample(
+                                          (current) => current || previewSampleFill
+                                        )
+                                      }
+                                      placeholder={previewSamplePlaceholder}
+                                    />
+                                  )
                                 ) : null}
                               </span>
                             </label>
@@ -2538,7 +2977,6 @@ export function LakewatchAwsS3WizardView({
             />
           </div>
         </div>
-        <LakewatchDataControls />
       </div>
 
       <div
@@ -2868,6 +3306,7 @@ export function LakewatchAwsS3WizardView({
               </div>
             </form>
           ) : (
+          <>
           <form
             className="flex max-h-full w-full min-h-0 max-w-[920px] flex-col self-start justify-self-center overflow-hidden rounded-md border border-input"
             onSubmit={(event) => {
@@ -2896,26 +3335,36 @@ export function LakewatchAwsS3WizardView({
               <div className="flex flex-col gap-2">
                 <Label>S3 source location *</Label>
                 <p className="text-hint text-muted-foreground">
-                  The S3 path to ingest data from (e.g. s3://my-bucket/logs/).
+                  Choose a Unity Catalog external location, or enter an S3 path
+                  manually, for example s3://my-bucket/logs/.
                 </p>
                 <div className="flex items-center gap-2">
-                  <Select value={sourceLocation} onValueChange={setSourceLocation}>
-                    <SelectTrigger className="w-full" aria-label="S3 source location">
-                      <SelectValue placeholder="Select an S3 location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="s3://lakewatch-security-logs/">
-                        s3://lakewatch-security-logs/
-                      </SelectItem>
-                      <SelectItem value="s3://production-cloudtrail/AWSLogs/">
-                        s3://production-cloudtrail/AWSLogs/
-                      </SelectItem>
-                      <SelectItem value="s3://security-data/vpc-flow/">
-                        s3://security-data/vpc-flow/
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <ValidationIndicator value={sourceLocation} />
+                  <S3LocationCombobox
+                    value={sourceLocation}
+                    onValueChange={(value) => {
+                      setSourceLocation(value)
+                      if (!value.trim()) setPathPrefix("")
+                    }}
+                  />
+                  <Input
+                    id="s3-path-prefix"
+                    value={pathPrefix}
+                    onChange={(event) => setPathPrefix(event.target.value)}
+                    placeholder="Path prefix (optional)"
+                    disabled={!sourceLocation.trim()}
+                    className="w-[200px] shrink-0"
+                    aria-label="Path prefix"
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="shrink-0 gap-1.5"
+                    onClick={() => setBrowseOpen(true)}
+                  >
+                    Browse
+                    <FolderIcon className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                 </div>
               </div>
 
@@ -2976,12 +3425,28 @@ export function LakewatchAwsS3WizardView({
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/lakewatch/datasources/new">Cancel</Link>
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={!sourceLocation.trim()}
+                >
                   Continue
                 </Button>
               </div>
             </div>
           </form>
+          <BrowseExternalLocationDialog
+            open={browseOpen}
+            onOpenChange={setBrowseOpen}
+            location={sourceLocation}
+            prefix={pathPrefix}
+            onSelect={(nextLocation, nextPrefix) => {
+              setSourceLocation(nextLocation)
+              setPathPrefix(nextPrefix)
+            }}
+          />
+          </>
           )
         ) : (
           <form

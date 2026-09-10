@@ -7,8 +7,13 @@ import {
   PlusIcon,
   SearchIcon,
 } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
+import {
+  FacetFilter,
+  MitreTacticFilter,
+} from "@/components/lakewatch/marketplace/LakewatchMarketplaceView"
+import { MITRE_ENTERPRISE_TACTICS } from "@/components/lakewatch/marketplace/mitreEnterprise"
+import { DETECTION_RULE_DETAILS } from "@/components/lakewatch/detection-rules/detectionRuleDetails"
 import {
   DETECTION_RULES_LIST,
   type DetectionFidelity,
@@ -55,14 +60,83 @@ const ANNOTATION_BADGE: Record<string, React.ComponentProps<typeof Badge>["varia
   "compliance:hipaa": "purple",
 }
 
+function distinctSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b)
+  )
+}
+
+const FACET_SEVERITIES = ["Critical", "High", "Medium", "Low", "Informational"].filter(
+  (severity) =>
+    DETECTION_RULES_LIST.some((rule) => rule.severity === severity)
+)
+const FACET_LOCATIONS = distinctSorted(
+  DETECTION_RULES_LIST.map((rule) => rule.location)
+)
+const FACET_CATEGORIES = distinctSorted(
+  DETECTION_RULES_LIST.map((rule) => rule.category)
+)
+const FACET_FIDELITIES = distinctSorted(
+  DETECTION_RULES_LIST.map((rule) => rule.fidelity)
+)
+const FACET_ANNOTATIONS = distinctSorted(
+  DETECTION_RULES_LIST.flatMap((rule) => rule.annotations)
+)
+const FACET_STATUS = ["Active", "Inactive"]
+const RULE_DETAILS = new Map(
+  DETECTION_RULE_DETAILS.map((rule) => [rule.id, rule])
+)
+const RULE_MITRE_IDS = new Map(
+  DETECTION_RULE_DETAILS.map((rule) => [
+    rule.id,
+    Array.from(
+      new Set(
+        MITRE_ENTERPRISE_TACTICS.flatMap((group) => group.techniques)
+          .filter(
+            (technique) =>
+              technique.name === rule.mitreTechnique ||
+              technique.name === rule.mitreSubtechnique
+          )
+          .map((technique) => technique.id)
+      )
+    ),
+  ])
+)
+
 export function LakewatchDetectionRulesView() {
   const [filter, setFilter] = React.useState("")
   const [rules, setRules] = React.useState(DETECTION_RULES_LIST)
+  const [severities, setSeverities] = React.useState<string[]>([])
+  const [locations, setLocations] = React.useState<string[]>([])
+  const [categories, setCategories] = React.useState<string[]>([])
+  const [fidelities, setFidelities] = React.useState<string[]>([])
+  const [annotations, setAnnotations] = React.useState<string[]>([])
+  const [statuses, setStatuses] = React.useState<string[]>([])
+  const [mitreTechniqueIds, setMitreTechniqueIds] = React.useState<string[]>([])
+
+  const activeFilterCount =
+    severities.length +
+    locations.length +
+    categories.length +
+    fidelities.length +
+    annotations.length +
+    statuses.length +
+    mitreTechniqueIds.length
+
+  const clearAll = () => {
+    setSeverities([])
+    setLocations([])
+    setCategories([])
+    setFidelities([])
+    setAnnotations([])
+    setStatuses([])
+    setMitreTechniqueIds([])
+  }
 
   const filtered = React.useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return rules
     return rules.filter((rule) => {
+      const detail = RULE_DETAILS.get(rule.id)
       const haystack = [
         rule.name,
         rule.location,
@@ -71,12 +145,50 @@ export function LakewatchDetectionRulesView() {
         rule.category,
         rule.fidelity,
         ...rule.annotations,
+        detail?.mitreTactic ?? "",
+        detail?.mitreTechnique ?? "",
+        detail?.mitreSubtechnique ?? "",
       ]
         .join(" ")
         .toLowerCase()
-      return haystack.includes(q)
+      if (q && !haystack.includes(q)) return false
+      if (severities.length && !severities.includes(rule.severity)) return false
+      if (locations.length && !locations.includes(rule.location)) return false
+      if (categories.length && !categories.includes(rule.category)) return false
+      if (fidelities.length && !fidelities.includes(rule.fidelity)) return false
+      if (
+        annotations.length &&
+        !rule.annotations.some((annotation) => annotations.includes(annotation))
+      ) {
+        return false
+      }
+      if (
+        statuses.length &&
+        !statuses.includes(rule.active ? "Active" : "Inactive")
+      ) {
+        return false
+      }
+      if (
+        mitreTechniqueIds.length &&
+        !(RULE_MITRE_IDS.get(rule.id) ?? []).some((id) =>
+          mitreTechniqueIds.includes(id)
+        )
+      ) {
+        return false
+      }
+      return true
     })
-  }, [filter, rules])
+  }, [
+    filter,
+    rules,
+    severities,
+    locations,
+    categories,
+    fidelities,
+    annotations,
+    statuses,
+    mitreTechniqueIds,
+  ])
 
   const toggleActive = (id: string, active: boolean) => {
     setRules((current) =>
@@ -87,9 +199,17 @@ export function LakewatchDetectionRulesView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-3">
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Detection rules</h1>
-          <div className="relative w-[240px]">
+        <h1 className={PAGE_TITLE_SEMIBOLD}>Detection rules</h1>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <Button variant="primary" size="sm">
+            <PlusIcon size={16} />
+            Create detection rule
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="relative w-[240px] shrink-0">
             <Input
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
@@ -102,17 +222,63 @@ export function LakewatchDetectionRulesView() {
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2.5">
-          <LakewatchDataControls />
-          <Button variant="primary" size="sm">
-            <PlusIcon size={16} />
-            Create detection rule
-          </Button>
-        </div>
+          <FacetFilter
+            label="Severity"
+            options={FACET_SEVERITIES}
+            selected={severities}
+            onChange={setSeverities}
+          />
+          <FacetFilter
+            label="Location"
+            options={FACET_LOCATIONS}
+            selected={locations}
+            onChange={setLocations}
+            searchable
+          />
+          <FacetFilter
+            label="Category"
+            options={FACET_CATEGORIES}
+            selected={categories}
+            onChange={setCategories}
+          />
+          <FacetFilter
+            label="Fidelity"
+            options={FACET_FIDELITIES}
+            selected={fidelities}
+            onChange={setFidelities}
+          />
+          <FacetFilter
+            label="Annotations"
+            options={FACET_ANNOTATIONS}
+            selected={annotations}
+            onChange={setAnnotations}
+          />
+          <FacetFilter
+            label="Status"
+            options={FACET_STATUS}
+            selected={statuses}
+            onChange={setStatuses}
+          />
+          <MitreTacticFilter
+            selected={mitreTechniqueIds}
+            onChange={setMitreTechniqueIds}
+          />
+          <span className="ml-1 text-sm text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? "result" : "results"}
+          </span>
+          {activeFilterCount > 0 ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="ml-auto h-8 px-2"
+              onClick={clearAll}
+            >
+              Clear all
+            </Button>
+          ) : null}
       </div>
 
-      <div className="mt-6 min-w-0">
+      <div className="mt-4 min-w-0">
         {filtered.length === 0 ? (
           <div className="flex min-h-[360px] items-center justify-center border-t border-border">
             <Empty

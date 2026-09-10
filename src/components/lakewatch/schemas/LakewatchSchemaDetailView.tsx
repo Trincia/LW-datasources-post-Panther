@@ -9,10 +9,6 @@ import {
   LinkIcon,
   PencilIcon,
 } from "@/components/icons"
-import {
-  LakewatchWarehouseSelector,
-  WarehouseStatusIndicator,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { ValidatedInput } from "@/components/lakewatch/ValidatedInput"
 import { SchemaPreviewPanel } from "@/components/lakewatch/schemas/SchemaPreviewPanel"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
@@ -912,8 +908,6 @@ export function LakewatchSchemaDetailView({
                   </Link>
                 </Button>
               )}
-              <LakewatchWarehouseSelector />
-              <WarehouseStatusIndicator />
             </>
           )}
         </div>

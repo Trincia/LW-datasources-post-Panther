@@ -8,7 +8,6 @@ import {
   getDetectionRule,
   type DetectionRuleDetail,
 } from "@/components/lakewatch/detection-rules/detectionRuleDetails"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -88,7 +87,6 @@ export function LakewatchDetectionRuleDetailView() {
           <p className="mt-1 text-sm text-muted-foreground">{rule.description}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <LakewatchDataControls />
           <Button variant="primary" size="sm" asChild>
             <Link href={`/lakewatch/detection/${rule.id}/edit`}>
               <Pencil className="h-4 w-4" />

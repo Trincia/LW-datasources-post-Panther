@@ -52,9 +52,10 @@ import {
 import { DatasourceNormalizeTab } from "@/components/lakewatch/datasources-new/DatasourceNormalizeTab"
 import { DatasourceIngestionDlqTab } from "@/components/lakewatch/datasources-new/DatasourceIngestionDlqTab"
 import {
-  LakewatchWarehouseSelector,
-  WarehouseStatusIndicator,
-} from "@/components/lakewatch/LakewatchWarehouseSelector"
+  DETECTION_RULES_LIST,
+  type DetectionRuleListItem,
+  type DetectionSeverity,
+} from "@/components/lakewatch/detection-rules/detectionRulesList"
 import { isAnyP1, usePrototypeVariation } from "@/lib/usePrototypeVariation"
 import { RunAsControl } from "@/components/lakewatch/RunAsControl"
 import { buildVersions } from "@/components/lakewatch/schemas/schemaVersions"
@@ -626,8 +627,6 @@ function DatasourceActionControls({
   return (
     <div className="flex shrink-0 flex-col items-end gap-2">
       <div className="flex items-center gap-2">
-        <LakewatchWarehouseSelector />
-        <WarehouseStatusIndicator />
         <Button
           variant="default"
           size="icon-sm"
@@ -1904,6 +1903,339 @@ const SYSTEM_CASES = [
   },
 ] as const
 
+const DETECTION_SEVERITY_BADGE: Record<
+  DetectionSeverity,
+  React.ComponentProps<typeof Badge>["variant"]
+> = {
+  Critical: "destructive",
+  High: "pink",
+  Medium: "lemon",
+  Low: "secondary",
+  Informational: "teal",
+}
+
+const CONNECTOR_RULE_LOCATIONS: Record<string, string[]> = {
+  slack: ["Slack Audit Logs"],
+  okta: ["Okta Logs"],
+  cloudtrail: ["AWS CloudTrail"],
+  "cloudtrail-vpc": ["AWS CloudTrail", "VPC Flow Logs"],
+  guardduty: ["AWS GuardDuty"],
+  github: ["GitHub Audit Log"],
+}
+
+function availableRule(
+  id: string,
+  name: string,
+  location: string,
+  description: string,
+  severity: DetectionSeverity,
+  category: string,
+  fidelity: DetectionRuleListItem["fidelity"]
+): DetectionRuleListItem {
+  return {
+    id,
+    name,
+    location,
+    description,
+    severity,
+    lastModified: "Sep 8, 2026",
+    category,
+    fidelity,
+    annotations: ["recommended"],
+    active: false,
+  }
+}
+
+const AVAILABLE_RULES_BY_CONNECTOR: Record<string, DetectionRuleListItem[]> = {
+  slack: [
+    availableRule(
+      "slack-admin-role-granted",
+      "Slack Workspace Admin Role Granted",
+      "Slack Audit Logs",
+      "Detects when a member is promoted to an organization or workspace administrator.",
+      "High",
+      "Privilege Escalation",
+      "High"
+    ),
+    availableRule(
+      "slack-data-export-enabled",
+      "Slack Data Export Enabled",
+      "Slack Audit Logs",
+      "Detects activation of workspace data exports that may expose sensitive conversations.",
+      "Medium",
+      "Exfiltration",
+      "Medium"
+    ),
+    availableRule(
+      "slack-app-token-created",
+      "Slack App Token Created",
+      "Slack Audit Logs",
+      "Detects creation of a new app-level token with access to workspace data.",
+      "Medium",
+      "Persistence",
+      "Medium"
+    ),
+  ],
+  okta: [
+    availableRule(
+      "okta-new-api-token",
+      "New Okta API Token Created",
+      "Okta Logs",
+      "Detects creation of an API token that can provide persistent administrative access.",
+      "High",
+      "Persistence",
+      "High"
+    ),
+    availableRule(
+      "okta-policy-modified",
+      "Okta Authentication Policy Modified",
+      "Okta Logs",
+      "Detects changes that weaken sign-on or multifactor authentication requirements.",
+      "High",
+      "Defense Evasion",
+      "High"
+    ),
+  ],
+  cloudtrail: [
+    availableRule(
+      "aws-root-account-used",
+      "AWS Root Account Used",
+      "AWS CloudTrail",
+      "Detects console or API activity performed with AWS account root credentials.",
+      "Critical",
+      "Privilege Escalation",
+      "High"
+    ),
+    availableRule(
+      "aws-iam-policy-attached",
+      "Privileged IAM Policy Attached",
+      "AWS CloudTrail",
+      "Detects attachment of administrator or broad wildcard policies to an identity.",
+      "High",
+      "Privilege Escalation",
+      "High"
+    ),
+  ],
+  "cloudtrail-vpc": [
+    availableRule(
+      "aws-root-account-used",
+      "AWS Root Account Used",
+      "AWS CloudTrail",
+      "Detects console or API activity performed with AWS account root credentials.",
+      "Critical",
+      "Privilege Escalation",
+      "High"
+    ),
+    availableRule(
+      "vpc-port-scan",
+      "VPC Flow Port Scan",
+      "VPC Flow Logs",
+      "Detects a source connecting to an unusual number of destination ports.",
+      "Medium",
+      "Discovery",
+      "Medium"
+    ),
+  ],
+  guardduty: [
+    availableRule(
+      "guardduty-credential-exfiltration",
+      "GuardDuty Credential Exfiltration Finding",
+      "AWS GuardDuty",
+      "Surfaces findings indicating credentials are being used from an unusual network.",
+      "Critical",
+      "Credential Access",
+      "High"
+    ),
+  ],
+  github: [
+    availableRule(
+      "github-repository-made-public",
+      "GitHub Repository Made Public",
+      "GitHub Audit Log",
+      "Detects when a private organization repository is changed to public visibility.",
+      "High",
+      "Exfiltration",
+      "High"
+    ),
+  ],
+}
+
+function getDatasourceRuleSet(
+  datasourceName: string,
+  connectorKey: string | null
+) {
+  const identity = `${connectorKey ?? ""} ${datasourceName}`.toLowerCase()
+  const connector = Object.keys(CONNECTOR_RULE_LOCATIONS)
+    .sort((a, b) => b.length - a.length)
+    .find((key) => identity.includes(key))
+  if (!connector) return { current: [], available: [] }
+  const locations = CONNECTOR_RULE_LOCATIONS[connector]
+  return {
+    current: DETECTION_RULES_LIST.filter((rule) =>
+      locations.includes(rule.location)
+    ),
+    available: AVAILABLE_RULES_BY_CONNECTOR[connector] ?? [],
+  }
+}
+
+function DatasourceDetectionRulesTab({
+  datasourceName,
+  connectorKey,
+}: {
+  datasourceName: string
+  connectorKey: string | null
+}) {
+  const initialRules = React.useMemo(
+    () => getDatasourceRuleSet(datasourceName, connectorKey),
+    [datasourceName, connectorKey]
+  )
+  const [currentRules, setCurrentRules] = React.useState(initialRules.current)
+  const [availableRules, setAvailableRules] = React.useState(
+    initialRules.available
+  )
+
+  const importRule = (rule: DetectionRuleListItem) => {
+    setAvailableRules((current) => current.filter((item) => item.id !== rule.id))
+    setCurrentRules((current) => [...current, { ...rule, active: true }])
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground">Current rules</h2>
+          <Badge variant="secondary">{currentRules.length}</Badge>
+        </div>
+        {currentRules.length ? (
+          <DatasourceDetectionRulesTable
+            rules={currentRules}
+            mode="current"
+            onActiveChange={(id, active) =>
+              setCurrentRules((current) =>
+                current.map((rule) =>
+                  rule.id === id ? { ...rule, active } : rule
+                )
+              )
+            }
+          />
+        ) : (
+          <Empty
+            title="No current rules"
+            description="Import an available detection rule to associate it with this datasource."
+            className="py-8"
+          />
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground">
+            Available rules to import
+          </h2>
+          <Badge variant="secondary">{availableRules.length}</Badge>
+        </div>
+        {availableRules.length ? (
+          <DatasourceDetectionRulesTable
+            rules={availableRules}
+            mode="available"
+            onImport={importRule}
+          />
+        ) : (
+          <Empty
+            title="All available rules are imported"
+            description="There are no additional detection rules available for this datasource."
+            className="py-8"
+          />
+        )}
+      </section>
+    </div>
+  )
+}
+
+function DatasourceDetectionRulesTable({
+  rules,
+  mode,
+  onActiveChange,
+  onImport,
+}: {
+  rules: DetectionRuleListItem[]
+  mode: "current" | "available"
+  onActiveChange?: (id: string, active: boolean) => void
+  onImport?: (rule: DetectionRuleListItem) => void
+}) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="font-semibold text-foreground">Name</TableHead>
+          <TableHead className="font-semibold text-foreground">Description</TableHead>
+          <TableHead className="font-semibold text-foreground">Severity</TableHead>
+          <TableHead className="font-semibold text-foreground">Category</TableHead>
+          <TableHead className="font-semibold text-foreground">Fidelity</TableHead>
+          <TableHead className="font-semibold text-foreground">Last modified</TableHead>
+          <TableHead className="w-20 font-semibold text-foreground">
+            {mode === "current" ? "Active" : ""}
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rules.map((rule) => (
+          <TableRow key={rule.id}>
+            <TableCell>
+              {DETECTION_RULES_LIST.some((item) => item.id === rule.id) ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto justify-start p-0 !px-0 font-semibold"
+                  asChild
+                >
+                  <Link href={`/lakewatch/detection/${rule.id}`}>{rule.name}</Link>
+                </Button>
+              ) : (
+                <span className="font-semibold text-foreground">{rule.name}</span>
+              )}
+            </TableCell>
+            <TableCell className="max-w-[360px] whitespace-normal text-foreground">
+              {rule.description}
+            </TableCell>
+            <TableCell>
+              <Badge
+                variant={DETECTION_SEVERITY_BADGE[rule.severity]}
+                className="font-normal"
+              >
+                {rule.severity}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-foreground">{rule.category}</TableCell>
+            <TableCell className="text-foreground">{rule.fidelity}</TableCell>
+            <TableCell className="whitespace-nowrap text-foreground">
+              {rule.lastModified}
+            </TableCell>
+            <TableCell>
+              {mode === "current" ? (
+                <Switch
+                  size="sm"
+                  checked={rule.active}
+                  onCheckedChange={(active) => onActiveChange?.(rule.id, active)}
+                  aria-label={`${rule.active ? "Disable" : "Enable"} ${rule.name}`}
+                />
+              ) : (
+                <Button
+                  variant="default"
+                  size="xs"
+                  onClick={() => onImport?.(rule)}
+                >
+                  Import
+                </Button>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
 function DatasourceSystemCasesTab({
   datasourceName,
 }: {
@@ -2141,6 +2473,7 @@ export function LakewatchDatasourceDetailView() {
               2
             </span>
           </TabsTrigger>
+          <TabsTrigger value="detection-rules">Detection rules</TabsTrigger>
           {isP1 ? (
             <>
               <TabsTrigger value="dlq">Ingestion DLQ</TabsTrigger>
@@ -2460,6 +2793,12 @@ export function LakewatchDatasourceDetailView() {
         </TabsContent>
         <TabsContent value="system-cases" className="mt-4">
           <DatasourceSystemCasesTab datasourceName={sourceName} />
+        </TabsContent>
+        <TabsContent value="detection-rules" className="mt-4">
+          <DatasourceDetectionRulesTab
+            datasourceName={sourceName}
+            connectorKey={connectorKey}
+          />
         </TabsContent>
         {isP1 ? (
           <>

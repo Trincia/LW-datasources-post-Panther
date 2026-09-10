@@ -5,7 +5,6 @@ import Link from "next/link"
 import { toast } from "sonner"
 
 import { DatabaseClockIcon, DataModelNavIcon, PipelineIcon, PlusIcon, TableIcon } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -139,7 +138,6 @@ export function LakewatchNormalizedDataCreateView() {
               <h1 className={PAGE_TITLE_SEMIBOLD}>New data model</h1>
             </div>
             <div className="flex shrink-0 items-center gap-4">
-              <LakewatchDataControls />
               <Button
                 variant="primary"
                 size="sm"

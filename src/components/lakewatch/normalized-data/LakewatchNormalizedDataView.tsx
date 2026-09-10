@@ -9,7 +9,6 @@ import {
   SearchIcon,
   TableIcon,
 } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -116,8 +115,7 @@ export function LakewatchNormalizedDataView() {
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <h1 className={PAGE_TITLE_SEMIBOLD}>Data models</h1>
-          <div className="flex shrink-0 items-center gap-4">
-            <LakewatchDataControls />
+            <div className="flex shrink-0 items-center gap-4">
             <Button variant="primary" size="sm" asChild>
               <Link href="/lakewatch/normalized-data/new">
                 <PlusIcon size={16} />

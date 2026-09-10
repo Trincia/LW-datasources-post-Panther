@@ -16,7 +16,6 @@ import {
   ShareIcon,
   TableIcon,
 } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   getDataModel,
@@ -348,7 +347,6 @@ export function LakewatchDataModelDetailView({ modelId }: { modelId: string }) {
               <h1 className={PAGE_TITLE_SEMIBOLD}>{model.name}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-4">
-              <LakewatchDataControls />
               <div className="flex items-center gap-2">
                 <Button variant="default" size="sm">
                   <SearchDataIcon size={16} />

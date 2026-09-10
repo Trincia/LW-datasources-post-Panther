@@ -18,7 +18,6 @@ import {
   DataModelNavIcon,
   SchemasNavIcon,
 } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
   getDataModel,
@@ -194,9 +193,6 @@ export function LakewatchNormalizedDataGraphView({
           <div className="flex min-w-0 items-center gap-2">
             <DataModelNavIcon size={20} className="shrink-0 text-muted-foreground" />
             <h1 className={PAGE_TITLE_SEMIBOLD}>{model.name} lineage</h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-4">
-            <LakewatchDataControls />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-hint text-muted-foreground">

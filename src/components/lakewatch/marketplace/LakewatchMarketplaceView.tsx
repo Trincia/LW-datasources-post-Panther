@@ -5,11 +5,16 @@ import { toast } from "sonner"
 import { ChevronDown, X } from "lucide-react"
 
 import { CatalogIcon, DetectionNavIcon, SchemaIcon, SearchIcon } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Dialog,
@@ -45,9 +50,14 @@ import {
   connectedDatasources,
   DETECTION_RULES,
   getRuleDetail,
+  isInstalledInWorkspace,
   type DetectionRule,
   type DetectionSeverity,
 } from "@/components/lakewatch/marketplace/detectionRules"
+import {
+  MITRE_ENTERPRISE_TACTICS,
+  MITRE_ENTERPRISE_VERSION,
+} from "@/components/lakewatch/marketplace/mitreEnterprise"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
 
@@ -75,16 +85,37 @@ function distinctSorted(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b))
 }
 
-const FACET_SEVERITIES = SEVERITY_ORDER.filter((s) =>
-  DETECTION_RULES.some((rule) => rule.severity === s)
+const INITIAL_INSTALLED_NAMES = new Set(
+  DETECTION_RULES.filter(isInstalledInWorkspace).map((rule) => rule.name)
 )
-const FACET_PARSERS = distinctSorted(DETECTION_RULES.map((rule) => rule.parser))
-const FACET_DATASOURCES = distinctSorted(
-  DETECTION_RULES.flatMap((rule) => connectedDatasources(rule))
-)
-const FACET_TACTICS = distinctSorted(DETECTION_RULES.map((rule) => rule.tactic))
-const FACET_TECHNIQUES = distinctSorted(DETECTION_RULES.map((rule) => rule.technique))
-const FACET_TECHNIQUE_IDS = distinctSorted(DETECTION_RULES.map((rule) => rule.techniqueId))
+
+function matchesSearch(rule: DetectionRule, query: string) {
+  if (!query) return true
+  const haystack = [
+    rule.name,
+    rule.parser,
+    rule.tactic,
+    rule.technique,
+    rule.techniqueId,
+    rule.pack,
+    ...connectedDatasources(rule),
+  ]
+    .join(" ")
+    .toLowerCase()
+  return haystack.includes(query)
+}
+
+function matchesMitreSelection(rule: DetectionRule, selectedIds: string[]) {
+  if (!selectedIds.length) return true
+  const id = rule.techniqueId
+  if (!id) return false
+  return selectedIds.some(
+    (selected) =>
+      selected === id ||
+      selected.startsWith(`${id}.`) ||
+      id.startsWith(`${selected}.`)
+  )
+}
 
 const DISABLED_TABS: { value: string; label: string; tooltip: string }[] = [
   { value: "packs", label: "Packs", tooltip: "Packs are no longer available at this time" },
@@ -115,7 +146,7 @@ function DisabledTab({ label, tooltip }: { label: string; tooltip: string }) {
   )
 }
 
-function FacetFilter({
+export function FacetFilter({
   label,
   options,
   selected,
@@ -246,6 +277,194 @@ function FacetFilter({
   )
 }
 
+export function MitreTacticFilter({
+  selected,
+  onChange,
+}: {
+  selected: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [q, setQ] = React.useState("")
+  const active = selected.length > 0
+
+  const groups = React.useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return MITRE_ENTERPRISE_TACTICS
+
+    return MITRE_ENTERPRISE_TACTICS.flatMap((group) => {
+      if (group.name.toLowerCase().includes(needle)) return [group]
+      const techniques = group.techniques.filter((technique) =>
+        `${technique.name} ${technique.id}`.toLowerCase().includes(needle)
+      )
+      return techniques.length ? [{ ...group, techniques }] : []
+    })
+  }, [q])
+
+  const toggleTechnique = (techniqueId: string) => {
+    onChange(
+      selected.includes(techniqueId)
+        ? selected.filter((item) => item !== techniqueId)
+        : [...selected, techniqueId]
+    )
+  }
+
+  const toggleTactic = (techniqueIds: string[]) => {
+    const allSelected = techniqueIds.every((techniqueId) =>
+      selected.includes(techniqueId)
+    )
+    onChange(
+      allSelected
+        ? selected.filter((item) => !techniqueIds.includes(item))
+        : Array.from(new Set([...selected, ...techniqueIds]))
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="default"
+          size="sm"
+          className={cn("gap-1.5", active && "border-primary text-primary")}
+        >
+          MITRE tactic
+          {active ? (
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded bg-primary px-1 text-[11px] font-semibold text-primary-foreground">
+              {selected.length}
+            </span>
+          ) : null}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="border-b border-border p-2">
+          <div className="relative">
+            <SearchIcon
+              size={14}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="Search tactics or techniques"
+              aria-label="Search MITRE tactics or techniques"
+              className="h-8 pl-8"
+            />
+          </div>
+          <p className="mt-1.5 px-0.5 text-hint text-muted-foreground">
+            Enterprise ATT&amp;CK v{MITRE_ENTERPRISE_VERSION}
+          </p>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto px-1">
+          {groups.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No matches
+            </p>
+          ) : (
+            <Accordion
+              type="multiple"
+              defaultValue={[]}
+              className="w-full"
+            >
+              {groups.map((group) => {
+                const allTechniques =
+                  MITRE_ENTERPRISE_TACTICS.find(
+                    (candidate) => candidate.id === group.id
+                  )?.techniques ?? group.techniques
+                const allTechniqueIds = allTechniques.map(
+                  (technique) => technique.id
+                )
+                const selectedCount = allTechniqueIds.filter((techniqueId) =>
+                  selected.includes(techniqueId)
+                ).length
+                const allSelected =
+                  allTechniqueIds.length > 0 &&
+                  selectedCount === allTechniqueIds.length
+                const checked =
+                  selectedCount > 0 && !allSelected ? "indeterminate" : allSelected
+
+                return (
+                  <AccordionItem
+                    key={group.id}
+                    value={group.id}
+                    className="border-border"
+                  >
+                    <div className="flex items-center gap-1 px-2">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-2">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() =>
+                            toggleTactic(allTechniqueIds)
+                          }
+                          aria-label={`Select all ${group.name} techniques`}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                          {group.name}
+                        </span>
+                        <span className="text-hint text-muted-foreground">
+                          {selectedCount}/{allTechniqueIds.length}
+                        </span>
+                      </label>
+                      <AccordionTrigger
+                        className="h-8 w-8 flex-none justify-center p-0 hover:no-underline [&>svg]:translate-y-0"
+                        aria-label={`Expand ${group.name} techniques`}
+                      >
+                        <span className="sr-only">{group.name}</span>
+                      </AccordionTrigger>
+                    </div>
+                    <AccordionContent className="pb-1 pl-8 pr-2">
+                      <div className="flex flex-col">
+                        {group.techniques.map((technique) => (
+                          <label
+                            key={technique.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted"
+                          >
+                            <Checkbox
+                              checked={selected.includes(technique.id)}
+                              onCheckedChange={() =>
+                                toggleTechnique(technique.id)
+                              }
+                            />
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span className="text-sm text-foreground">
+                                {technique.name}
+                              </span>
+                              <span className="text-hint text-muted-foreground">
+                                {technique.id}
+                                {technique.subtechnique ? " · Sub-technique" : ""}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+          )}
+        </div>
+
+        {active ? (
+          <div className="border-t border-border p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-full justify-start text-muted-foreground"
+              onClick={() => onChange([])}
+            >
+              Clear
+            </Button>
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function LakewatchMarketplaceView() {
   const [query, setQuery] = React.useState("")
   const [importRule, setImportRule] = React.useState<DetectionRule | null>(null)
@@ -254,25 +473,28 @@ export function LakewatchMarketplaceView() {
   const [severities, setSeverities] = React.useState<string[]>([])
   const [parsers, setParsers] = React.useState<string[]>([])
   const [datasources, setDatasources] = React.useState<string[]>([])
-  const [tactics, setTactics] = React.useState<string[]>([])
-  const [techniques, setTechniques] = React.useState<string[]>([])
+  const [mitreTechniqueIds, setMitreTechniqueIds] = React.useState<string[]>([])
   const [techniqueIds, setTechniqueIds] = React.useState<string[]>([])
+  const [installedOnly, setInstalledOnly] = React.useState(false)
+  const [installedNames, setInstalledNames] = React.useState(
+    () => new Set(INITIAL_INSTALLED_NAMES)
+  )
 
   const activeCount =
     severities.length +
     parsers.length +
     datasources.length +
-    tactics.length +
-    techniques.length +
-    techniqueIds.length
+    mitreTechniqueIds.length +
+    techniqueIds.length +
+    (installedOnly ? 1 : 0)
 
   const clearAll = React.useCallback(() => {
     setSeverities([])
     setParsers([])
     setDatasources([])
-    setTactics([])
-    setTechniques([])
+    setMitreTechniqueIds([])
     setTechniqueIds([])
+    setInstalledOnly(false)
   }, [])
 
   // Toggle a value in/out of a facet — powers the click-to-filter row badges.
@@ -286,37 +508,115 @@ export function LakewatchMarketplaceView() {
     []
   )
 
-  const rows = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return DETECTION_RULES.filter((rule) => {
+  const matchesFacets = React.useCallback(
+    (
+      rule: DetectionRule,
+      skip?:
+        | "severity"
+        | "parser"
+        | "datasource"
+        | "mitre"
+        | "techniqueId"
+        | "installed"
+    ) => {
+      if (skip !== "severity" && severities.length && !severities.includes(rule.severity)) {
+        return false
+      }
+      if (skip !== "parser" && parsers.length && !parsers.includes(rule.parser)) {
+        return false
+      }
+      if (skip !== "mitre" && !matchesMitreSelection(rule, mitreTechniqueIds)) {
+        return false
+      }
       if (
-        q &&
-        !`${rule.name} ${rule.parser} ${rule.tactic} ${rule.technique} ${rule.techniqueId} ${rule.pack}`
-          .toLowerCase()
-          .includes(q)
+        skip !== "techniqueId" &&
+        techniqueIds.length &&
+        !techniqueIds.includes(rule.techniqueId)
       ) {
         return false
       }
-      if (severities.length && !severities.includes(rule.severity)) return false
-      if (parsers.length && !parsers.includes(rule.parser)) return false
-      if (tactics.length && !tactics.includes(rule.tactic)) return false
-      if (techniques.length && !techniques.includes(rule.technique)) return false
-      if (techniqueIds.length && !techniqueIds.includes(rule.techniqueId)) return false
-      if (datasources.length) {
+      if (skip !== "datasource" && datasources.length) {
         const ds = connectedDatasources(rule)
-        if (!ds.some((d) => datasources.includes(d))) return false
+        if (!ds.some((item) => datasources.includes(item))) return false
+      }
+      if (skip !== "installed" && installedOnly && !installedNames.has(rule.name)) {
+        return false
       }
       return true
-    })
-  }, [query, severities, parsers, datasources, tactics, techniques, techniqueIds])
+    },
+    [
+      severities,
+      parsers,
+      datasources,
+      mitreTechniqueIds,
+      techniqueIds,
+      installedOnly,
+      installedNames,
+    ]
+  )
+
+  const searchQuery = query.trim().toLowerCase()
+
+  const facetFiltered = React.useMemo(
+    () => DETECTION_RULES.filter((rule) => matchesFacets(rule)),
+    [matchesFacets]
+  )
+
+  const rows = React.useMemo(
+    () => facetFiltered.filter((rule) => matchesSearch(rule, searchQuery)),
+    [facetFiltered, searchQuery]
+  )
+
+  const parserOptions = React.useMemo(
+    () =>
+      distinctSorted([
+        ...parsers,
+        ...DETECTION_RULES.filter(
+          (rule) => matchesFacets(rule, "parser") && matchesSearch(rule, searchQuery)
+        ).map((rule) => rule.parser),
+      ]),
+    [matchesFacets, parsers, searchQuery]
+  )
+  const datasourceOptions = React.useMemo(
+    () =>
+      distinctSorted([
+        ...datasources,
+        ...DETECTION_RULES.filter(
+          (rule) => matchesFacets(rule, "datasource") && matchesSearch(rule, searchQuery)
+        ).flatMap((rule) => connectedDatasources(rule)),
+      ]),
+    [datasources, matchesFacets, searchQuery]
+  )
+  const severityOptions = React.useMemo(
+    () =>
+      SEVERITY_ORDER.filter(
+        (severity) =>
+          severities.includes(severity) ||
+          DETECTION_RULES.some(
+            (rule) =>
+              rule.severity === severity &&
+              matchesFacets(rule, "severity") &&
+              matchesSearch(rule, searchQuery)
+          )
+      ),
+    [matchesFacets, searchQuery, severities]
+  )
+  const techniqueIdOptions = React.useMemo(
+    () =>
+      distinctSorted([
+        ...techniqueIds,
+        ...DETECTION_RULES.filter(
+          (rule) =>
+            matchesFacets(rule, "techniqueId") && matchesSearch(rule, searchQuery)
+        ).map((rule) => rule.techniqueId),
+      ]),
+    [matchesFacets, searchQuery, techniqueIds]
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">
       <div className="flex items-start justify-between gap-4">
         <h1 className={PAGE_TITLE_SEMIBOLD}>Marketplace</h1>
-        <div className="shrink-0">
-          <LakewatchDataControls />
-        </div>
       </div>
 
       <Tabs defaultValue="detection-rules" className="mt-5 flex min-h-0 flex-1 flex-col">
@@ -345,45 +645,48 @@ export function LakewatchMarketplaceView() {
             </div>
             <FacetFilter
               label="Severity"
-              options={FACET_SEVERITIES}
+              options={severityOptions}
               selected={severities}
               onChange={setSeverities}
             />
             <FacetFilter
               label="Parser"
-              options={FACET_PARSERS}
+              options={parserOptions}
               selected={parsers}
               onChange={setParsers}
               searchable
             />
             <FacetFilter
               label="Datasource"
-              options={FACET_DATASOURCES}
+              options={datasourceOptions}
               selected={datasources}
               onChange={setDatasources}
               searchable
             />
-            <FacetFilter
-              label="MITRE tactic"
-              options={FACET_TACTICS}
-              selected={tactics}
-              onChange={setTactics}
-              searchable
-            />
-            <FacetFilter
-              label="MITRE technique"
-              options={FACET_TECHNIQUES}
-              selected={techniques}
-              onChange={setTechniques}
-              searchable
+            <MitreTacticFilter
+              selected={mitreTechniqueIds}
+              onChange={setMitreTechniqueIds}
             />
             <FacetFilter
               label="Technique ID"
-              options={FACET_TECHNIQUE_IDS}
+              options={techniqueIdOptions}
               selected={techniqueIds}
               onChange={setTechniqueIds}
               searchable
             />
+            <div className="flex h-8 items-center gap-2">
+              <Checkbox
+                id="marketplace-installed-filter"
+                checked={installedOnly}
+                onCheckedChange={(checked) => setInstalledOnly(checked === true)}
+              />
+              <Label
+                htmlFor="marketplace-installed-filter"
+                className="cursor-pointer font-normal"
+              >
+                Installed
+              </Label>
+            </div>
             <span className="ml-1 text-sm text-muted-foreground">
               {rows.length} {rows.length === 1 ? "result" : "results"}
             </span>
@@ -420,6 +723,7 @@ export function LakewatchMarketplaceView() {
                     rule={rule}
                     onImport={() => setImportRule(rule)}
                     onOpen={() => setDetailRule(rule)}
+                    installed={installedNames.has(rule.name)}
                     onToggleSeverity={(value) => toggleValue(setSeverities, value)}
                     onToggleParser={(value) => toggleValue(setParsers, value)}
                     onToggleTechniqueId={(value) => toggleValue(setTechniqueIds, value)}
@@ -437,7 +741,17 @@ export function LakewatchMarketplaceView() {
       <Dialog open={Boolean(importRule)} onOpenChange={(open) => !open && setImportRule(null)}>
         <DialogContent className="sm:max-w-xl">
           {importRule ? (
-            <ImportDialogBody rule={importRule} onDone={() => setImportRule(null)} />
+            <ImportDialogBody
+              rule={importRule}
+              onDone={() => {
+                setInstalledNames((current) => {
+                  const next = new Set(current)
+                  next.add(importRule.name)
+                  return next
+                })
+                setImportRule(null)
+              }}
+            />
           ) : null}
         </DialogContent>
       </Dialog>
@@ -447,6 +761,7 @@ export function LakewatchMarketplaceView() {
           {detailRule ? (
             <DetectionRuleDetailPanel
               rule={detailRule}
+              installed={installedNames.has(detailRule.name)}
               onImport={() => setImportRule(detailRule)}
             />
           ) : null}
@@ -458,21 +773,27 @@ export function LakewatchMarketplaceView() {
 
 function DetectionRuleDetailPanel({
   rule,
+  installed,
   onImport,
 }: {
   rule: DetectionRule
+  installed: boolean
   onImport: () => void
 }) {
   const detail = getRuleDetail(rule)
   const datasources = connectedDatasources(rule)
-  const canImport = datasources.length > 0
+  const canImport = datasources.length > 0 && !installed
   const mitre = rule.tactic && rule.technique ? `${rule.tactic} / ${rule.technique}` : null
 
   return (
     <>
       <SheetHeader className="flex-row items-center gap-2 border-b px-4 py-3">
         <SheetTitle className="min-w-0 flex-1 truncate">{rule.name}</SheetTitle>
-        {canImport ? (
+        {installed ? (
+          <Button variant="default" size="xs" className="mr-6" disabled>
+            Installed
+          </Button>
+        ) : canImport ? (
           <Button variant="primary" size="xs" className="mr-6" onClick={onImport}>
             Import
           </Button>
@@ -826,6 +1147,7 @@ function DetectionRuleRow({
   activeSeverity,
   activeParser,
   activeTechniqueId,
+  installed,
 }: {
   rule: DetectionRule
   onImport: () => void
@@ -836,9 +1158,10 @@ function DetectionRuleRow({
   activeSeverity: boolean
   activeParser: boolean
   activeTechniqueId: boolean
+  installed: boolean
 }) {
   const datasources = connectedDatasources(rule)
-  const canImport = datasources.length > 0
+  const canImport = datasources.length > 0 && !installed
 
   return (
     <TableRow className="h-12">
@@ -912,7 +1235,11 @@ function DetectionRuleRow({
         </span>
       </TableCell>
       <TableCell className="text-right">
-        {canImport ? (
+        {installed ? (
+          <Button variant="default" size="xs" disabled>
+            Installed
+          </Button>
+        ) : canImport ? (
           <Button variant="default" size="xs" onClick={onImport}>
             Import
           </Button>

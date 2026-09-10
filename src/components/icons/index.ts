@@ -147,6 +147,7 @@ export { DecimalIcon } from "./DecimalIcon";
 export { DeprecatedIcon } from "./DeprecatedIcon";
 export { DeprecatedSmallIcon } from "./DeprecatedSmallIcon";
 export { DetectionNavIcon } from "./DetectionNavIcon";
+export { ContentLibraryNavIcon } from "./ContentLibraryNavIcon";
 export { DollarIcon } from "./DollarIcon";
 export { DomainCirclesThree } from "./DomainCirclesThree";
 export { DomainsIcon } from "./DomainsIcon";

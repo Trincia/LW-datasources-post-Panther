@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 
 import { CatalogIcon, DatasourceNavIcon, SearchDataIcon } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { getDataModel } from "@/components/lakewatch/data-models/dataModels"
 import { getNormalizerBlueprint } from "@/components/lakewatch/normalizers/normalizers"
@@ -178,7 +177,6 @@ export function LakewatchSourceDataPreviewView({
               <h1 className={PAGE_TITLE_SEMIBOLD}>{blueprint.source.name}</h1>
             </div>
             <div className="flex shrink-0 items-center gap-4">
-              <LakewatchDataControls />
               <Button variant="default" size="sm">
                 <SearchDataIcon size={16} />
                 Query

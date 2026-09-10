@@ -3,7 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import { ArrowsUpDownIcon, PlusIcon, SearchIcon } from "@/components/icons"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -63,8 +62,7 @@ export function LakewatchNormalizersView() {
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <h1 className={PAGE_TITLE_SEMIBOLD}>Normalizers</h1>
-          <div className="flex shrink-0 items-center gap-4">
-            <LakewatchDataControls />
+            <div className="flex shrink-0 items-center gap-4">
             <Button variant="primary" size="sm" asChild>
               <Link href="/lakewatch/normalizers/new">
                 <PlusIcon size={16} />

@@ -15,7 +15,6 @@ import {
   LakewatchDatasourceLogo,
   type LakewatchDatasourceLogoKind,
 } from "@/components/lakewatch/datasources-new/LakewatchDatasourceLogo"
-import { LakewatchDataControls } from "@/components/lakewatch/LakewatchWarehouseSelector"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -288,7 +287,6 @@ export function LakewatchDatasourcesOverviewView() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
-          <LakewatchDataControls />
           <Button variant="primary" size="sm" asChild>
             <Link href="/lakewatch/datasources/new">
               <PlusIcon size={16} />
