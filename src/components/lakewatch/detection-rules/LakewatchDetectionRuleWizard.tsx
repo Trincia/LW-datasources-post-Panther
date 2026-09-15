@@ -3,10 +3,20 @@
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { Check, Code2, Database, UserRound } from "lucide-react"
+import {
+  Check,
+  Code2,
+  Database,
+  Plus,
+  Trash2,
+  UserRound,
+} from "lucide-react"
 
 import { InfoIcon } from "@/components/icons"
-import { getDetectionRule } from "@/components/lakewatch/detection-rules/detectionRuleDetails"
+import {
+  getDetectionRule,
+  type DetectionRuleDetail,
+} from "@/components/lakewatch/detection-rules/detectionRuleDetails"
 import type { DetectionSeverity } from "@/components/lakewatch/detection-rules/detectionRulesList"
 import { PAGE_TITLE_SEMIBOLD } from "@/components/lakewatch/pageTitleStyles"
 import {
@@ -20,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -40,11 +51,49 @@ import { cn } from "@/lib/utils"
 const STEPS = ["Rule & Input", "MITRE ATT&CK", "Signal output", "Processing"] as const
 const SEVERITIES = ["Informational", "Low", "Medium", "High", "Critical"] as const
 const FIDELITIES = ["Development", "Investigative", "Medium", "High"] as const
+type RuleType = "streaming" | "scheduled"
 
-export function LakewatchDetectionRuleWizard() {
+const CREATE_RULE: DetectionRuleDetail = {
+  id: "new",
+  name: "test_rule",
+  location: "group_7_demo.default",
+  description: "",
+  severity: "Informational",
+  lastModified: "Just now",
+  category: "Static Signature",
+  fidelity: "Low",
+  annotations: [],
+  active: true,
+  catalog: "group_7_demo",
+  schema: "default",
+  runAs: "Sigi Puchbauer",
+  sourceTable: "group_7_demo.default",
+  query: "SELECT 1",
+  mitreTactic: "",
+  mitreTechnique: "",
+  mitreSubtechnique: "",
+  summary: "",
+  objective: "",
+  scheduleMinutes: 60,
+  jobGrouping: "Dedicated",
+  performance: "Standard",
+  signals24h: 0,
+  signals7d: 0,
+  lastTriggered: "Never",
+}
+
+export function LakewatchDetectionRuleWizard({
+  mode = "edit",
+}: {
+  mode?: "create" | "edit"
+}) {
   const { ruleId } = useParams<{ ruleId: string }>()
   const router = useRouter()
-  const rule = getDetectionRule(ruleId)
+  const rule = mode === "create" ? CREATE_RULE : getDetectionRule(ruleId)
+  const isCreate = mode === "create"
+  const [ruleType, setRuleType] = React.useState<RuleType | null>(
+    isCreate ? null : "scheduled"
+  )
   const [activeStep, setActiveStep] = React.useState(1)
   const [active, setActive] = React.useState(rule?.active ?? true)
   const [suppress, setSuppress] = React.useState(false)
@@ -55,15 +104,33 @@ export function LakewatchDetectionRuleWizard() {
   const [tactic, setTactic] = React.useState(rule?.mitreTactic ?? "")
   const [technique, setTechnique] = React.useState(rule?.mitreTechnique ?? "")
   const [subtechnique, setSubtechnique] = React.useState(rule?.mitreSubtechnique ?? "")
+  const [mitreAdded, setMitreAdded] = React.useState(
+    Boolean(rule?.mitreTactic || rule?.mitreTechnique || rule?.mitreSubtechnique)
+  )
   const [summary, setSummary] = React.useState(rule?.summary ?? "")
   const [includeAllData, setIncludeAllData] = React.useState(true)
   const [deduplication, setDeduplication] = React.useState(true)
-  const [severity, setSeverity] = React.useState(rule?.severity ?? "Medium")
+  const [severity, setSeverity] = React.useState(
+    rule?.severity ?? "Informational"
+  )
   const [fidelity, setFidelity] = React.useState(
-    rule?.fidelity === "Low" ? "Investigative" : rule?.fidelity ?? "Medium"
+    isCreate
+      ? "Development"
+      : rule?.fidelity === "Low"
+        ? "Investigative"
+        : rule?.fidelity ?? "Medium"
   )
   const [category, setCategory] = React.useState(rule?.category ?? "")
   const [objective, setObjective] = React.useState(rule?.objective ?? "")
+  const [annotations, setAnnotations] = React.useState([
+    { key: "", value: "" },
+  ])
+  const [jobGrouping, setJobGrouping] = React.useState<
+    "Dedicated" | "Shared"
+  >(rule?.jobGrouping ?? "Dedicated")
+  const [performance, setPerformance] = React.useState<
+    "Standard" | "Performance optimized"
+  >(rule?.performance ?? "Standard")
 
   if (!rule) {
     return (
@@ -78,6 +145,12 @@ export function LakewatchDetectionRuleWizard() {
 
   const goNext = () => setActiveStep((step) => Math.min(STEPS.length, step + 1))
   const goBack = () => setActiveStep((step) => Math.max(1, step - 1))
+  const createTitle =
+    ruleType === "streaming"
+      ? "Create streaming detection rule"
+      : ruleType === "scheduled"
+        ? "Create scheduled detection rule"
+        : "Create detection rule"
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-5">
@@ -93,62 +166,101 @@ export function LakewatchDetectionRuleWizard() {
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link href={`/lakewatch/detection/${rule.id}`}>{rule.name}</Link>
+                  <Link href={isCreate ? "/lakewatch/detection" : `/lakewatch/detection/${rule.id}`}>
+                    {isCreate ? "New rule" : rule.name}
+                  </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>Edit</BreadcrumbPage>
+                <BreadcrumbPage>
+                  {isCreate
+                    ? ruleType === "streaming"
+                      ? "Streaming"
+                      : ruleType === "scheduled"
+                        ? "Scheduled"
+                        : "Create"
+                    : "Edit"}
+                </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h1 className={PAGE_TITLE_SEMIBOLD}>Edit detection rule</h1>
+          <h1 className={PAGE_TITLE_SEMIBOLD}>
+            {isCreate ? createTitle : "Edit detection rule"}
+          </h1>
         </div>
       </div>
 
-      <div className="mt-5 grid min-h-0 flex-1 gap-8 lg:grid-cols-[220px_minmax(0,920px)] lg:justify-center">
-        <WizardProgress
-          activeStep={activeStep}
-          name={name}
-          location={`${rule.catalog}.${rule.schema}`}
-          severity={severity}
-          fidelity={fidelity}
-          schedule={rule.scheduleMinutes}
-        />
+      <div
+        className={cn(
+          "mt-5 grid min-h-0 flex-1 gap-8 lg:justify-center",
+          ruleType
+            ? "lg:grid-cols-[220px_minmax(0,920px)]"
+            : "lg:grid-cols-[minmax(0,920px)]"
+        )}
+      >
+        {ruleType ? (
+          <WizardProgress
+            activeStep={activeStep}
+            name={name}
+            location={`${rule.catalog}.${rule.schema}`}
+            ruleType={ruleType}
+            severity={severity}
+            fidelity={fidelity}
+            schedule={rule.scheduleMinutes}
+          />
+        ) : null}
 
         <form
           className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border"
           onSubmit={(event) => {
             event.preventDefault()
+            if (!ruleType) return
             if (activeStep < STEPS.length) goNext()
-            else router.push(`/lakewatch/detection/${rule.id}`)
+            else router.push("/lakewatch/detection")
           }}
         >
           <div className="flex shrink-0 items-start justify-between gap-6 bg-muted p-6">
             <div>
-              <p className="text-hint font-semibold text-foreground">Step {activeStep}</p>
-              <h2 className="mt-4 text-lg font-semibold leading-6 text-foreground">
-                {STEPS[activeStep - 1]}
+              {ruleType ? (
+                <p className="text-hint font-semibold text-foreground">
+                  Step {activeStep}
+                </p>
+              ) : null}
+              <h2
+                className={cn(
+                  "text-lg font-semibold leading-6 text-foreground",
+                  ruleType && "mt-4"
+                )}
+              >
+                {ruleType ? STEPS[activeStep - 1] : "Choose a rule type"}
               </h2>
               <p className="mt-1 text-hint text-muted-foreground">
-                {getStepDescription(activeStep)}
+                {ruleType
+                  ? getStepDescription(activeStep)
+                  : "Select how this detection rule should process security events."}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-4">
-              <ToggleRow label="Active" checked={active} onCheckedChange={setActive} />
-              <SuppressControl
-                checked={suppress}
-                onCheckedChange={setSuppress}
-                until={suppressUntil}
-                onUntilChange={setSuppressUntil}
-              />
-            </div>
+            {ruleType ? (
+              <div className="flex flex-col items-end gap-4">
+                <ToggleRow label="Active" checked={active} onCheckedChange={setActive} />
+                <SuppressControl
+                  checked={suppress}
+                  onCheckedChange={setSuppress}
+                  until={suppressUntil}
+                  onUntilChange={setSuppressUntil}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
-            {activeStep === 1 ? (
+            {!ruleType ? (
+              <RuleTypeChoice onSelect={setRuleType} />
+            ) : activeStep === 1 ? (
               <RuleInputStep
                 rule={rule}
+                ruleType={ruleType}
                 name={name}
                 onNameChange={setName}
                 description={description}
@@ -159,6 +271,8 @@ export function LakewatchDetectionRuleWizard() {
             ) : null}
             {activeStep === 2 ? (
               <MitreStep
+                added={mitreAdded}
+                onAdd={() => setMitreAdded(true)}
                 tactic={tactic}
                 onTacticChange={setTactic}
                 technique={technique}
@@ -188,23 +302,45 @@ export function LakewatchDetectionRuleWizard() {
                 onCategoryChange={setCategory}
                 objective={objective}
                 onObjectiveChange={setObjective}
+                annotations={annotations}
+                onAnnotationsChange={setAnnotations}
+                jobGrouping={jobGrouping}
+                onJobGroupingChange={setJobGrouping}
+                performance={performance}
+                onPerformanceChange={setPerformance}
               />
             ) : null}
           </div>
 
           <div className="flex shrink-0 items-center justify-between border-t border-border px-6 py-4">
             <Button variant="link" size="sm" asChild>
-              <Link href={`/lakewatch/detection/${rule.id}`}>Cancel</Link>
+              <Link href={isCreate ? "/lakewatch/detection" : `/lakewatch/detection/${rule.id}`}>
+                Cancel
+              </Link>
             </Button>
             <div className="flex items-center gap-2">
-              {activeStep > 1 ? (
-                <Button type="button" variant="default" size="sm" onClick={goBack}>
+              {ruleType && (activeStep > 1 || isCreate) ? (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    if (isCreate && activeStep === 1) setRuleType(null)
+                    else goBack()
+                  }}
+                >
                   Back
                 </Button>
               ) : null}
-              <Button type="submit" variant="primary" size="sm">
-                {activeStep === STEPS.length ? "Save" : "Next"}
-              </Button>
+              {ruleType ? (
+                <Button type="submit" variant="primary" size="sm">
+                  {activeStep === STEPS.length
+                    ? isCreate
+                      ? "Create"
+                      : "Save"
+                    : "Next"}
+                </Button>
+              ) : null}
             </div>
           </div>
         </form>
@@ -217,6 +353,7 @@ function WizardProgress({
   activeStep,
   name,
   location,
+  ruleType,
   severity,
   fidelity,
   schedule,
@@ -224,6 +361,7 @@ function WizardProgress({
   activeStep: number
   name: string
   location: string
+  ruleType: RuleType
   severity: string
   fidelity: string
   schedule: number
@@ -260,7 +398,10 @@ function WizardProgress({
                   <div className="mt-2 space-y-0.5 text-hint text-foreground">
                     <p><span className="font-semibold">Name:</span> {name}</p>
                     <p className="truncate"><span className="font-semibold">Location:</span> {location}</p>
-                    <p><span className="font-semibold">Detection:</span> Inline</p>
+                    <p>
+                      <span className="font-semibold">Detection type:</span>{" "}
+                      {ruleType === "streaming" ? "Streaming" : "Scheduled"}
+                    </p>
                   </div>
                 ) : null}
                 {step === 4 && activeStep === 4 ? (
@@ -279,8 +420,55 @@ function WizardProgress({
   )
 }
 
+function RuleTypeChoice({
+  onSelect,
+}: {
+  onSelect: (ruleType: RuleType) => void
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Button
+        type="button"
+        variant="default"
+        className="h-auto min-h-[184px] items-start justify-start whitespace-normal p-6 text-left"
+        onClick={() => onSelect("streaming")}
+      >
+        <span className="flex flex-col gap-3">
+          <span className="text-base font-semibold text-foreground">
+            Streaming rule
+          </span>
+          <span className="text-sm font-normal leading-5 text-muted-foreground">
+            Best for deterministic, event-by-event detections that need
+            sub-minute latency: signature/IOC matches and atomic signals (new
+            admin account, connection to a TI-flagged IP). Not for anything
+            that counts, windows, or looks back over history.
+          </span>
+        </span>
+      </Button>
+      <Button
+        type="button"
+        variant="default"
+        className="h-auto min-h-[184px] items-start justify-start whitespace-normal p-6 text-left"
+        onClick={() => onSelect("scheduled")}
+      >
+        <span className="flex flex-col gap-3">
+          <span className="text-base font-semibold text-foreground">
+            Scheduled rule
+          </span>
+          <span className="text-sm font-normal leading-5 text-muted-foreground">
+            Best for anything windowed, stateful, or historical: thresholds
+            (brute-force/spray), behavioral baselines, rare/first-seen, and
+            cross-source correlation.
+          </span>
+        </span>
+      </Button>
+    </div>
+  )
+}
+
 function RuleInputStep({
   rule,
+  ruleType,
   name,
   onNameChange,
   description,
@@ -289,6 +477,7 @@ function RuleInputStep({
   onQueryChange,
 }: {
   rule: NonNullable<ReturnType<typeof getDetectionRule>>
+  ruleType: RuleType
   name: string
   onNameChange: (value: string) => void
   description: string
@@ -330,9 +519,13 @@ function RuleInputStep({
           <div className="flex items-start gap-3">
             <Code2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
             <div>
-              <p className="text-sm font-semibold text-foreground">Scheduled</p>
+              <p className="text-sm font-semibold text-foreground">
+                {ruleType === "streaming" ? "Streaming" : "Scheduled"}
+              </p>
               <p className="text-hint text-muted-foreground">
-                Scheduled detection with a SQL query against tables.
+                {ruleType === "streaming"
+                  ? "Streaming detection that evaluates each event as it arrives."
+                  : "Scheduled detection with a SQL query against tables."}
               </p>
             </div>
           </div>
@@ -359,6 +552,8 @@ function RuleInputStep({
 }
 
 function MitreStep({
+  added,
+  onAdd,
   tactic,
   onTacticChange,
   technique,
@@ -366,6 +561,8 @@ function MitreStep({
   subtechnique,
   onSubtechniqueChange,
 }: {
+  added: boolean
+  onAdd: () => void
   tactic: string
   onTacticChange: (value: string) => void
   technique: string
@@ -373,6 +570,20 @@ function MitreStep({
   subtechnique: string
   onSubtechniqueChange: (value: string) => void
 }) {
+  if (!added) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-muted-foreground">
+          No MITRE ATT&amp;CK mappings added yet.
+        </p>
+        <Button type="button" variant="default" size="sm" onClick={onAdd}>
+          <Plus className="h-4 w-4" />
+          Add
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-4 rounded-md border border-border p-4 md:grid-cols-2">
       <Field label="Taxonomy">
@@ -471,6 +682,12 @@ function ProcessingStep({
   onCategoryChange,
   objective,
   onObjectiveChange,
+  annotations,
+  onAnnotationsChange,
+  jobGrouping,
+  onJobGroupingChange,
+  performance,
+  onPerformanceChange,
 }: {
   rule: NonNullable<ReturnType<typeof getDetectionRule>>
   severity: DetectionSeverity
@@ -481,6 +698,16 @@ function ProcessingStep({
   onCategoryChange: (value: string) => void
   objective: string
   onObjectiveChange: (value: string) => void
+  annotations: Array<{ key: string; value: string }>
+  onAnnotationsChange: (
+    annotations: Array<{ key: string; value: string }>
+  ) => void
+  jobGrouping: "Dedicated" | "Shared"
+  onJobGroupingChange: (value: "Dedicated" | "Shared") => void
+  performance: "Standard" | "Performance optimized"
+  onPerformanceChange: (
+    value: "Standard" | "Performance optimized"
+  ) => void
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -518,7 +745,7 @@ function ProcessingStep({
         <Select value={category} onValueChange={onCategoryChange}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {["Credential Access", "Defense Evasion", "Exfiltration", "Identity", "Initial Access", "Persistence", "Privilege Escalation"].map((value) => (
+            {["Static Signature", "Credential Access", "Defense Evasion", "Exfiltration", "Identity", "Initial Access", "Persistence", "Privilege Escalation"].map((value) => (
               <SelectItem key={value} value={value}>{value}</SelectItem>
             ))}
           </SelectContent>
@@ -531,10 +758,64 @@ function ProcessingStep({
           onChange={(event) => onObjectiveChange(event.target.value)}
         />
       </Field>
-      <Field label="Annotations" hint="Annotations add identifying tags to rules for searching and organization.">
-        <div className="flex gap-2">
-          <Input value="environment" readOnly aria-label="Annotation key" />
-          <Input value={rule.annotations.join(", ")} readOnly aria-label="Annotation value" />
+      <Field label="Annotations" hint="Annotations allow you to apply additional tags to your rules for easy searching and organization.">
+        <div className="flex flex-col gap-2">
+          {annotations.map((annotation, index) => (
+            <div key={index} className="flex gap-2">
+              <Input
+                value={annotation.key}
+                placeholder="Enter key"
+                aria-label={`Annotation ${index + 1} key`}
+                onChange={(event) =>
+                  onAnnotationsChange(
+                    annotations.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, key: event.target.value }
+                        : item
+                    )
+                  )
+                }
+              />
+              <Input
+                value={annotation.value}
+                placeholder="Enter value"
+                aria-label={`Annotation ${index + 1} value`}
+                onChange={(event) =>
+                  onAnnotationsChange(
+                    annotations.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, value: event.target.value }
+                        : item
+                    )
+                  )
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove annotation ${index + 1}`}
+                onClick={() =>
+                  onAnnotationsChange(
+                    annotations.filter((_, itemIndex) => itemIndex !== index)
+                  )
+                }
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Add annotation"
+            onClick={() =>
+              onAnnotationsChange([...annotations, { key: "", value: "" }])
+            }
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </Field>
       <Field label="Schedule">
@@ -550,10 +831,58 @@ function ProcessingStep({
           </Select>
         </div>
       </Field>
-      <div>
-        <p className="text-sm font-semibold text-foreground">Job grouping</p>
-        <p className="mt-1 text-sm text-foreground">{rule.jobGrouping}</p>
-      </div>
+      <Field label="Job grouping">
+        <RadioGroup
+          value={jobGrouping}
+          onValueChange={(value) =>
+            onJobGroupingChange(value as "Dedicated" | "Shared")
+          }
+          className="gap-3"
+        >
+          <RadioOption
+            id="job-dedicated"
+            value="Dedicated"
+            label="Dedicated"
+            description="This detection will be executed with dedicated job."
+          />
+          <RadioOption
+            id="job-shared"
+            value="Shared"
+            label="Job group"
+            description="This detection will be executed together with other detections in the same job group."
+          >
+            <Input
+              placeholder="Enter a job group name"
+              disabled={jobGrouping !== "Shared"}
+            />
+          </RadioOption>
+        </RadioGroup>
+      </Field>
+      <Field
+        label="Performance target"
+        hint="The default compute mode used by rule jobs."
+      >
+        <RadioGroup
+          value={performance}
+          onValueChange={(value) =>
+            onPerformanceChange(
+              value as "Standard" | "Performance optimized"
+            )
+          }
+          className="gap-3"
+        >
+          <RadioOption
+            id="performance-optimized"
+            value="Performance optimized"
+            label="Performance optimized"
+          />
+          <RadioOption
+            id="performance-standard"
+            value="Standard"
+            label="Standard"
+          />
+        </RadioGroup>
+      </Field>
     </div>
   )
 }
@@ -572,6 +901,35 @@ function Field({
       <Label>{label}</Label>
       {hint ? <p className="text-hint text-muted-foreground">{hint}</p> : null}
       {children}
+    </div>
+  )
+}
+
+function RadioOption({
+  id,
+  value,
+  label,
+  description,
+  children,
+}: {
+  id: string
+  value: string
+  label: string
+  description?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <RadioGroupItem id={id} value={value} className="mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <Label htmlFor={id} className="font-normal">
+          {label}
+        </Label>
+        {children ? <div className="mt-1">{children}</div> : null}
+        {description ? (
+          <p className="mt-1 text-hint text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
     </div>
   )
 }

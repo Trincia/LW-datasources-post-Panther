@@ -276,9 +276,16 @@ export function LakewatchDetectionRulesView() {
         <h1 className={PAGE_TITLE_SEMIBOLD}>Detection rules</h1>
         <div className="flex shrink-0 items-center gap-2.5">
           <div className="flex">
-            <Button variant="primary" size="sm" className="rounded-r-none">
-              <PlusIcon size={16} />
-              Create detection rule
+            <Button
+              variant="primary"
+              size="sm"
+              className="rounded-r-none"
+              asChild
+            >
+              <Link href="/lakewatch/detection/new">
+                <PlusIcon size={16} />
+                Create detection rule
+              </Link>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
